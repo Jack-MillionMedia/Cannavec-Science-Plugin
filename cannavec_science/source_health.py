@@ -62,6 +62,19 @@ _PROBE_URLS = {
     "biorxiv": "https://api.biorxiv.org/details/biorxiv/2024-01-01/2024-01-02/0/json",
     "medrxiv": "https://api.biorxiv.org/details/medrxiv/2024-01-01/2024-01-02/0/json",
     "courtlistener": "https://www.courtlistener.com/api/rest/v4/",
+    # Cannabis-primary-source widening (life-science skill layer).
+    "pubchem": (
+        "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/644019/"
+        "property/MolecularFormula/JSON"
+    ),
+    "pharmgkb": "https://api.pharmgkb.org/v1/data/chemical?name=cannabidiol&view=base",
+    "rcsb": "https://data.rcsb.org/rest/v1/core/entry/6N4B",
+    "opentargets": "https://api.platform.opentargets.org/api/v4/graphql",
+    "gwas": "https://www.ebi.ac.uk/gwas/rest/api/v2/metadata",
+    "bindingdb": (
+        "https://bindingdb.org/rest/getLigandsByUniprots"
+        "?uniprot=P21554&cutoff=10000&response=application/json"
+    ),
 }
 
 

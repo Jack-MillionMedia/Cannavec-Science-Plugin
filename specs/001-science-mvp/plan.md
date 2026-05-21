@@ -244,3 +244,25 @@ Before pushing the MVP branch, ALL of the following MUST hold:
   honest answer is "the v0.x MVP is researcher-only; here is what
   v0.2 will look like with a constitutional amendment." This is
   itself a credibility signal.
+
+## Addendum — Cannabis-primary-source widening (post-MVP, in-Constitution)
+
+After the MVP shipped, Tier-3 live discovery was widened from three
+sources to nine. The added sources are PubChem (compound structures),
+PharmGKB (cannabis-metabolism pharmacogenomics), RCSB PDB (CB1/CB2
+crystal structures), Open Targets (CNR1/CNR2 ↔ disease evidence), GWAS
+Catalog (cannabis-use-disorder loci), and BindingDB (measured cannabinoid
+affinities). All six follow the existing Tier-3 contract: stdlib
+`urllib` transport, injected-fetcher offline tests, safety + banned-
+pattern preflight before any network call, `live_<source>` provenance
+tags that never auto-promote to the curated registry tier. Each ships
+with positive + negative + refusal + network-error tests under
+`tests/test_<name>_discover.py`.
+
+This widening is **in-constitution**: it deepens §I (Primary-Source-Or-
+Refuse) by giving the researcher more identifier-anchored primary
+sources, and stays within §IV (Researcher-Only) by adding no new
+audience surface. It does NOT add bioRxiv preprints — that remains
+out-of-scope per trade-off #2 above and would require an amendment.
+A companion skill `cannabis-primary-source-routing` documents the
+per-question source-picking heuristic.

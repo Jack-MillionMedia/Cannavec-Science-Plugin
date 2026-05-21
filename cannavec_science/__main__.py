@@ -61,9 +61,6 @@ def _cmd_answer(args: argparse.Namespace) -> int:
 
 def _cmd_discover(args: argparse.Namespace) -> int:
     from cannavec_science.discover_guard import DiscoverRefused, preflight
-    from cannavec_science.pubmed_search import PubMedSearcher
-    from cannavec_science.chembl_discover import ChEMBLSearcher
-    from cannavec_science.ctgov_discover import CTGovSearcher
     from cannavec_science.synthesis import synthesize, render_markdown
 
     try:
@@ -72,64 +69,131 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         print(f"[refused] {exc}", file=sys.stderr)
         return 2
 
-    sources = {s.strip() for s in (args.sources or "pubmed,chembl,ctgov").split(",")}
+    default_sources = "pubmed,chembl,ctgov"
+    sources = {s.strip() for s in (args.sources or default_sources).split(",")}
     out_payload: dict = {"query": args.query, "sources": {}}
 
-    if "pubmed" in sources:
+    for source_key in sorted(sources):
+        runner = _DISCOVERER_REGISTRY.get(source_key)
+        if runner is None:
+            out_payload["sources"][source_key] = {
+                "error": f"unknown source: {source_key!r}",
+            }
+            continue
         try:
-            searcher = PubMedSearcher()
-            hits = searcher.search(args.query, since=args.since, max_results=args.max)
-            out_payload["sources"]["pubmed"] = [h.to_dict() for h in hits]
+            rows = runner(args)
+            out_payload["sources"][source_key] = [r.to_dict() for r in rows]
         except Exception as exc:
-            out_payload["sources"]["pubmed"] = {"error": str(exc)}
+            out_payload["sources"][source_key] = {"error": str(exc)}
 
-    if "chembl" in sources:
-        try:
-            searcher = ChEMBLSearcher()
-            rows = searcher.search(args.query, max_results=args.max)
-            out_payload["sources"]["chembl"] = [r.to_dict() for r in rows]
-        except Exception as exc:
-            out_payload["sources"]["chembl"] = {"error": str(exc)}
-
-    if "ctgov" in sources:
-        try:
-            searcher = CTGovSearcher()
-            rows = searcher.search(args.query, max_results=args.max)
-            out_payload["sources"]["ctgov"] = [r.to_dict() for r in rows]
-        except Exception as exc:
-            out_payload["sources"]["ctgov"] = {"error": str(exc)}
-
-    # Build synthesis block — each source contributes its row-list.
-    synth_rows = {}
+    # Build synthesis block keyed by the synthesis _SOURCE_KEYS — the
+    # same short keys the CLI uses, so cross-source clustering picks up
+    # every live row that came back.
+    synth_rows: dict = {}
     for src, val in out_payload["sources"].items():
         if isinstance(val, list):
-            synth_rows[f"live_{src}"] = val
+            synth_rows[src] = val
     block = synthesize(args.query, synth_rows)
 
     if args.json:
-        out_payload["synthesis"] = {
-            "convergence": block.convergence.value,
-            "n_clusters": len(block.clusters),
-            "disagreement": block.first_disagreement,
-        }
+        out_payload["synthesis"] = block.to_dict()
         print(json.dumps(out_payload, indent=2, default=str))
-    else:
-        for src, val in out_payload["sources"].items():
-            print(f"\n## Live {src} ({len(val) if isinstance(val, list) else 0})")
-            print("")
-            if isinstance(val, dict) and "error" in val:
-                print(f"_(live source unavailable: {val['error']})_")
-                continue
-            for r in val[: args.max]:
-                ident = r.get("pmid") or r.get("nct_id") or r.get("activity_id") or "?"
-                yr = r.get("year") or r.get("start_year") or ""
-                title = r.get("title") or r.get("brief_title") or r.get("compound") or ""
-                print(f"- `{ident}` ({yr}) {title}")
-        print("\n## Cross-source synthesis")
-        print("")
-        print(render_markdown(block))
+        return 0
 
+    for src in sorted(out_payload["sources"]):
+        val = out_payload["sources"][src]
+        n = len(val) if isinstance(val, list) else 0
+        print(f"\n## Live {src} ({n})")
+        print("")
+        if isinstance(val, dict) and "error" in val:
+            print(f"_(live source unavailable: {val['error']})_")
+            continue
+        for r in val[: args.max]:
+            ident = (
+                r.get("pmid")
+                or r.get("nct_id")
+                or r.get("activity_id")
+                or r.get("cid")
+                or r.get("pdb_id")
+                or r.get("accession_id")
+                or r.get("ensembl_id")
+                or r.get("monomer_id")
+                or r.get("chembl_id")
+                or "?"
+            )
+            yr = r.get("year") or r.get("start_year") or ""
+            title = (
+                r.get("title")
+                or r.get("brief_title")
+                or r.get("disease_name")
+                or r.get("compound")
+                or ""
+            )
+            print(f"- `{ident}` ({yr}) {title}".rstrip())
+    print("\n## Cross-source synthesis")
+    print("")
+    print(render_markdown(block))
     return 0
+
+
+def _run_pubmed(args):
+    from cannavec_science.pubmed_search import PubMedSearcher
+    return PubMedSearcher().search(
+        args.query, since=args.since, max_results=args.max
+    )
+
+
+def _run_chembl(args):
+    from cannavec_science.chembl_discover import ChEMBLSearcher
+    return ChEMBLSearcher().search(args.query, max_results=args.max)
+
+
+def _run_ctgov(args):
+    from cannavec_science.ctgov_discover import CTGovSearcher
+    return CTGovSearcher().search(args.query, max_results=args.max)
+
+
+def _run_pubchem(args):
+    from cannavec_science.pubchem_discover import PubChemSearcher
+    return PubChemSearcher().search(args.query, max_results=args.max)
+
+
+def _run_pharmgkb(args):
+    from cannavec_science.pharmgkb_discover import PharmGKBSearcher
+    return PharmGKBSearcher().search(args.query, max_results=args.max)
+
+
+def _run_rcsb(args):
+    from cannavec_science.rcsb_discover import RCSBSearcher
+    return RCSBSearcher().search(args.query, max_results=args.max)
+
+
+def _run_opentargets(args):
+    from cannavec_science.opentargets_discover import OpenTargetsSearcher
+    return OpenTargetsSearcher().search(args.query, max_results=args.max)
+
+
+def _run_gwas(args):
+    from cannavec_science.gwas_discover import GWASSearcher
+    return GWASSearcher().search(args.query, max_results=args.max)
+
+
+def _run_bindingdb(args):
+    from cannavec_science.bindingdb_discover import BindingDBSearcher
+    return BindingDBSearcher().search(args.query, max_results=args.max)
+
+
+_DISCOVERER_REGISTRY = {
+    "pubmed": _run_pubmed,
+    "chembl": _run_chembl,
+    "ctgov": _run_ctgov,
+    "pubchem": _run_pubchem,
+    "pharmgkb": _run_pharmgkb,
+    "rcsb": _run_rcsb,
+    "opentargets": _run_opentargets,
+    "gwas": _run_gwas,
+    "bindingdb": _run_bindingdb,
+}
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
@@ -317,13 +381,26 @@ def _build_parser() -> argparse.ArgumentParser:
     a.set_defaults(func=_cmd_answer)
 
     # discover
-    d = sub.add_parser("discover",
-                       help="Live multi-source fan-out: PubMed + ChEMBL + CTGov.")
+    d = sub.add_parser(
+        "discover",
+        help=(
+            "Live multi-source fan-out across primary scientific sources: "
+            "pubmed, chembl, ctgov (default) plus optional cannabis-primary "
+            "widening: pubchem, pharmgkb, rcsb, opentargets, gwas, bindingdb."
+        ),
+    )
     d.add_argument("query")
     d.add_argument("--since", default=None,
                    help="ISO date floor (e.g., 2024-01-01)")
     d.add_argument("--max", type=int, default=10)
-    d.add_argument("--sources", default="pubmed,chembl,ctgov")
+    d.add_argument(
+        "--sources",
+        default="pubmed,chembl,ctgov",
+        help=(
+            "Comma-separated subset of: pubmed, chembl, ctgov, pubchem, "
+            "pharmgkb, rcsb, opentargets, gwas, bindingdb."
+        ),
+    )
     d.add_argument("--json", action="store_true")
     d.set_defaults(func=_cmd_discover)
 

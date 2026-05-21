@@ -1,7 +1,7 @@
 {
   "name": "cannavec-science",
   "version": "0.1.0",
-  "description": "Cannabis-science MVP for the working researcher. Five commands, eight curated science registries (major + minor cannabinoids, terpenes, drug interactions, adverse events, populations, contraindications, pharmacogenomics), six phytochemistry rigor detectors (isomer-collapse, receptor-without-ID, dose-without-route, THCA-vs-THC conflation, matrix-unit confusion, decarb-context-missing), 15 banned-pattern detector, safety preflight, retraction enforcement at composition time, live discovery across PubMed + ChEMBL + ClinicalTrials.gov with deterministic cross-source synthesis, BibTeX/RIS/CSL-JSON bibliography export with inline GRADE annotation. Researcher audience only. Stdlib-only Python ≥ 3.9. Distilled from the 35,500-LOC Cannavec parent plugin into a focused 6,000-LOC MVP that ships one thing exceptionally well.",
+  "description": "Cannabis-science MVP for the working researcher. Five commands, eight curated science registries (major + minor cannabinoids, terpenes, drug interactions, adverse events, populations, contraindications, pharmacogenomics), six phytochemistry rigor detectors (isomer-collapse, receptor-without-ID, dose-without-route, THCA-vs-THC conflation, matrix-unit confusion, decarb-context-missing), 15 banned-pattern detector, safety preflight, retraction enforcement at composition time, live discovery across nine primary-source databases — PubMed, ChEMBL, ClinicalTrials.gov, PubChem, PharmGKB, RCSB PDB, Open Targets, GWAS Catalog, BindingDB — with deterministic cross-source synthesis, BibTeX/RIS/CSL-JSON bibliography export with inline GRADE annotation, and a cannabis-primary-source-routing skill that picks the right database per question. Researcher audience only. Stdlib-only Python ≥ 3.9. Distilled from the 35,500-LOC Cannavec parent plugin into a focused MVP that ships one thing exceptionally well.",
   "author": {
     "name": "Jack-MillionMedia",
     "url": "https://github.com/Jack-MillionMedia"
@@ -23,6 +23,12 @@
     "pubmed",
     "chembl",
     "clinicaltrials",
+    "pubchem",
+    "pharmgkb",
+    "rcsb-pdb",
+    "open-targets",
+    "gwas-catalog",
+    "bindingdb",
     "bibliography-export",
     "bibtex",
     "ris",
