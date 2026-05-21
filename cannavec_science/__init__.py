@@ -1,23 +1,37 @@
 """Cannavec Science — research-grade cannabis-science primitives.
 
-v0.2 elite-development build for the working researcher: GRADE evidence-
-grading, banned-pattern detection, safety preflight, seven phytochemistry
-rigor checks (incl. entourage-overclaim detector), PubMed/Crossref
-citation verification with forward-citation network analysis, retraction
-enforcement at composition time, eight science registries with
-``last_verified`` + ``watch_pmids`` freshness fields, live discovery
-across eleven primary scientific sources (PubMed, ChEMBL, CT.gov,
-PubChem, PharmGKB, RCSB, Open Targets, GWAS, BindingDB + the v0.2
-preprint lanes bioRxiv and medRxiv), researcher-workflow scaffolders
+v0.4 industry-expert-depth build for the working researcher. Inherits the
+full v0.3 routing-and-surfacing surface and adds two new registries —
+**analytical chemistry** (decarboxylation kinetics, HPLC/GC-MS method
+validation, chemovar classification, vapor pyrolysis byproducts; ≥ 8
+rows) and **cultivation science** (UV-B effects, trichome biology,
+THCA-/CBDA-synthase genetics, botanical taxonomy; ≥ 6 rows) — every
+row anchored to a primary PubMed / DOI citation per Constitution §I.
+Additional v0.4 closures: the ``Answer.notes`` rendering bug fixed so
+0-claim classification messages now actually surface; a sibling banned
+pattern catches the abstract framing of indica/sativa-as-pharmacology
+while leaving research-grade botanical taxonomy untouched.
+
+Backbone unchanged: GRADE evidence-grading, banned-pattern detection,
+safety preflight, seven phytochemistry rigor checks (incl. entourage-
+overclaim detector), PubMed/Crossref citation verification with forward-
+citation network analysis, retraction enforcement at composition time,
+eleven science registries (major / minor cannabinoids, terpenes, drug
+interactions, adverse events, populations, contraindications,
+pharmacogenomics, endocannabinoidome, analytical chemistry, cultivation
+science) with ``last_verified`` + ``watch_pmids`` freshness fields, live
+discovery across eleven primary scientific sources (PubMed, ChEMBL,
+CT.gov, PubChem, PharmGKB, RCSB, Open Targets, GWAS, BindingDB +
+bioRxiv + medRxiv preprint lanes), researcher-workflow scaffolders
 (PICO, power calculation, GRADE evidence-profile table, IRB protocol
 skeleton), regulatory-feasibility advisory (US / EU / Canada / UK),
-endocannabinoidome reference, and BibTeX/RIS/CSL-JSON bibliography
-export with inline GRADE annotation.
+and BibTeX/RIS/CSL-JSON bibliography export with inline GRADE
+annotation.
 
 Stdlib-only. Researcher audience only. Five slash commands.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from cannavec_science.evidence import (
     Claim,

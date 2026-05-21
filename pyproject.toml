@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cannavec-science"
-version = "0.3.0"
-description = "Elite-tier cannabis-science primitives for the working researcher (Cannavec Science Claude Code plugin v0.3). GRADE evidence-grading with deterministic citation-network-driven downgrades and topical-relevance grade aggregation, 15 banned-pattern detectors, safety preflight, seven phytochemistry rigor checks (incl. entourage-overclaim detector), span-aware named-cannabinoid resolution (no Δ⁹-THC monograph for Δ⁸-THC queries), cannabinoid-scoped AE / interaction / contraindication / population registry detectors, cannabis-noun → cannabinoid-set expansion for partner-drug matching, eCBome registry threaded into compose_answer, identifier verification across all five Constitution §I shapes (PMID, DOI, NCT, ChEMBL, UniProt), registry inventory subcommand, retraction enforcement at composition time, eight science registries with freshness watch, live discovery across eleven primary-source databases, researcher-workflow scaffolders (PICO, sample-size power, GRADE evidence-profile, IRB protocol skeleton), regulatory-feasibility advisory, BibTeX / RIS / CSL-JSON bibliography export."
+version = "0.4.0"
+description = "Elite-tier cannabis-science primitives for the working researcher (Cannavec Science Claude Code plugin v0.4 industry-expert-depth release). Adds a curated analytical-chemistry registry (≥ 8 rows: decarboxylation kinetics, HPLC vs GC-MS method validation, chemovar Type I-V classification, vapor pyrolysis byproducts) and a cultivation-science registry (≥ 6 rows: UV-B / light spectrum, trichome biology, THCA-/CBDA-synthase genetics, botanical taxonomy) on top of the v0.3 backbone. Fixes Answer.notes rendering so 0-claim classifications surface honestly; adds a sibling banned-pattern for the abstract framing of indica/sativa-as-pharmacology (while leaving research-grade botanical taxonomy untouched). Eleven science registries with freshness watch, GRADE evidence-grading with deterministic citation-network-driven downgrades and topical-relevance grade aggregation, 16 banned-pattern detectors, safety preflight, seven phytochemistry rigor checks (incl. entourage-overclaim detector), span-aware named-cannabinoid resolution, cannabinoid-scoped registry detectors, eCBome registry threaded into compose_answer, identifier verification across all five Constitution §I shapes (PMID, DOI, NCT, ChEMBL, UniProt), registry inventory subcommand, retraction enforcement at composition time, live discovery across eleven primary-source databases, researcher-workflow scaffolders (PICO, sample-size power, GRADE evidence-profile, IRB protocol skeleton), regulatory-feasibility advisory, BibTeX / RIS / CSL-JSON bibliography export."
 authors = [{ name = "Jack-MillionMedia" }]
 license = { text = "MIT" }
 readme = "README.md"
@@ -17,6 +17,9 @@ keywords = [
     "biorxiv", "medrxiv", "preprint",
     "endocannabinoidome", "ecbome", "regulatory-feasibility",
     "power-calculation", "pico", "irb-protocol", "citation-network",
+    "analytical-chemistry", "decarboxylation-kinetics", "hplc",
+    "chemovar", "cultivation-science", "synthase-genetics",
+    "trichome-biology", "botanical-taxonomy",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

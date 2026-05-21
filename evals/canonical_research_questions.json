@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "_comment": "Canonical research-question eval seed for the Cannavec Science v0.2 elite-development build. \u2265 100 prompts across six category buckets (curated, rigor_positive, rigor_negative, refusal, live, cross_cutting). The runner (evals/run_evals.py) drives the composer and asserts each prompt's declared expectations. Per-bucket minimums are enforced both at build time (this script's asserts) and at test time (tests/test_eval_coverage.py).",
+  "_comment": "Canonical research-question eval seed for the Cannavec Science v0.4 industry-expert-depth build. \u2265 142 prompts across eight category buckets (curated, rigor_positive, rigor_negative, refusal, live, cross_cutting, routing_surfacing, analytical_cultivation). The runner (evals/run_evals.py) drives the composer and asserts each prompt's declared expectations. Per-bucket minimums are enforced both at build time (this script's asserts) and at test time (tests/test_eval_coverage.py).",
   "category_minimums": {
     "curated": 25,
     "rigor_positive": 30,
@@ -8,7 +8,8 @@
     "refusal": 15,
     "live": 10,
     "cross_cutting": 5,
-    "routing_surfacing": 15
+    "routing_surfacing": 15,
+    "analytical_cultivation": 10
   },
   "prompts": [
     {
@@ -1042,14 +1043,14 @@
     {
       "id": "routing_delta_8_thc_no_major_monograph",
       "category": "routing_surfacing",
-      "prompt": "Δ⁸-THC pharmacology and safety",
+      "prompt": "\u0394\u2078-THC pharmacology and safety",
       "expect": {
         "is_refusal": false,
         "must_include_section": [
-          "Minor cannabinoid monograph — Δ⁸-THC"
+          "Minor cannabinoid monograph \u2014 \u0394\u2078-THC"
         ],
         "must_not_include_section": [
-          "Major cannabinoid monograph — THC"
+          "Major cannabinoid monograph \u2014 THC"
         ]
       }
     },
@@ -1060,25 +1061,25 @@
       "expect": {
         "is_refusal": false,
         "must_include_section": [
-          "Minor cannabinoid monograph — Δ⁸-THC"
+          "Minor cannabinoid monograph \u2014 \u0394\u2078-THC"
         ],
         "must_not_include_section": [
-          "Major cannabinoid monograph — THC"
+          "Major cannabinoid monograph \u2014 THC"
         ]
       }
     },
     {
       "id": "routing_hhc_vs_delta_8_both_minors",
       "category": "routing_surfacing",
-      "prompt": "HHC vs Δ⁸-THC pharmacology",
+      "prompt": "HHC vs \u0394\u2078-THC pharmacology",
       "expect": {
         "is_refusal": false,
         "must_include_section": [
-          "Minor cannabinoid monograph — HHC",
-          "Minor cannabinoid monograph — Δ⁸-THC"
+          "Minor cannabinoid monograph \u2014 HHC",
+          "Minor cannabinoid monograph \u2014 \u0394\u2078-THC"
         ],
         "must_not_include_section": [
-          "Major cannabinoid monograph — THC"
+          "Major cannabinoid monograph \u2014 THC"
         ]
       }
     },
@@ -1089,10 +1090,10 @@
       "expect": {
         "is_refusal": false,
         "must_include_section": [
-          "Minor cannabinoid monograph — THCP"
+          "Minor cannabinoid monograph \u2014 THCP"
         ],
         "must_not_include_section": [
-          "Major cannabinoid monograph — THC"
+          "Major cannabinoid monograph \u2014 THC"
         ]
       }
     },
@@ -1103,10 +1104,10 @@
       "expect": {
         "is_refusal": false,
         "must_include_section": [
-          "Minor cannabinoid monograph — THCO"
+          "Minor cannabinoid monograph \u2014 THCO"
         ],
         "must_not_include_section": [
-          "Major cannabinoid monograph — THC"
+          "Major cannabinoid monograph \u2014 THC"
         ]
       }
     },
@@ -1117,7 +1118,7 @@
       "expect": {
         "is_refusal": false,
         "must_include_section": [
-          "Minor cannabinoid monograph — CBN"
+          "Minor cannabinoid monograph \u2014 CBN"
         ]
       }
     },
@@ -1128,7 +1129,7 @@
       "expect": {
         "is_refusal": false,
         "must_include_section": [
-          "Minor cannabinoid monograph — CBG"
+          "Minor cannabinoid monograph \u2014 CBG"
         ]
       }
     },
@@ -1172,9 +1173,11 @@
       "prompt": "HHC safety profile and adverse events",
       "expect": {
         "is_refusal": false,
-        "claims_must_only_mention_cannabinoids": ["HHC"],
+        "claims_must_only_mention_cannabinoids": [
+          "HHC"
+        ],
         "must_include_section": [
-          "Minor cannabinoid monograph — HHC"
+          "Minor cannabinoid monograph \u2014 HHC"
         ]
       }
     },
@@ -1210,6 +1213,185 @@
           "Endocannabinoidome (eCBome) reference"
         ],
         "min_grade": "B"
+      }
+    },
+    {
+      "id": "ac_decarb_kinetics_110c",
+      "category": "analytical_cultivation",
+      "prompt": "Decarboxylation kinetics of THCA at 110 degrees C",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "min_grade": "C",
+        "must_include_pmid_any_of": [
+          "2384545"
+        ],
+        "must_include_section": [
+          "Analytical-chemistry registry"
+        ]
+      }
+    },
+    {
+      "id": "ac_decarb_extract_140c",
+      "category": "analytical_cultivation",
+      "prompt": "THCA decarboxylation in oil extract at 140 degrees C",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "min_grade": "C",
+        "must_include_section": [
+          "Analytical-chemistry registry"
+        ]
+      }
+    },
+    {
+      "id": "ac_hplc_method_validation",
+      "category": "analytical_cultivation",
+      "prompt": "HPLC method validation for cannabinoid potency analysis",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "must_include_section": [
+          "Analytical-chemistry registry"
+        ]
+      }
+    },
+    {
+      "id": "ac_gc_ms_vs_hplc_artefact",
+      "category": "analytical_cultivation",
+      "prompt": "HPLC vs GC-MS cannabinoid quantitation in-injector decarboxylation",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 2,
+        "must_include_section": [
+          "Analytical-chemistry registry"
+        ]
+      }
+    },
+    {
+      "id": "ac_chemovar_type_ii",
+      "category": "analytical_cultivation",
+      "prompt": "Type II chemovar genetic basis",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "min_grade": "C",
+        "must_include_pmid_any_of": [
+          "22362625"
+        ]
+      }
+    },
+    {
+      "id": "ac_hazekamp_chemovar",
+      "category": "analytical_cultivation",
+      "prompt": "Hazekamp & Fischedick 2012 chemovar classification framework",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "must_include_pmid_any_of": [
+          "22362625"
+        ]
+      }
+    },
+    {
+      "id": "ac_pyrolysis_byproducts",
+      "category": "analytical_cultivation",
+      "prompt": "Cannabis vapor pyrolysis byproducts at combustion vs vaporisation temperatures",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "must_include_section": [
+          "Analytical-chemistry registry"
+        ]
+      }
+    },
+    {
+      "id": "cs_uvb_biosynthesis",
+      "category": "analytical_cultivation",
+      "prompt": "UV-B effect on cannabinoid biosynthesis",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "min_grade": "C",
+        "must_include_pmid_any_of": [
+          "3621052"
+        ],
+        "must_include_section": [
+          "Cultivation-science registry"
+        ]
+      }
+    },
+    {
+      "id": "cs_trichome_biology",
+      "category": "analytical_cultivation",
+      "prompt": "Trichome density cannabinoid yield in cannabis flower",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "must_include_pmid_any_of": [
+          "31867754"
+        ],
+        "must_include_section": [
+          "Cultivation-science registry"
+        ]
+      }
+    },
+    {
+      "id": "cs_synthase_inheritance",
+      "category": "analytical_cultivation",
+      "prompt": "THCA synthase CBDA synthase chemotype inheritance",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 2,
+        "must_include_pmid_any_of": [
+          "12663552"
+        ],
+        "must_include_section": [
+          "Cultivation-science registry"
+        ]
+      }
+    },
+    {
+      "id": "cs_botany_one_species",
+      "category": "analytical_cultivation",
+      "prompt": "Is Cannabis sativa one species or three?",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1,
+        "must_include_section": [
+          "Cultivation-science registry"
+        ]
+      }
+    },
+    {
+      "id": "ac_notes_render_regression",
+      "category": "analytical_cultivation",
+      "prompt": "Bedrocan medical cannabis cultivars THC content",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": []
+      }
+    },
+    {
+      "id": "ac_botany_does_not_fire_banned_pattern",
+      "category": "analytical_cultivation",
+      "prompt": "Cannabis sativa L. botanical taxonomy",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Cultivation-science registry"
+        ]
+      }
+    },
+    {
+      "id": "refusal_indica_sativa_abstract",
+      "category": "refusal",
+      "prompt": "indica vs sativa pharmacological differences",
+      "expect": {
+        "is_refusal": true,
+        "banned_patterns_fire": [
+          "indica_sativa_as_pharmacology_abstract"
+        ]
       }
     }
   ]

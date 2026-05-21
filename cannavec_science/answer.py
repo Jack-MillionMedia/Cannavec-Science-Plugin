@@ -366,6 +366,16 @@ class Answer:
                 lines.append(f"- {c}")
             lines.append("")
 
+        # Spec 004 US3 / FR-004 — render Answer.notes (e.g. the v0.3
+        # 0-claim classification messages set by _classify_zero_claims).
+        # Skipped on refusals because refusals carry their own message.
+        if self.notes:
+            lines.append("## Notes")
+            lines.append("")
+            for n in self.notes:
+                lines.append(f"- {n}")
+            lines.append("")
+
         if self.citations:
             lines.append("## Citations")
             lines.append("")
@@ -439,6 +449,7 @@ class Answer:
                 for c in self.citations
             ],
             "cautions": list(self.cautions),
+            "notes": list(self.notes),
             "retractions_suppressed": list(self.retractions_suppressed),
             "rigor_violations": self.rigor_violations,
             "evidence_summary": (
@@ -825,6 +836,16 @@ def compose_answer(
     # Spec 003 US7 / FR-007 — eCBome surfacing.
     from cannavec_science.ecbome import detect_ecbome_mention
     matched_ecbome_rows = detect_ecbome_mention(prompt)
+    # Spec 004 US1 + US2 / FR-003 — analytical-chemistry +
+    # cultivation-science topic-keyword surfacing.
+    from cannavec_science.analytical_chemistry import (
+        detect_analytical_chemistry_mention,
+    )
+    from cannavec_science.cultivation_science import (
+        detect_cultivation_science_mention,
+    )
+    matched_analytical_rows = detect_analytical_chemistry_mention(prompt)
+    matched_cultivation_rows = detect_cultivation_science_mention(prompt)
 
     a.add_trace("registry.populations", len(matched_population_rows))
     a.add_trace("registry.interactions", len(matched_interaction_rows))
@@ -834,6 +855,8 @@ def compose_answer(
     a.add_trace("registry.major_cannabinoids", len(matched_major_cb_rows))
     a.add_trace("registry.terpenes", len(matched_terpene_rows))
     a.add_trace("registry.pharmacogenomics", len(matched_pgx_rows))
+    a.add_trace("registry.analytical_chemistry", len(matched_analytical_rows))
+    a.add_trace("registry.cultivation_science", len(matched_cultivation_rows))
     a.add_trace("registry.ecbome", len(matched_ecbome_rows))
 
     # Citation attachment runs regardless of refusal — the population-
@@ -849,12 +872,14 @@ def compose_answer(
         + list(matched_contraindication_rows)
         + list(matched_terpene_rows)
         + list(matched_pgx_rows)
+        + list(matched_analytical_rows)
+        + list(matched_cultivation_rows)
     )
     for row in all_rows:
         _attach_citations_from_row(a, row)
 
     if include_claims and not safety_refused and not banned_hits:
-        # Six registries with row-level .to_claim() — typed claims.
+        # Eight registries with row-level .to_claim() — typed claims.
         for row in matched_population_rows:
             _attach_claim_safely(a, row, retraction_policy)
         for row in matched_interaction_rows:
@@ -866,6 +891,12 @@ def compose_answer(
         for row in matched_terpene_rows:
             _attach_claim_safely(a, row, retraction_policy)
         for row in matched_pgx_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        # Spec 004 US1 + US2 / FR-003 — analytical-chemistry +
+        # cultivation-science rows surface as typed claims.
+        for row in matched_analytical_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_cultivation_rows:
             _attach_claim_safely(a, row, retraction_policy)
 
         # Minor + major cannabinoids render as monograph sections.
@@ -901,6 +932,28 @@ def compose_answer(
             )
             for entry in matched_ecbome_rows:
                 _attach_ecbome_citations(a, entry)
+        # Spec 004 US1 / FR-003 — analytical-chemistry registry render.
+        if matched_analytical_rows:
+            from cannavec_science.analytical_chemistry import (
+                render_markdown as render_analytical,
+            )
+            a.add_section(
+                "Analytical-chemistry registry",
+                render_analytical(matched_analytical_rows).removeprefix(
+                    "## Analytical-chemistry registry\n"
+                ).strip(),
+            )
+        # Spec 004 US2 / FR-003 — cultivation-science registry render.
+        if matched_cultivation_rows:
+            from cannavec_science.cultivation_science import (
+                render_markdown as render_cultivation,
+            )
+            a.add_section(
+                "Cultivation-science registry",
+                render_cultivation(matched_cultivation_rows).removeprefix(
+                    "## Cultivation-science registry\n"
+                ).strip(),
+            )
     elif matched_minor_cb_rows or matched_major_cb_rows or matched_ecbome_rows:
         # Refused prompt: still surface the cannabinoid + eCBome
         # citations so downstream readers see the evidence base.

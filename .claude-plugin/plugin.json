@@ -1,7 +1,7 @@
 {
   "name": "cannavec-science",
-  "version": "0.3.0",
-  "description": "Elite-tier cannabis-science plugin for the working researcher (v0.3 routing-and-surfacing release). Five commands; eight curated science registries with freshness watch and cannabinoid-scoped filtering (major + minor cannabinoids incl. Δ⁸-THC/HHC/THCO/THCP, terpenes, drug interactions, adverse events, populations, contraindications, pharmacogenomics); seven phytochemistry rigor detectors (isomer-collapse, receptor-without-ID, dose-without-route, THCA-vs-THC conflation, matrix-unit confusion, decarb-context-missing, entourage-overclaim) with (detector, span) deduplication; 15 banned-pattern detector; safety preflight; span-aware named-cannabinoid resolution (Δ⁸-THC no longer fires the Δ⁹-THC monograph); topical-relevance grade aggregation (no Level A laundering on entourage-effect prompts); cannabis-noun → cannabinoid-set expansion for partner-drug matching; endocannabinoidome (eCBome) registry threaded into compose_answer; identifier verification across all five Constitution §I shapes (PMID, DOI, NCT, ChEMBL, UniProt); registry inventory subcommand; honest 0-claim classification; retraction enforcement at composition time; live discovery across eleven primary-source databases — PubMed, ChEMBL, ClinicalTrials.gov, PubChem, PharmGKB, RCSB PDB, Open Targets, GWAS Catalog, BindingDB, bioRxiv, medRxiv — with deterministic cross-source synthesis and citation-network forward-pushback analysis; researcher-workflow scaffolders (PICO, sample-size / power calculation, GRADE evidence-profile table, IRB protocol skeleton); regulatory-feasibility advisory (US / EU / Canada / UK); BibTeX/RIS/CSL-JSON bibliography export with inline GRADE annotation; registry-freshness probe. Researcher audience only. Stdlib-only Python ≥ 3.9.",
+  "version": "0.4.0",
+  "description": "Elite-tier cannabis-science plugin for the working researcher (v0.4 industry-expert-depth release). Adds two curated registries on top of v0.3 — **analytical chemistry** (decarboxylation kinetics, HPLC vs GC-MS method validation incl. the in-injector decarb artefact, chemovar Type I-V classification per Hazekamp & Fischedick 2012, vapor pyrolysis byproducts; ≥ 8 rows) and **cultivation science** (UV-B / light spectrum, trichome biology, THCA-/CBDA-synthase genetics per de Meijer 2003, botanical taxonomy with Small & Cronquist 1976 vs Hillig 2005 honest debate; ≥ 6 rows) — each row anchored to primary PMID / DOI. Fixes the Answer.notes rendering bug (0-claim classifications now surface). Adds a sibling banned pattern catching the abstract framing of indica/sativa-as-pharmacology (\"indica vs sativa pharmacological differences\") while leaving research-grade botanical taxonomy framings untouched. Five commands; eleven curated science registries with freshness watch and cannabinoid-scoped filtering; seven phytochemistry rigor detectors with (detector, span) deduplication; 16 banned-pattern detectors; safety preflight; span-aware named-cannabinoid resolution; topical-relevance grade aggregation; cannabis-noun → cannabinoid-set expansion for partner-drug matching; endocannabinoidome (eCBome) registry threaded into compose_answer; identifier verification across all five Constitution §I shapes (PMID, DOI, NCT, ChEMBL, UniProt); registry inventory subcommand; honest 0-claim classification with rendered hints; retraction enforcement at composition time; live discovery across eleven primary-source databases — PubMed, ChEMBL, ClinicalTrials.gov, PubChem, PharmGKB, RCSB PDB, Open Targets, GWAS Catalog, BindingDB, bioRxiv, medRxiv — with deterministic cross-source synthesis and citation-network forward-pushback analysis; researcher-workflow scaffolders (PICO, sample-size / power calculation, GRADE evidence-profile table, IRB protocol skeleton); regulatory-feasibility advisory (US / EU / Canada / UK); BibTeX/RIS/CSL-JSON bibliography export with inline GRADE annotation; registry-freshness probe. Researcher audience only. Stdlib-only Python ≥ 3.9.",
   "author": {
     "name": "Jack-MillionMedia",
     "url": "https://github.com/Jack-MillionMedia"
@@ -48,6 +48,14 @@
     "grade-evidence-profile",
     "irb-protocol",
     "citation-network",
-    "research-elite"
+    "research-elite",
+    "analytical-chemistry",
+    "decarboxylation-kinetics",
+    "hplc-method-validation",
+    "chemovar",
+    "cultivation-science",
+    "synthase-genetics",
+    "trichome-biology",
+    "botanical-taxonomy"
   ]
 }
