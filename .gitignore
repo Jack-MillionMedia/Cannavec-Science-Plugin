@@ -1,0 +1,25 @@
+# macOS / editor cruft
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Python build / cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.coverage
+htmlcov/
+
+# Local demo artifacts
+/tmp/cannavec_science_*
+demo_output/

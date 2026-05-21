@@ -1,0 +1,37 @@
+{
+  "name": "cannavec-science",
+  "version": "0.1.0",
+  "description": "Cannabis-science MVP for the working researcher. Five commands, eight curated science registries (major + minor cannabinoids, terpenes, drug interactions, adverse events, populations, contraindications, pharmacogenomics), six phytochemistry rigor detectors (isomer-collapse, receptor-without-ID, dose-without-route, THCA-vs-THC conflation, matrix-unit confusion, decarb-context-missing), 15 banned-pattern detector, safety preflight, retraction enforcement at composition time, live discovery across PubMed + ChEMBL + ClinicalTrials.gov with deterministic cross-source synthesis, BibTeX/RIS/CSL-JSON bibliography export with inline GRADE annotation. Researcher audience only. Stdlib-only Python ≥ 3.9. Distilled from the 35,500-LOC Cannavec parent plugin into a focused 6,000-LOC MVP that ships one thing exceptionally well.",
+  "author": {
+    "name": "Jack-MillionMedia",
+    "url": "https://github.com/Jack-MillionMedia"
+  },
+  "homepage": "https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin",
+  "repository": "https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin",
+  "license": "MIT",
+  "keywords": [
+    "cannabis",
+    "cannabis-science",
+    "claude-code-plugin",
+    "research-grade",
+    "evidence-based",
+    "GRADE",
+    "phytochemistry",
+    "pharmacology",
+    "primary-source-verification",
+    "banned-pattern-detection",
+    "pubmed",
+    "chembl",
+    "clinicaltrials",
+    "bibliography-export",
+    "bibtex",
+    "ris",
+    "csl-json",
+    "retraction-enforcement",
+    "drug-interactions",
+    "pharmacogenomics",
+    "terpenes",
+    "cannabinoids",
+    "research-mvp"
+  ]
+}

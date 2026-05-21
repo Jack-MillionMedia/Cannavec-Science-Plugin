@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cannavec-science"
+version = "0.1.0"
+description = "Research-grade cannabis-science primitives for the Cannavec Science Claude Code plugin (MVP). GRADE evidence-grading, 15 banned-pattern detectors, safety preflight, six phytochemistry rigor checks, PubMed/Crossref citation verification, retraction enforcement at composition time, eight science registries, live discovery across PubMed + ChEMBL + ClinicalTrials.gov, BibTeX/RIS/CSL-JSON bibliography export."
+authors = [{ name = "Jack-MillionMedia" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = [
+    "cannabis", "evidence-grading", "GRADE", "phytochemistry",
+    "pharmacology", "research", "claude-code-plugin",
+    "pubmed", "chembl", "clinicaltrials",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+# Stdlib-only by constitution. No `pip install` required to run.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin"
+Source = "https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin"
+Issues = "https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cannavec_science*"]
+exclude = ["tests*", "evals*"]
