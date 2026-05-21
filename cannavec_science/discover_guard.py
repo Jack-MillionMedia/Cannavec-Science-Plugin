@@ -57,6 +57,9 @@ class Provenance(str, Enum):
     LIVE_OPENTARGETS = "live_opentargets"
     LIVE_GWAS = "live_gwas"
     LIVE_BINDINGDB = "live_bindingdb"
+    # Spec 002 US1 — preprint lanes. Level D cap per FR-202.
+    LIVE_BIORXIV = "live_biorxiv"
+    LIVE_MEDRXIV = "live_medrxiv"
     # Spec 003 — adverse-event signal feeds (US5).
     LIVE_FAERS = "live_faers"
     LIVE_MAUDE = "live_maude"

@@ -63,17 +63,32 @@ class TestRegistryShape(unittest.TestCase):
                           f"minor-cannabinoid registry missing {required}")
 
     def test_every_entry_has_required_fields(self) -> None:
+        from cannavec_science.minor_cannabinoids import MinorCannabinoidEvidenceClass
         for e in self.entries:
             self.assertTrue(e.name, "missing name")
             self.assertTrue(e.long_name, f"{e.name} missing long_name")
             self.assertTrue(e.chemistry_note,
                             f"{e.name} missing chemistry note")
-            self.assertGreaterEqual(len(e.receptor_activity), 1,
-                                    f"{e.name} has no receptor activity")
-            self.assertGreaterEqual(len(e.clinical_evidence), 1,
-                                    f"{e.name} has no clinical row")
-            self.assertGreaterEqual(len(e.preclinical_evidence), 1,
-                                    f"{e.name} has no preclinical row")
+            # Constitution §I (Primary-Source-Or-Refuse) is enforced
+            # by the clinical_grade-vs-clinical_evidence consistency
+            # rule, not by requiring fake rows. Compounds with no
+            # admissible clinical evidence MUST be graded UNSUPPORTED;
+            # compounds graded above UNSUPPORTED MUST carry at least
+            # one row.
+            if e.clinical_grade != MinorCannabinoidEvidenceClass.UNSUPPORTED:
+                self.assertGreaterEqual(
+                    len(e.clinical_evidence), 1,
+                    f"{e.name} graded {e.clinical_grade.value} but "
+                    f"no clinical row — evidence-honesty violation",
+                )
+            # Receptor activity / preclinical evidence likewise: only
+            # required when the pharmacology_grade is above UNSUPPORTED.
+            if e.pharmacology_grade != MinorCannabinoidEvidenceClass.UNSUPPORTED:
+                self.assertGreaterEqual(
+                    len(e.receptor_activity), 1,
+                    f"{e.name} graded {e.pharmacology_grade.value} but "
+                    f"no receptor activity row — evidence-honesty violation",
+                )
             self.assertTrue(e.regulatory_status,
                             f"{e.name} missing regulatory note")
             self.assertTrue(e.safety_note,

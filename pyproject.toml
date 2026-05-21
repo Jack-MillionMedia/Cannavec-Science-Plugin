@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cannavec-science"
-version = "0.1.0"
-description = "Research-grade cannabis-science primitives for the Cannavec Science Claude Code plugin (MVP). GRADE evidence-grading, 15 banned-pattern detectors, safety preflight, six phytochemistry rigor checks, PubMed/Crossref citation verification, retraction enforcement at composition time, eight science registries, live discovery across PubMed + ChEMBL + ClinicalTrials.gov, BibTeX/RIS/CSL-JSON bibliography export."
+version = "0.2.0"
+description = "Elite-tier cannabis-science primitives for the working researcher (Cannavec Science Claude Code plugin v0.2). GRADE evidence-grading with deterministic citation-network-driven downgrades, 15 banned-pattern detectors, safety preflight, seven phytochemistry rigor checks (incl. entourage-overclaim detector), PubMed / Crossref citation verification with forward-cite pushback signal, retraction enforcement at composition time, eight science registries with freshness watch, live discovery across eleven primary-source databases (PubMed, ChEMBL, CT.gov, PubChem, PharmGKB, RCSB, Open Targets, GWAS, BindingDB, bioRxiv, medRxiv), researcher-workflow scaffolders (PICO, sample-size power, GRADE evidence-profile, IRB protocol skeleton), regulatory-feasibility advisory, endocannabinoidome reference, BibTeX / RIS / CSL-JSON bibliography export."
 authors = [{ name = "Jack-MillionMedia" }]
 license = { text = "MIT" }
 readme = "README.md"
@@ -14,6 +14,9 @@ keywords = [
     "cannabis", "evidence-grading", "GRADE", "phytochemistry",
     "pharmacology", "research", "claude-code-plugin",
     "pubmed", "chembl", "clinicaltrials",
+    "biorxiv", "medrxiv", "preprint",
+    "endocannabinoidome", "ecbome", "regulatory-feasibility",
+    "power-calculation", "pico", "irb-protocol", "citation-network",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

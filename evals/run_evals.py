@@ -92,6 +92,8 @@ def _eval_prompt(prompt: dict) -> tuple[bool, list[str]]:
             fired.add("matrix_unit_confusion")
         if report.decarb_context_violations:
             fired.add("decarb_context_missing")
+        if report.entourage_violations:
+            fired.add("entourage_overclaim")
         total = sum(
             len(getattr(report, attr))
             for attr in (
@@ -101,6 +103,7 @@ def _eval_prompt(prompt: dict) -> tuple[bool, list[str]]:
                 "thca_thc_violations",
                 "matrix_unit_violations",
                 "decarb_context_violations",
+                "entourage_violations",
             )
         )
 
@@ -143,16 +146,59 @@ def _eval_prompt(prompt: dict) -> tuple[bool, list[str]]:
     return (not failures, failures)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Cannavec Science deterministic eval runner.",
+    )
+    parser.add_argument(
+        "--include-live", action="store_true",
+        help=(
+            "Run prompts marked ``live: true`` (requires network). "
+            "By default, live prompts are skipped so the runner works "
+            "in offline CI."
+        ),
+    )
+    parser.add_argument(
+        "--strict-coverage", action="store_true",
+        help="Exit non-zero if any category bucket is below its minimum.",
+    )
+    args = parser.parse_args(argv)
+
     path = Path(__file__).parent / "canonical_research_questions.json"
     data = json.loads(path.read_text())
 
-    total = len(data["prompts"])
+    all_prompts = data["prompts"]
+    minimums: dict = data.get("category_minimums", {})
+    by_category_count: dict[str, int] = {}
+    for p in all_prompts:
+        by_category_count[p["category"]] = by_category_count.get(p["category"], 0) + 1
+
+    # Bucket-minimum gating.
+    coverage_failed = False
+    for cat, m in minimums.items():
+        actual = by_category_count.get(cat, 0)
+        if actual < m:
+            print(
+                f"[COVERAGE FAIL] bucket {cat}: have {actual}, need ≥ {m}"
+            )
+            coverage_failed = True
+
+    # Filter live prompts unless --include-live.
+    prompts = [
+        p for p in all_prompts
+        if not p.get("live") or args.include_live
+    ]
+
+    total = len(prompts)
     passed = 0
     by_category: dict[str, list[bool]] = {}
-    print(f"Cannavec Science evals — {total} prompts\n")
+    print(
+        f"Cannavec Science evals — {total} prompts "
+        f"(live skipped: {len(all_prompts) - total})\n"
+    )
 
-    for prompt in data["prompts"]:
+    for prompt in prompts:
         ok, failures = _eval_prompt(prompt)
         marker = "[pass]" if ok else "[FAIL]"
         print(f"{marker} {prompt['id']}  ({prompt['category']})")
@@ -167,7 +213,15 @@ def main() -> int:
     print("\nBy category:")
     for cat in sorted(by_category):
         results = by_category[cat]
-        print(f"  {cat}: {sum(results)}/{len(results)}")
+        total_in_bucket = by_category_count.get(cat, 0)
+        minimum = minimums.get(cat, 0)
+        print(
+            f"  {cat}: {sum(results)}/{len(results)} pass "
+            f"(loaded {len(results)} of {total_in_bucket}; min {minimum})"
+        )
+
+    if args.strict_coverage and coverage_failed:
+        return 2
     return 0 if passed == total else 1
 
 

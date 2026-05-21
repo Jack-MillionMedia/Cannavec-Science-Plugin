@@ -1,15 +1,23 @@
 """Cannavec Science — research-grade cannabis-science primitives.
 
-MVP for the working researcher: GRADE evidence-grading, banned-pattern
-detection, safety preflight, six phytochemistry rigor checks,
-PubMed/Crossref citation verification, retraction enforcement, eight
-science registries, live discovery (PubMed + ChEMBL + ClinicalTrials.gov),
-BibTeX/RIS/CSL-JSON bibliography export.
+v0.2 elite-development build for the working researcher: GRADE evidence-
+grading, banned-pattern detection, safety preflight, seven phytochemistry
+rigor checks (incl. entourage-overclaim detector), PubMed/Crossref
+citation verification with forward-citation network analysis, retraction
+enforcement at composition time, eight science registries with
+``last_verified`` + ``watch_pmids`` freshness fields, live discovery
+across eleven primary scientific sources (PubMed, ChEMBL, CT.gov,
+PubChem, PharmGKB, RCSB, Open Targets, GWAS, BindingDB + the v0.2
+preprint lanes bioRxiv and medRxiv), researcher-workflow scaffolders
+(PICO, power calculation, GRADE evidence-profile table, IRB protocol
+skeleton), regulatory-feasibility advisory (US / EU / Canada / UK),
+endocannabinoidome reference, and BibTeX/RIS/CSL-JSON bibliography
+export with inline GRADE annotation.
 
 Stdlib-only. Researcher audience only. Five slash commands.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from cannavec_science.evidence import (
     Claim,

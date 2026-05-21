@@ -30,6 +30,9 @@ The grade above is the *starting point*. Apply the five GRADE Working Group doma
 | **Imprecision** | Wide CI crossing the line of no effect; small total event count; underpowered trials [cannabis pilot trials are often n < 50] | CI crosses 0 with wide bounds: −1; total events < 300 for binary outcome: consider −1 |
 | **Publication bias** | Asymmetric funnel plot; few small negative studies; trial registry vs publication discrepancy [industry funding skews toward positive reports — flag explicitly] | Suspected: −1; strong evidence: −2 |
 
+**v0.2 deterministic GRADE downgrade — citation-network field-pushback signal.**
+The new `cannavec_science.citation_network` module fetches the forward-citation set via NCBI elink for a verified PMID and applies the deterministic `pubmed_sentiment` classifier per cite. When the aggregate is `refute_heavy` (refute count > support count by ≥ 2), the GRADE adapter flips `inconsistency_serious=True`, dropping the claim by one level deterministically. This is implemented in `apply_grade_modifiers` and tested in `tests/test_citation_network.py::GradeIntegrationTests`. The signal is reproducible (rule-based regex, not LLM-judged) per Constitution §II.
+
 For **observational evidence**, apply GRADE upgrade factors after the base downgrades:
 
 | Upgrade factor | Apply when |
