@@ -76,6 +76,16 @@ class Citation:
     year: int | None = None
     note: str | None = None
     grade: EvidenceLevel | None = None
+    # Spec 002 US5 — surface row-level freshness at citation site.
+    # When the backing registry row's ``last_verified`` is older than
+    # 365 days, ``answer.py`` populates this with the ISO date so the
+    # render layer can append ``[freshness: stale (verified ...)]``.
+    freshness_stale_since: str | None = None
+    # Spec 002 US1 — preprint badge. When the citation backs a
+    # ``live_biorxiv`` / ``live_medrxiv`` row, this is set to the
+    # provenance tag so the render layer can append ``[preprint,
+    # not peer-reviewed]``.
+    preprint_provenance: str | None = None
 
     def __post_init__(self) -> None:
         if not (self.pmid or self.doi or self.url):
@@ -325,8 +335,19 @@ class Answer:
             for c in self.citations:
                 grade_tag = f" — {c.grade.value}" if c.grade else ""
                 year = f" ({c.year})" if c.year else ""
+                # Spec 002 US1 preprint badge.
+                badge = ""
+                if c.preprint_provenance:
+                    badge = " [preprint, not peer-reviewed]"
+                # Spec 002 US5 freshness suffix.
+                freshness = ""
+                if c.freshness_stale_since:
+                    freshness = (
+                        f" [freshness: stale (verified {c.freshness_stale_since})]"
+                    )
                 lines.append(
-                    f"- {c.label}{year}{grade_tag} — {c.resolvable_url}"
+                    f"- {c.label}{year}{grade_tag}{badge}{freshness} "
+                    f"— {c.resolvable_url}"
                 )
             lines.append("")
 

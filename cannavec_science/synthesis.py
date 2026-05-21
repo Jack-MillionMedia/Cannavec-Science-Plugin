@@ -89,6 +89,12 @@ _SOURCE_KEYS = (
     "opentargets",
     "gwas",
     "bindingdb",
+    # Spec 002 US1 — preprint lanes treated as distinct sources for
+    # the cross-source convergence verdict. The generic "preprint"
+    # key above stays for back-compat (legacy fixtures); biorxiv +
+    # medrxiv are the per-server lanes.
+    "biorxiv",
+    "medrxiv",
 )
 
 
@@ -196,7 +202,7 @@ def pubmed_sentiment(text: str) -> str:
 
 def _row_direction(source: str, row: dict) -> str:
     """Direction for one row, dispatched on source."""
-    if source in ("pubmed", "preprint"):
+    if source in ("pubmed", "preprint", "biorxiv", "medrxiv"):
         text = row.get("abstract") or row.get("title") or ""
         return pubmed_sentiment(text)
     if source == "ctgov":
@@ -459,6 +465,8 @@ _SOURCE_DISPLAY = {
     "opentargets": "Open Targets",
     "gwas": "GWAS Catalog",
     "bindingdb": "BindingDB",
+    "biorxiv": "bioRxiv",
+    "medrxiv": "medRxiv",
 }
 
 

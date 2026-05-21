@@ -26,6 +26,8 @@ Pick **one** primary lane (and at most one supporting lane).
 | Pharmacogenomics of THC/CBD | "Does CYP2C9*3 slow THC metabolism?" | **PharmGKB** | `--sources pharmgkb` |
 | Clinical efficacy / safety | "Does CBD reduce seizures in Dravet?" | **PubMed** (RCTs) + **ClinicalTrials.gov** | `--sources pubmed,ctgov` |
 | Mechanism review | "How does CBD modulate PPARγ?" | **PubMed** (reviews) + **ChEMBL** | `--sources pubmed,chembl` |
+| Frontier preprint (2024+ mechanism, eCBome, minor-cannabinoid pharm) | "What 2026 work is being posted on CB2 microglia?" | **bioRxiv** + **medRxiv** | `--sources biorxiv,medrxiv` |
+| Adolescent / refractory / N-of-1 clinical (not yet in PubMed) | "Is there preprint clinical data on adolescent CBD pharmacokinetics?" | **medRxiv** | `--sources medrxiv` |
 
 If two lanes both apply, the **clinical lane always wins** for evidence-grading purposes — a binding constant from ChEMBL cannot upgrade a clinical efficacy claim past Level C without a corresponding RCT.
 
@@ -60,7 +62,7 @@ python3 -m cannavec_science discover "6N4B"  --sources rcsb       --max 1
 
 Every row a discoverer emits already carries:
 
-- `provenance` — one of `live_pubmed`, `live_chembl`, `live_ctgov`, `live_pubchem`, `live_pharmgkb`, `live_rcsb`, `live_opentargets`, `live_gwas`, `live_bindingdb`.
+- `provenance` — one of `live_pubmed`, `live_chembl`, `live_ctgov`, `live_pubchem`, `live_pharmgkb`, `live_rcsb`, `live_opentargets`, `live_gwas`, `live_bindingdb`, `live_biorxiv`, `live_medrxiv`.
 - `suggested_grade` — a `(Level X, provisional, live_<source>)` triple. The grade is **never** automatically promoted; it is a *hint* the human composer can use, not a binding registry assignment.
 - `native_id`, `url`, `citation` — already formatted for inline citation.
 
@@ -71,6 +73,7 @@ When you compose a final answer, follow Constitution §VII:
 - A row from PharmGKB caps at **Level B** if PharmGKB level-of-evidence ∈ {1A, 1B}, else Level C.
 - A row from GWAS Catalog caps at **Level B** if genome-wide significant, else Level C.
 - A row from PubMed / ClinicalTrials.gov can reach **Level B** (pre-registered powered RCT in major journal) or **Level A** when paired with a Cochrane / AHRQ / NICE systematic review.
+- A row from **bioRxiv / medRxiv caps at Level D** regardless of grade hints — preprints are not peer-reviewed (per FR-202). If the preprint has been peer-published, the `published_version_doi` field surfaces the Crossref-resolved DOI; cite the peer-reviewed version when present.
 
 The `python -m cannavec_science discover` pipeline reports all of the above per row plus a cross-source synthesis verdict (`STRONG / MIXED / WEAK / NONE`). Cite the verdict in the answer when more than one source contributed.
 

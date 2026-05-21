@@ -864,14 +864,148 @@ def detect_decarb_context_missing(text: str) -> tuple[DecarbContextViolation, ..
     return tuple(out)
 
 
+# ── Entourage-overclaim detector (spec 002 US6) ────────────────────────
+#
+# Catches the canonical cannabis-marketing claim — "myrcene potentiates
+# THC", "limonene synergizes with CBD" — when the surrounding text fails
+# to cite one of the small set of papers with measured terpene-cannabinoid
+# interaction data. The entourage hypothesis is open-empirical with
+# mixed evidence; the detector enforces citation-discipline on synergy
+# claims, NOT the hypothesis itself. Discussion of the hypothesis is
+# allowed; uncited claims OF synergy are not.
+#
+# Canonical citation set (the small body of papers with measured
+# terpene-cannabinoid pharmacology data the field accepts):
+#   - Russo EB 2011 (Br J Pharmacol; PMID 21749363) — entourage review
+#   - Finlay DB 2020 (Front Pharmacol; PMID 32226370) — null reproduction
+#   - Santiago M 2019 (Cannabis Cannabinoid Res; PMID 30728672) — null
+#     reproduction
+#   - LaVigne JE 2021 (Sci Rep; PMID 33888868) — myrcene/THC interaction
+# Citing any of these explicitly clears the violation.
+
+_TERPENE_NAMES = (
+    "myrcene", "linalool", "limonene", "pinene", "α-pinene", "alpha-pinene",
+    "β-pinene", "beta-pinene", "caryophyllene", "β-caryophyllene",
+    "beta-caryophyllene", "humulene", "α-humulene", "alpha-humulene",
+    "terpinolene", "ocimene", "bisabolol", "guaiol", "nerolidol",
+    "eucalyptol", "geraniol", "cedrene", "phytol",
+)
+_TERPENE_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(t) for t in _TERPENE_NAMES) + r")\b",
+    re.IGNORECASE,
+)
+_CANNABINOID_TOKEN_RE = re.compile(
+    r"\b(?:thc|cbd|thca|cbda|cbn|cbg|cbc|thcv|cbdv|"
+    r"Δ⁹-thc|delta-9 thc|delta-9-thc|Δ⁸-thc|delta-8 thc|hhc)\b",
+    re.IGNORECASE,
+)
+_SYNERGY_VERB_RE = re.compile(
+    r"\b(?:potentiate\w*|synerg\w+|enhance\w*|augment\w*|amplif\w+|"
+    r"modulat\w*\s+(?:the\s+)?effect\w*\s+of|boost\w*|magnif\w+|"
+    r"work[s]?\s+(?:together\s+)?with|"
+    r"in\s+combination\s+with|combine\w*\s+(?:with|to)|"
+    r"co-?administ\w+\s+(?:with|to)|"
+    r"together\s+with|"
+    r"entourage(?:\s+effect)?)\b",
+    re.IGNORECASE,
+)
+_ENTOURAGE_CITATIONS_RE = re.compile(
+    r"(?:russo\s+(?:eb\s+)?(?:2011|et\s+al)|pmid\s*[:#]?\s*21749363|"
+    r"finlay\s+(?:db\s+)?(?:2020|et\s+al)|pmid\s*[:#]?\s*32226370|"
+    r"santiago\s+(?:m\s+)?(?:2019|et\s+al)|pmid\s*[:#]?\s*30728672|"
+    r"lavigne\s+(?:je\s+)?(?:2021|et\s+al)|pmid\s*[:#]?\s*33888868)",
+    re.IGNORECASE,
+)
+_HYPOTHESIS_DISCUSSION_RE = re.compile(
+    r"\b(?:hypothesis|hypothesise[d]?|propose\w*|theoreti\w*|"
+    r"open\s+(?:question|empirical)|"
+    r"is\s+(?:debated|contested|controversial)|"
+    r"mixed\s+evidence|under\s+(?:debate|investigation)|"
+    r"remains\s+(?:to\s+be\s+)?(?:established|tested|determined)|"
+    r"would\s+(?:potentially\s+)?(?:potentiate|synerg)|"
+    r"may\s+(?:in\s+theory\s+)?(?:potentiate|synerg)|"
+    r"theoretically\s+(?:potentiate|synerg))\b",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class EntourageViolation:
+    """A terpene-cannabinoid synergy claim without a canonical citation."""
+
+    terpene: str
+    cannabinoid: str
+    matched_phrase: str
+    span: tuple[int, int]
+
+    @property
+    def why(self) -> str:
+        return (
+            f"synergy claim pairing '{self.terpene}' with "
+            f"'{self.cannabinoid}' (matched: "
+            f"'{self.matched_phrase.strip()}') without citing one of the "
+            f"canonical entourage-effect papers (Russo 2011 PMID 21749363, "
+            f"Finlay 2020 PMID 32226370, Santiago 2019 PMID 30728672, "
+            f"LaVigne 2021 PMID 33888868). The entourage hypothesis is "
+            f"open-empirical with mixed evidence; synergy claims require "
+            f"primary-source citation per Constitution §I."
+        )
+
+
+def detect_entourage_overclaim(text: str) -> tuple[EntourageViolation, ...]:
+    """Return every uncited terpene-cannabinoid synergy claim.
+
+    A sentence-level claim fires when ALL of these hold within a single
+    sentence-window (±140 chars):
+      1. A terpene name is mentioned.
+      2. A cannabinoid name is mentioned.
+      3. A synergy / entourage verb is present.
+      4. NO canonical citation is present in the window.
+      5. NO hypothesis-discussion language is present (false-positive
+         guard for legitimate scientific discussion).
+
+    The detector is conservative — it enforces citation discipline,
+    not the hypothesis. A sentence discussing the entourage hypothesis
+    as a debated research topic does NOT fire.
+    """
+    out: list[EntourageViolation] = []
+    seen_spans: set[tuple[int, int]] = set()
+    for m in _SYNERGY_VERB_RE.finditer(text):
+        w_start, w_end = _sentence_window_bounds(text, m.span(), radius=200)
+        window = text[w_start:w_end]
+        terp = _TERPENE_RE.search(window)
+        cann = _CANNABINOID_TOKEN_RE.search(window)
+        if not (terp and cann):
+            continue
+        # False-positive guard: hypothesis discussion.
+        if _HYPOTHESIS_DISCUSSION_RE.search(window):
+            continue
+        # False-positive guard: canonical citation in window.
+        if _ENTOURAGE_CITATIONS_RE.search(window):
+            continue
+        # De-dup on the terpene+cannabinoid+verb-span tuple.
+        key = (m.start(), m.end())
+        if key in seen_spans:
+            continue
+        seen_spans.add(key)
+        out.append(EntourageViolation(
+            terpene=terp.group(0).lower(),
+            cannabinoid=cann.group(0).upper(),
+            matched_phrase=window.strip()[:160],
+            span=m.span(),
+        ))
+    out.sort(key=lambda v: v.span[0])
+    return tuple(out)
+
+
 # ── Combined audit helper ─────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
 class RigorCheckReport:
-    """Combined report from running all six cannabis-specific checks
-    (spec 001 isomer/receptor/dose-route + spec 004 THCA-vs-THC / matrix-unit
-    / decarb-context)."""
+    """Combined report from running all seven cannabis-specific checks
+    (spec 001 isomer/receptor/dose-route + spec 004 THCA-vs-THC /
+    matrix-unit / decarb-context + spec 002 US6 entourage-overclaim)."""
 
     isomer_violations: tuple[IsomerViolation, ...] = ()
     receptor_violations: tuple[ReceptorViolation, ...] = ()
@@ -879,6 +1013,7 @@ class RigorCheckReport:
     thca_thc_violations: tuple[ThcaThcViolation, ...] = ()
     matrix_unit_violations: tuple[MatrixUnitViolation, ...] = ()
     decarb_context_violations: tuple[DecarbContextViolation, ...] = ()
+    entourage_violations: tuple[EntourageViolation, ...] = ()
 
     @property
     def clean(self) -> bool:
@@ -889,13 +1024,15 @@ class RigorCheckReport:
             or self.thca_thc_violations
             or self.matrix_unit_violations
             or self.decarb_context_violations
+            or self.entourage_violations
         )
 
     def summary(self) -> str:
         if self.clean:
             return (
                 "Clean — no isomer / receptor-id / dose-route / "
-                "THCA-vs-THC / matrix-unit / decarb-context violations."
+                "THCA-vs-THC / matrix-unit / decarb-context / "
+                "entourage-overclaim violations."
             )
         lines: list[str] = []
         if self.isomer_violations:
@@ -922,11 +1059,15 @@ class RigorCheckReport:
             lines.append("## Decarb-context-missing violations")
             for v in self.decarb_context_violations:
                 lines.append(f"- {v.why}")
+        if self.entourage_violations:
+            lines.append("## Entourage-overclaim violations")
+            for v in self.entourage_violations:
+                lines.append(f"- {v.why}")
         return "\n".join(lines)
 
 
 def run_rigor_checks(text: str) -> RigorCheckReport:
-    """Run all six cannabis-specific rigor checks on `text`."""
+    """Run all seven cannabis-specific rigor checks on `text`."""
     return RigorCheckReport(
         isomer_violations=detect_isomer_collapse(text),
         receptor_violations=detect_missing_receptor_ids(text),
@@ -934,4 +1075,5 @@ def run_rigor_checks(text: str) -> RigorCheckReport:
         thca_thc_violations=detect_thca_vs_thc_conflation(text),
         matrix_unit_violations=detect_matrix_unit_confusion(text),
         decarb_context_violations=detect_decarb_context_missing(text),
+        entourage_violations=detect_entourage_overclaim(text),
     )

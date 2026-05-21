@@ -1127,6 +1127,532 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
         ),
         citations=(_PERTWEE_2008, _NAVARRO_2018, _RUSSO_2018),
     ),
+
+    # ── Δ⁸-THC (spec 002 US6) ──────────────────────────────────────────
+    MinorCannabinoid(
+        name="Δ⁸-THC",
+        long_name="delta-8-tetrahydrocannabinol",
+        aliases=(
+            "delta-8 thc", "delta-8-thc", "Δ8-THC", "delta8 THC",
+            "Δ⁸-tetrahydrocannabinol", "D8-THC", "D8 THC",
+        ),
+        chemistry_note=(
+            "Δ⁸-THC is a positional double-bond isomer of Δ⁹-THC, with "
+            "the C8 ↔ C9 double bond at C8 ↔ C7 in the cyclohexene ring. "
+            "Marginally more thermally stable than Δ⁹-THC (Δ⁸ does not "
+            "oxidise to CBN as readily). Naturally present at < 1% in "
+            "most plant material; commercial Δ⁸-THC is almost entirely "
+            "produced via acid-catalysed isomerisation from CBD, which "
+            "leaves behind detectable reaction by-products that COA "
+            "chemistry should report."
+        ),
+        receptor_activity=(
+            ReceptorActivity(
+                target="CB1",
+                uniprot="P21554",
+                gene_symbol="CNR1",
+                activity="partial agonist (lower potency than Δ⁹-THC)",
+                affinity_note=(
+                    "Ki ≈ 44 nM (rat brain membrane); functionally ~50-75% "
+                    "the psychoactive potency of equimolar Δ⁹-THC. Reduced "
+                    "but not eliminated psychoactivity is the qualitative "
+                    "distinction commonly attributed to Δ⁸ in user reports."
+                ),
+                assay="[³H]-CP55,940 competitive binding",
+                citations=(_PERTWEE_2008,),
+            ),
+            ReceptorActivity(
+                target="CB2",
+                uniprot="P34972",
+                gene_symbol="CNR2",
+                activity="partial agonist",
+                affinity_note="Ki ≈ 44 nM, comparable to Δ⁹-THC at CB2.",
+                assay="[³H]-CP55,940 competitive binding",
+                citations=(_PERTWEE_2008,),
+            ),
+        ),
+        pharmacology_grade=MinorCannabinoidEvidenceClass.C,
+        clinical_evidence=(
+            ClinicalEvidenceRow(
+                indication="antiemetic — paediatric chemotherapy nausea (historical, very small)",
+                design="open-label, single-arm pilot",
+                n=8,
+                dose_route=(
+                    "18 mg/m² oral every 6 hours starting 2 hours pre-chemo"
+                ),
+                outcome=(
+                    "Antiemetic response reported in all 8 paediatric "
+                    "patients in Abrahamov 1995 — historical, single-site, "
+                    "open-label, pre-modern antiemetic standards. No "
+                    "controlled trial has reproduced the finding."
+                ),
+                grade=MinorCannabinoidEvidenceClass.D,
+                citations=(
+                    MinorCannabinoidCitation(
+                        label=(
+                            "Abrahamov A et al., Life Sci 1995, "
+                            "Δ⁸-THC antiemetic in paediatric oncology"
+                        ),
+                        pmid="7776837", year=1995,
+                    ),
+                ),
+                caveats=(
+                    "Open-label, n=8, no contemporaneous control arm.",
+                    "Conducted before modern 5-HT3 antagonists were "
+                    "available; the comparator landscape has shifted.",
+                    "Not a basis for current antiemetic recommendation.",
+                ),
+            ),
+        ),
+        clinical_grade=MinorCannabinoidEvidenceClass.D,
+        preclinical_evidence=(
+            PreclinicalEvidenceRow(
+                indication_or_model="appetite + analgesia",
+                species_or_assay="mouse, multiple endpoints",
+                dose_or_concentration="1-10 mg/kg i.p.",
+                outcome=(
+                    "Increases food intake and produces antinociception "
+                    "with reduced cataleptic behaviour compared to "
+                    "equimolar Δ⁹-THC."
+                ),
+                bridging_to_clinic=(
+                    "Bridges weakly — the catalepsy-sparing signal is "
+                    "interesting but i.p. mouse dosing does not translate "
+                    "to oral human consumer products with conversion-derived "
+                    "Δ⁸-THC and uncharacterised by-products."
+                ),
+                grade=MinorCannabinoidEvidenceClass.D,
+                citations=(_PERTWEE_2008,),
+            ),
+        ),
+        regulatory_status=(
+            "US federal — gray zone. The 2018 Farm Bill defines hemp as "
+            "Cannabis sativa with Δ⁹-THC < 0.3% by dry weight; Δ⁸-THC "
+            "isomerised from hemp-CBD sits outside that explicit "
+            "definition. DEA's August 2020 Interim Final Rule treats "
+            "'synthetically derived' tetrahydrocannabinols as Schedule I; "
+            "the 9th Circuit AK Futures v Boyd Street (2022) treated "
+            "hemp-derived Δ⁸-THC as legal under the Farm Bill in that "
+            "circuit only. Multiple states have explicitly banned (NY, "
+            "CO, CT, OR, AK, AZ, AR, DE, ID, IA, MS, MT, NV, RI, UT, "
+            "VT, WA) as of 2024-2026. EU — Novel Food per Regulation "
+            "2015/2283; multiple member states have banned outright "
+            "(Hungary 2023, France ANSM action 2023). For research: "
+            "treat as Schedule I federally and obtain DEA Schedule I "
+            "Researcher Registration."
+        ),
+        commercial_reality=(
+            "Most commercial Δ⁸-THC is produced via acid-catalysed "
+            "isomerisation from CBD. The reaction commonly produces "
+            "uncharacterised by-products including Δ⁹-THC (regulatory "
+            "compliance failure), Δ⁸-iso-THC, olivetol derivatives, and "
+            "occasional polychlorinated by-products when acid washes use "
+            "chlorinated solvents. Independent third-party COA is the "
+            "minimum quality bar; consumer-grade Δ⁸ products from "
+            "convenience-store distribution channels frequently fail "
+            "label-claim accuracy and contaminant screens."
+        ),
+        safety_note=(
+            "Acute safety profile qualitatively similar to Δ⁹-THC at "
+            "equipotent doses: tachycardia, hypotension, psychomotor "
+            "impairment, anxiety / paranoia at high doses. Public health "
+            "concern in 2021-2024 from poison-control reports of acute "
+            "intoxication in paediatric ingestions of unlabelled / "
+            "mislabelled Δ⁸ edibles. CDC Health Alert Network 2021 "
+            "described 660 + adverse-event reports from December 2020 to "
+            "July 2021; CDC MMWR follow-ups described continuing harm. "
+            "Conversion-derived by-products represent uncharacterised "
+            "long-term risk."
+        ),
+        pharmacokinetics_note=(
+            "Oral bioavailability not formally characterised in published "
+            "human PK studies; by structural analogy to Δ⁹-THC "
+            "(~6-10% oral, ~25-35% inhaled). Half-life similar to Δ⁹-THC. "
+            "Cross-reactivity with standard urine immunoassays for Δ⁹-THC "
+            "is high; chromatographic confirmation is required for "
+            "differentiation."
+        ),
+        key_uncertainties=(
+            "No Phase II or III RCT for any indication.",
+            "Long-term safety of conversion-derived material with "
+            "uncharacterised by-products is genuinely unknown.",
+            "Reduced psychoactivity claim is qualitative — controlled "
+            "human dose-response comparisons to Δ⁹-THC are lacking.",
+            "Regulatory status is actively contested; trial design must "
+            "treat as Schedule I federally until clarified.",
+        ),
+        common_misconceptions=(
+            "MISCONCEPTION: 'Δ⁸-THC is non-psychoactive / non-intoxicating.' "
+            "Δ⁸-THC is a partial CB1 agonist and produces dose-dependent "
+            "intoxication. The 'reduced' or 'milder' descriptions in "
+            "marketing copy reflect relative potency, not absence of "
+            "psychoactivity.",
+            "MISCONCEPTION: 'Hemp-derived Δ⁸ is federally legal.' "
+            "Federal status is genuinely contested between the Farm "
+            "Bill's hemp definition and DEA's 2020 IFR position on "
+            "synthetically derived THC.",
+            "MISCONCEPTION: 'Δ⁸-THC is safer than Δ⁹-THC.' No comparative "
+            "safety data support this; the case-report literature on "
+            "acute paediatric exposures to mislabelled Δ⁸ products "
+            "argues the opposite at the population level.",
+        ),
+        citations=(_PERTWEE_2008,),
+    ),
+
+    # ── HHC (spec 002 US6) ────────────────────────────────────────────
+    MinorCannabinoid(
+        name="HHC",
+        long_name="hexahydrocannabinol",
+        aliases=("hexahydrocannabinol", "hexahydro-THC", "9-norhydroxy-HHC"),
+        chemistry_note=(
+            "HHC is the saturated (hydrogenated) hexahydro analogue of "
+            "Δ⁹-THC; the C9-C10 alkene of THC is reduced to a single "
+            "bond, removing the geometric isomerism that distinguishes "
+            "Δ⁹ from Δ⁸. Commercial HHC is a mixture of 9R-HHC and 9S-"
+            "HHC diastereomers — the 9R isomer is the more pharmacologically "
+            "active form; commercial mixtures often contain 50-80% 9R / "
+            "20-50% 9S, with potency varying by lot. Industrial production "
+            "is by Pd/C-catalysed hydrogenation of CBD or Δ⁹-THC, which "
+            "leaves residual metal-catalyst contamination that COA "
+            "chemistry should report."
+        ),
+        receptor_activity=(
+            ReceptorActivity(
+                target="CB1",
+                uniprot="P21554",
+                gene_symbol="CNR1",
+                activity="partial agonist (9R isomer) / weak agonist (9S isomer)",
+                affinity_note=(
+                    "Ki not formally characterised in modern competitive-"
+                    "binding assays; functional response data are "
+                    "primarily mid-20th-century pharmacology (Adams 1942, "
+                    "Mechoulam 1972) prior to standard CB1-cloning era. "
+                    "Diastereomer ratio dominates the functional response."
+                ),
+                assay="historical functional data; modern Ki not published",
+                citations=(
+                    MinorCannabinoidCitation(
+                        label=(
+                            "Mechoulam R et al., Hexahydrocannabinol pharmacology "
+                            "review (historical)"
+                        ),
+                        pmid="4348475", year=1972,
+                    ),
+                ),
+            ),
+        ),
+        pharmacology_grade=MinorCannabinoidEvidenceClass.E,
+        clinical_evidence=(),
+        clinical_grade=MinorCannabinoidEvidenceClass.UNSUPPORTED,
+        preclinical_evidence=(
+            PreclinicalEvidenceRow(
+                indication_or_model="behavioural — cataleptogenic / hypothermic",
+                species_or_assay="mouse, mid-20th-century pharmacology",
+                dose_or_concentration="5-25 mg/kg s.c. (historical)",
+                outcome=(
+                    "Δ⁹-THC-like cataleptic + hypothermic effects at "
+                    "comparable doses for the 9R isomer."
+                ),
+                bridging_to_clinic=(
+                    "Bridges essentially not at all to current clinical "
+                    "use. Historical mid-20th-century animal studies "
+                    "predate modern bioanalytical chemistry and use "
+                    "diastereomer mixtures the contemporary commercial "
+                    "product also delivers; the studies are not a "
+                    "substitute for modern human PK / efficacy / safety "
+                    "data."
+                ),
+                grade=MinorCannabinoidEvidenceClass.D,
+                citations=(
+                    MinorCannabinoidCitation(
+                        label="Adams R et al., J Am Chem Soc 1942, synthesis of HHC",
+                        doi="10.1021/ja01258a047", year=1942,
+                    ),
+                ),
+            ),
+        ),
+        regulatory_status=(
+            "US federal — gray zone, see Δ⁹-THC notes; hemp-derived HHC "
+            "from CBD hydrogenation arguably falls outside the 2018 Farm "
+            "Bill since HHC is not itself THC. DEA's 2020 IFR position "
+            "and the Federal Analog Act (21 USC §813) provide the most "
+            "likely Schedule I treatment. EU — Hungary, Estonia, Slovenia, "
+            "Lithuania, Finland have explicitly banned (2023-2024); "
+            "France ANSM has classified as a narcotic (June 2023). "
+            "EU Novel Food authorisation NOT granted. For research: "
+            "treat as Schedule I federally."
+        ),
+        commercial_reality=(
+            "Commercial HHC is the most chemistry-uncontrolled cannabinoid "
+            "in the US market as of 2024-2026: diastereomer ratio, residual "
+            "Pd / Pt catalyst, residual solvent (heptane / ethanol / "
+            "ethyl acetate), and conversion-by-product profile vary "
+            "lot-to-lot. Independent third-party COA with metal-screening "
+            "AND chiral chromatography is the minimum quality bar; few "
+            "consumer products meet this."
+        ),
+        safety_note=(
+            "Acute safety data are essentially absent in modern peer-"
+            "reviewed clinical literature. Surveillance case reports "
+            "describe acute intoxication consistent with CB1 partial "
+            "agonism. Chronic safety, drug-interaction profile, and "
+            "long-term diastereomer / catalyst-residue exposure risk "
+            "are all unknown."
+        ),
+        pharmacokinetics_note=(
+            "No published human PK study. Cross-reactivity with standard "
+            "Δ⁹-THC immunoassays is variable; chromatographic confirmation "
+            "is required for workplace / clinical testing."
+        ),
+        key_uncertainties=(
+            "No modern Phase I human PK study.",
+            "No clinical trial for any indication.",
+            "Diastereomer ratio variability is uncharacterised at the "
+            "consumer-product level.",
+            "Long-term safety of residual catalyst / by-product exposure "
+            "is genuinely unknown.",
+        ),
+        common_misconceptions=(
+            "MISCONCEPTION: 'HHC is a natural plant cannabinoid.' "
+            "Trace HHC has been detected in pollen and aged seed extract "
+            "but commercial HHC is virtually entirely hydrogenation-"
+            "derived from CBD or Δ⁹-THC.",
+            "MISCONCEPTION: 'HHC is non-detectable on drug tests.' "
+            "Cross-reactivity with standard cannabinoid immunoassays "
+            "is variable but non-zero; chromatographic methods detect "
+            "HHC and its metabolites reliably.",
+            "MISCONCEPTION: 'HHC is well-characterised pharmacologically.' "
+            "Modern Ki / EC50 data and human PK / efficacy / safety "
+            "data are all essentially absent.",
+        ),
+        citations=(),
+    ),
+
+    # ── THCO (spec 002 US6) ────────────────────────────────────────────
+    MinorCannabinoid(
+        name="THCO",
+        long_name="Δ⁹-tetrahydrocannabinol-O-acetate",
+        aliases=("THC-O", "THC-O-acetate", "THCOA", "delta-9-THC-O-acetate"),
+        chemistry_note=(
+            "THCO is the O-acetylated ester of Δ⁹-THC; the phenolic "
+            "hydroxyl at C1 is acetylated. As a prodrug ester, it is "
+            "pharmacologically inactive until ester hydrolysis liberates "
+            "the parent Δ⁹-THC in vivo. Commercial THCO is synthesised "
+            "from Δ⁹-THC + acetic anhydride; the reaction profile is "
+            "well-characterised but consumer-grade material may carry "
+            "residual acetic anhydride and uncharacterised pyrolysis "
+            "products when smoked or vaped."
+        ),
+        receptor_activity=(),
+        pharmacology_grade=MinorCannabinoidEvidenceClass.UNSUPPORTED,
+        clinical_evidence=(),
+        clinical_grade=MinorCannabinoidEvidenceClass.UNSUPPORTED,
+        preclinical_evidence=(),
+        regulatory_status=(
+            "US federal — Schedule I. The DEA explicitly addressed THCO "
+            "in a February 2023 letter to the AHPA, holding that THCO "
+            "does not occur naturally in cannabis and therefore cannot "
+            "be a hemp-derived cannabinoid under the Farm Bill — "
+            "synthetic-conversion derived THCO is Schedule I regardless "
+            "of starting material. EU and UK — same Schedule I treatment "
+            "as Δ⁹-THC under member-state controlled-drug frameworks."
+        ),
+        commercial_reality=(
+            "Commercial THCO was a brief market presence in 2021-2023 "
+            "before the DEA's February 2023 letter and subsequent "
+            "enforcement guidance largely cleared distributors. Where "
+            "available, residual acetic anhydride and pyrolysis-product "
+            "profile (suspected to include ketene-forming pathways at "
+            "vaping temperatures) are the dominant chemistry concerns."
+        ),
+        safety_note=(
+            "No clinical safety data. Concern in the harm-reduction "
+            "community over pyrolysis products of vaporised acetate "
+            "esters (analogy to vitamin-E acetate / EVALI 2019) — "
+            "the analogy is not perfectly tight (vit-E acetate's "
+            "pulmonary toxicity mechanism is distinct), but the lack "
+            "of any actual pulmonary toxicology data on inhaled THCO "
+            "represents an unknown."
+        ),
+        pharmacokinetics_note=(
+            "Onset is delayed relative to Δ⁹-THC because ester "
+            "hydrolysis is rate-limiting. Reported half-life is similar "
+            "to Δ⁹-THC once liberated. No formal published human PK "
+            "study."
+        ),
+        key_uncertainties=(
+            "No published human PK study.",
+            "No clinical trial for any indication.",
+            "Inhalation pyrolysis-product toxicology is essentially "
+            "unstudied.",
+            "Long-term safety of repeated ester-hydrolysis dosing is "
+            "uncharacterised.",
+        ),
+        common_misconceptions=(
+            "MISCONCEPTION: 'THCO is 3x stronger than THC.' This is "
+            "anecdote-derived; controlled human dose-response comparisons "
+            "do not exist. The phenomenologic difference users describe "
+            "is consistent with delayed onset + cumulative dosing rather "
+            "than per-mg potency, but the controlled data are absent.",
+            "MISCONCEPTION: 'THCO is hemp-derived and federally legal.' "
+            "DEA February 2023 letter clarifies THCO is Schedule I "
+            "regardless of starting material.",
+        ),
+        citations=(),
+    ),
+
+    # ── THCP (spec 002 US6) ────────────────────────────────────────────
+    MinorCannabinoid(
+        name="THCP",
+        long_name="tetrahydrocannabiphorol",
+        aliases=("Δ⁹-THCP", "delta-9-THCP", "tetrahydrocannabiphorol-C7"),
+        chemistry_note=(
+            "THCP is the C7-alkyl homologue of Δ⁹-THC (Δ⁹-THC has a "
+            "C5-pentyl side chain; THCP has a C7-heptyl side chain). The "
+            "extended side chain enhances CB1 affinity by roughly an "
+            "order of magnitude in competitive-binding assays. Identified "
+            "in Cannabis sativa cv FM2 by Citti et al. 2019, the first "
+            "isolation paper. Natural plant concentrations are very low "
+            "(< 0.1% typical) — commercial material is either "
+            "extract-concentrated or synthesised."
+        ),
+        receptor_activity=(
+            ReceptorActivity(
+                target="CB1",
+                uniprot="P21554",
+                gene_symbol="CNR1",
+                activity="full agonist (high affinity)",
+                affinity_note=(
+                    "Ki ≈ 1.2 nM at CB1 in [³H]-CP55,940 displacement "
+                    "(Citti 2019), ~33-fold tighter than Δ⁹-THC under "
+                    "the same conditions. Functional activity in "
+                    "transfected-cell cAMP assays consistent with full "
+                    "agonism."
+                ),
+                assay="[³H]-CP55,940 competitive binding (Citti 2019)",
+                citations=(
+                    MinorCannabinoidCitation(
+                        label=(
+                            "Citti C et al., Sci Rep 2019, isolation + "
+                            "pharmacology of THCP from Cannabis sativa FM2"
+                        ),
+                        pmid="31876792", year=2019,
+                    ),
+                ),
+            ),
+            ReceptorActivity(
+                target="CB2",
+                uniprot="P34972",
+                gene_symbol="CNR2",
+                activity="full agonist",
+                affinity_note=(
+                    "Ki ≈ 6.2 nM at CB2 (Citti 2019); the affinity ratio "
+                    "CB1/CB2 is similar to Δ⁹-THC despite the higher "
+                    "absolute affinity at both."
+                ),
+                assay="[³H]-CP55,940 competitive binding (Citti 2019)",
+                citations=(
+                    MinorCannabinoidCitation(
+                        label=(
+                            "Citti C et al., Sci Rep 2019, isolation + "
+                            "pharmacology of THCP"
+                        ),
+                        pmid="31876792", year=2019,
+                    ),
+                ),
+            ),
+        ),
+        pharmacology_grade=MinorCannabinoidEvidenceClass.D,
+        clinical_evidence=(),
+        clinical_grade=MinorCannabinoidEvidenceClass.UNSUPPORTED,
+        preclinical_evidence=(
+            PreclinicalEvidenceRow(
+                indication_or_model="cataleptic + hypothermic — tetrad behavioural panel",
+                species_or_assay="mouse, intraperitoneal",
+                dose_or_concentration="1-10 mg/kg i.p.",
+                outcome=(
+                    "Produced THC-like cataleptic + hypothermic behavioural "
+                    "effects at lower doses than equipotent Δ⁹-THC; "
+                    "consistent with the higher in-vitro CB1 affinity."
+                ),
+                bridging_to_clinic=(
+                    "Bridges to clinic only as receptor-pharmacology "
+                    "validation. The single isolation paper does not "
+                    "substitute for a clinical study; the higher CB1 "
+                    "affinity may not produce proportionate clinical "
+                    "potency in humans because pharmacokinetics + active-"
+                    "metabolite formation differ from Δ⁹-THC."
+                ),
+                grade=MinorCannabinoidEvidenceClass.D,
+                citations=(
+                    MinorCannabinoidCitation(
+                        label="Citti C et al., Sci Rep 2019, in vivo tetrad data on THCP",
+                        pmid="31876792", year=2019,
+                    ),
+                ),
+            ),
+        ),
+        regulatory_status=(
+            "US federal — gray zone. Plant-isolated THCP arguably falls "
+            "within the 2018 Farm Bill hemp definition if Δ⁹-THC < 0.3% "
+            "by dry weight, since THCP is structurally distinct from "
+            "Δ⁹-THC. Synthetically derived THCP follows the DEA's 2020 "
+            "IFR position on synthetic tetrahydrocannabinols and the "
+            "Federal Analog Act when intended for human consumption. "
+            "For research: treat as Schedule I federally. EU — Novel "
+            "Food per Regulation 2015/2283; member-state status varies."
+        ),
+        commercial_reality=(
+            "Genuine THCP is rare. Most products marketed as THCP are "
+            "either mis-labelled (containing Δ⁹-THC + Δ⁸-THC at "
+            "conventional concentrations rather than true THCP), or "
+            "contain trace authentic THCP in a Δ⁹-THC-dominant matrix. "
+            "Independent third-party chiral-LC-MS COA with explicit "
+            "THCP standard is the minimum verification bar; few products "
+            "meet it."
+        ),
+        safety_note=(
+            "No clinical safety data. By in-vitro affinity, dose-for-dose "
+            "psychoactive intensity may exceed Δ⁹-THC at equal mass; "
+            "real-world consumer doses are unclear because of pervasive "
+            "mis-labelling. Acute presentation case reports describe "
+            "Δ⁹-THC-like intoxication with no evidence of qualitatively "
+            "distinct toxicity."
+        ),
+        pharmacokinetics_note=(
+            "No published human PK study. Animal PK suggests longer "
+            "half-life than Δ⁹-THC due to higher lipophilicity (estimated "
+            "logP ≈ 8.0 vs 6.5 for Δ⁹-THC). Cross-reactivity with "
+            "standard immunoassays is incompletely characterised; "
+            "chromatographic confirmation is required for workplace / "
+            "clinical testing."
+        ),
+        key_uncertainties=(
+            "No human PK study.",
+            "No clinical trial for any indication.",
+            "In-vivo potency at typical consumer exposure is "
+            "uncharacterised in humans.",
+            "Drug-interaction profile (CYP3A4 / CYP2C9 substrate "
+            "behaviour) is presumed similar to Δ⁹-THC but not formally "
+            "studied.",
+        ),
+        common_misconceptions=(
+            "MISCONCEPTION: 'THCP is 33x stronger than THC because Ki "
+            "is 33x tighter.' In-vitro Ki ratios do not transfer linearly "
+            "to clinical potency; the published in-vivo tetrad data show "
+            "enhanced effect but at < 33-fold dose ratio.",
+            "MISCONCEPTION: 'Most products labelled THCP contain THCP.' "
+            "Independent COA testing finds most consumer-marketed THCP "
+            "products contain primarily Δ⁹-THC + Δ⁸-THC with little or "
+            "no detectable THCP.",
+        ),
+        citations=(
+            MinorCannabinoidCitation(
+                label="Citti C et al., Sci Rep 2019, THCP isolation + pharmacology",
+                pmid="31876792", year=2019,
+            ),
+        ),
+    ),
 )
 
 
@@ -1163,6 +1689,24 @@ _DETECT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bCBC\b|\bcannabichromene\b", re.IGNORECASE), "CBC"),
     (re.compile(r"\bCBN\b|\bcannabinol\b", re.IGNORECASE), "CBN"),
     (re.compile(r"\bCBG\b|\bcannabigerol\b", re.IGNORECASE), "CBG"),
+    # Spec 002 US6 — closing the minor-cannabinoid blind spot.
+    (re.compile(
+        r"Δ?8-?THC\b|Δ⁸-?THC\b|\bdelta[- ]?8[- ]?(?:thc|tetrahydrocannabinol)\b|"
+        r"\bD8[- ]?THC\b|\bD-?8\b",
+        re.IGNORECASE,
+    ), "Δ⁸-THC"),
+    (re.compile(
+        r"\bHHC\b|\bhexahydrocannabinol\b|\bhexahydro[- ]?thc\b",
+        re.IGNORECASE,
+    ), "HHC"),
+    (re.compile(
+        r"\bTHC-?O(?:[- ]?acetate)?\b|\bTHCOA\b|\bTHC-?O-?A\b",
+        re.IGNORECASE,
+    ), "THCO"),
+    (re.compile(
+        r"\bTHCP\b|\btetrahydrocannabiphorol\b|\bΔ?9?-?THCP\b",
+        re.IGNORECASE,
+    ), "THCP"),
 )
 
 

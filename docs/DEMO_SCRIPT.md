@@ -1,10 +1,11 @@
-# Cannavec Science — five-minute client demo
+# Cannavec Science v0.2 — elite-tier client demo
 
-The MVP is built around four golden flows. Each one is a single CLI
-command. The whole demo runs in under five minutes on a laptop with
-network access.
+The v0.2 build is structured around **nine** golden flows. Each one is
+a single CLI command. The whole demo runs in under nine minutes on a
+laptop with network access; the four v0.1 flows can be cut for a
+five-minute version.
 
-## Flow 1 — Research brief on a real question (1.5 min)
+## Flow 1 — Research brief on a real question (1 min)
 
 ```bash
 python3 -m cannavec_science answer "What is the evidence for CBD in Dravet syndrome?"
@@ -12,8 +13,8 @@ python3 -m cannavec_science answer "What is the evidence for CBD in Dravet syndr
 
 What the client sees:
 
-- A PICO-shaped brief on a real cannabis-research question.
-- Five GRADE-graded claims, each cited with a PubMed ID and the GRADE
+- A research brief on a real cannabis-research question.
+- GRADE-graded claims, each cited with a PubMed ID and the GRADE
   level annotated inline at the citation site.
 - An evidence summary block: highest grade (Level A), claim count,
   primary-source count.
@@ -25,37 +26,199 @@ What the client should notice:
 - **Every claim cites a real PMID.** No marketing copy, no
   "studies show," no anonymous attribution.
 - **The grade is honest.** When a single-source row caps at Level B,
-  the answer surfaces both the curator's anchor grade AND the
-  deterministic decay, with the reason ("single primary study").
+  the answer surfaces the deterministic decay reason.
 - **The wording matches the grade.** Level B does not get
   Level A verbs.
 
-## Flow 2 — Live discovery across three sources (1.5 min)
+## Flow 2 — Researcher-workflow scaffolders (1.5 min) — NEW in v0.2
 
 ```bash
-python3 -m cannavec_science discover "CBD PTSD" --since 2024-01-01 --max 5
+python3 -m cannavec_science answer "CBD evidence in Dravet syndrome" \
+    --pico --power-calc --grade-profile --protocol-skeleton
 ```
 
 What the client sees:
 
-- Live rows from PubMed, ChEMBL, and ClinicalTrials.gov, each tagged
-  with its source (`live_pubmed`, `live_chembl`, `live_ctgov`).
-- A cross-source synthesis verdict at the bottom
-  (STRONG / MIXED / WEAK / NONE convergence) plus the first detected
-  disagreement between sources, if any.
+- The same brief as Flow 1, plus four deterministic scaffolds:
+  - A **PICO frame** with confidence label (`high` when both
+    population and intervention resolve from the registry hits).
+  - A **sample-size estimate** table per outcome (α = 0.05,
+    β = 0.20). Cohen 1988 continuous formula or Fleiss 1981
+    proportion with Tytun-Ury continuity correction. Honest
+    `method_not_supported` when effect-size data are absent.
+  - A **GRADE evidence-profile table** matching what journals ask
+    for (#studies × design × bias × inconsistency × indirectness ×
+    imprecision × publication bias × effect × certainty).
+  - A **9-section IRB protocol skeleton** with the `Auto-generated
+    skeleton — PI must review and supplement.` watermark on line 1.
 
 What the client should notice:
 
-- **The plugin keeps up with the literature.** A 2025 trial PMID is
-  the proof that this is not a stale snapshot.
-- **Live rows are visually distinct.** They carry a `live_*` provenance
-  tag and a "provisional, live-search" grade suffix. They never
-  pretend to be curated.
-- **A refused query fires no network call.** Try
-  `python3 -m cannavec_science discover "indica cures PTSD"` — it
-  refuses on banned-pattern grounds before any HTTP request.
+- **Stdlib-only.** The power calculator uses `math.erf` for the
+  normal CDF. No scipy / numpy / R required.
+- **The protocol skeleton is honest.** Every PI-decision-required
+  field is bracketed `[PI to specify ...]`. The tool does not
+  pretend to be the protocol author.
+- **Non-supported designs refuse explicitly.** Non-inferiority,
+  adaptive, cluster-randomised, single-arm without historical
+  control all return `method_not_supported` rather than guessing.
 
-## Flow 3 — Bibliography export (30 sec)
+## Flow 3 — Preprint discovery (1 min) — NEW in v0.2
+
+```bash
+python3 -m cannavec_science discover "CB2 microglia" --sources biorxiv,medrxiv --max 5
+```
+
+What the client sees:
+
+- Live rows from bioRxiv and medRxiv tagged `live_biorxiv` /
+  `live_medrxiv`, with `posted_date`, `revision_number`,
+  `version_history`, and the suggested Level D ceiling.
+- Cross-source synthesis verdict counting bioRxiv + medRxiv as
+  distinct sources.
+- When a preprint has been peer-published, the Crossref-resolved
+  `published_version_doi` is surfaced so the composer prefers the
+  peer-reviewed version.
+
+What the client should notice:
+
+- **The plugin keeps up with the frontier.** Preprints are where
+  half of recent cannabinoid-mechanism work lives in 2026.
+- **Preprints are explicitly capped at Level D.** No matter the grade
+  hint from the preprint server, the GRADE adapter applies the cap.
+- **Refused queries fire no network calls.** Try the same command
+  with `"indica cures cancer"` — it refuses at the preflight before
+  any HTTP request.
+
+## Flow 4 — Live discovery across eleven sources (1 min)
+
+```bash
+python3 -m cannavec_science discover "CBD PTSD" --since 2024-01-01 --max 5 \
+    --sources pubmed,chembl,ctgov,pubchem,pharmgkb,rcsb,opentargets,gwas,bindingdb,biorxiv,medrxiv
+```
+
+What the client sees:
+
+- Live rows from up to eleven primary sources, each tagged with its
+  provenance.
+- A cross-source synthesis verdict (STRONG / MIXED / WEAK / NONE
+  convergence) plus the first detected disagreement.
+
+What the client should notice:
+
+- **Live rows are visually distinct.** Each carries a `live_*`
+  provenance tag and a "provisional, live-search" grade suffix.
+  They never auto-promote to the curated tier.
+- **The synthesis verdict is deterministic.** Same inputs → same
+  output. No LLM judging.
+
+## Flow 5 — Verify with citation network (1 min) — NEW in v0.2
+
+```bash
+python3 -m cannavec_science verify 28538134
+```
+
+What the client sees:
+
+- The verified Devinsky-2017 PubMed record (PMID 28538134).
+- A `Forward-citation network` block reporting the forward-cite
+  count, the per-cite sentiment counts (supports / refutes /
+  neutral), the aggregate (`support_heavy` / `mixed` / `refute_heavy`
+  / `neutral` / `insufficient`), and the replication status.
+- If pushback is `refute_heavy`, the brief flags the deterministic
+  GRADE downgrade (`inconsistency_serious=True` → one level lower).
+
+What the client should notice:
+
+- **The pushback signal is reproducible.** It uses the same
+  rule-based `pubmed_sentiment` classifier the cross-source synthesis
+  layer uses — not LLM-judged.
+- **The GRADE downgrade is deterministic, not advisory.** When the
+  signal flips, the composer-side grade drops by one level for any
+  claim citing that PMID. Same inputs → same grade.
+
+## Flow 6 — Registry freshness probe (1 min) — NEW in v0.2
+
+```bash
+python3 -m cannavec_science freshness --registry interactions
+```
+
+What the client sees:
+
+- A per-row status table for the 35-row interaction registry.
+- Per-row classification: `clean` / `retraction_detected` /
+  `eoc_detected` / `last_verified_stale` / `network_error` /
+  `no_watch_pmids`.
+- Summary counts at the top.
+
+What the client should notice:
+
+- **No mutation.** The probe surfaces the gap; the curator updates
+  the row. Mirror of Constitution §IX's "curated rows never
+  auto-promote" → "curated rows never auto-invalidate."
+- **Offline by default.** The local retraction registry is consulted
+  first; `--network` enables live PubMed verification.
+- **Composition-time integration.** When a brief cites a registry
+  row with `last_verified` > 365 days old, the rendered citation
+  gets a `[freshness: stale (verified YYYY-MM-DD)]` suffix.
+
+## Flow 7 — Regulatory-feasibility advisory (45 sec) — NEW in v0.2
+
+```bash
+python3 -m cannavec_science answer "Can I study Δ⁹-THC in rats?" \
+    --regulatory-feasibility us
+```
+
+What the client sees:
+
+- The standard research brief, plus a regulatory-feasibility block:
+  - `This is not legal advice; consult your institutional
+    research-compliance office.` watermark.
+  - Schedule classification (`schedule_i` for Δ⁹-THC in the US).
+  - Licensing path (DEA Schedule I Researcher Registration, NIDA
+    Drug Supply Program, FDA IND).
+  - Estimated timeline.
+  - Primary regulatory sources (21 USC §812, 21 CFR §1301.18, etc.).
+
+What the client should notice:
+
+- **The watermark is non-removable.** It is asserted by the test
+  suite (`tests/test_regulatory_feasibility.py::WatermarkTests`).
+  No silent removal possible.
+- **Gray zones are flagged honestly.** Try with
+  `"Can I study Δ⁸-THC?"` — the advisory names the AK Futures 9th
+  Circuit case AND the DEA 2020 IFR position. No fake certainty.
+- **Per-state US is out of scope.** The v0.2 advisory is US-federal
+  only.
+
+## Flow 8 — Rigor audit on arbitrary text (45 sec)
+
+```bash
+python3 -m cannavec_science rigor "myrcene potentiates THC's sedative effect at 10 mg"
+```
+
+What the client sees:
+
+- Multiple flagged violations:
+  - **isomer_collapse**: bare "THC" in pharmacology context.
+  - **dose_without_route**: "10 mg" without oral/inhaled/sublingual.
+  - **entourage_overclaim**: terpene-cannabinoid synergy claim
+    without one of the canonical citations (Russo 2011, Finlay 2020,
+    Santiago 2019, LaVigne 2021).
+- Each violation carries the matched span and a resolution hint.
+
+What the client should notice:
+
+- **The detectors are deterministic.** They fire the same way every
+  time — no LLM variance.
+- **They are conservative.** False positives are preferred to false
+  negatives. Discussion of the entourage hypothesis as a research
+  topic does NOT fire (the detector enforces citation discipline,
+  not the hypothesis itself).
+- **Citations clear violations.** `myrcene potentiates THC (Russo
+  2011)` does not fire.
+
+## Flow 9 — Bibliography export (30 sec)
 
 ```bash
 python3 -m cannavec_science answer "CBD evidence in Dravet syndrome" \
@@ -65,74 +228,42 @@ python3 -m cannavec_science answer "CBD evidence in Dravet syndrome" \
 What the client sees:
 
 - A standard BibTeX `.bib` file with one `@article{...}` entry per
-  cited PMID/DOI.
-- GRADE level annotated inline in the `note` field of each entry.
+  cited PMID/DOI, GRADE level annotated inline.
 - Same shape for `--bibliography ris` and `--bibliography csljson`.
 
-What the client should notice:
-
-- **The output is citable.** Drop it straight into Zotero. No
-  re-keying.
-- **The GRADE level travels with the citation.** A reader of the
-  bibliography knows whether Cannavec Science was confident in the
-  evidence or hedging.
-
-## Flow 4 — Rigor audit on arbitrary text (30 sec)
-
-```bash
-python3 -m cannavec_science rigor "this cultivar tests at 22% THC by HPLC and the dose was 10 mg"
-```
-
-What the client sees:
-
-- Three flagged violations:
-  - **isomer_collapse**: bare "THC" in pharmacology context.
-  - **dose_without_route**: "10 mg" with no oral/inhaled/sublingual.
-  - **thca_vs_thc_conflation**: "22% THC by HPLC" needs THCA
-    disambiguation.
-- Each violation carries the matched span and a resolution hint.
-
-What the client should notice:
-
-- **The detectors are deterministic.** They fire the same way every
-  time on the same text — no LLM variance.
-- **They are conservative.** False positives are preferred to false
-  negatives when a researcher's credibility is at stake.
-- **The resolution hint is concrete.** "Disambiguate THCA (raw /
-  pre-decarb) from Δ⁹-THC (decarboxylated); e.g.,
-  '22% THCA (~19.3% Δ⁹-THC equiv post-decarb)'."
-
-## Bonus — show the constitution (1 min)
+## Bonus — show the constitution + version-boundary doc (30 sec)
 
 ```bash
 cat .specify/memory/constitution.md | head -50
+cat specs/002-elite-development/spec.md | head -30
 ```
 
 What the client sees:
 
-- A short, principled charter that governs what the MVP does and
+- A short, principled charter that governs what the build does and
   what it explicitly will NOT do.
-- Out-of-scope list: 14 audience surfaces the parent plugin has and
-  this MVP does not.
+- The v0.2 elite-development spec naming the six gaps the build
+  closed.
 
 What the client should notice:
 
-- **The plugin is honest about its scope.** "Researcher audience only,
-  v0.x. v0.2 may add others behind a constitutional amendment."
-- **The honesty is a feature.** A demo that promises "everything"
-  ends with the client doubting the parts that worked. A demo that
-  promises one thing well builds trust in the parts that ship.
+- **The build is honest about its scope.** "Researcher audience only.
+  Per-state US compliance lives in the parent plugin."
+- **The v0.x → v0.2 boundary was crossed via the spec, not vibes.**
+  The constitution's own v0.x qualifier defines the mechanism;
+  no amendment required.
 
 ## When the demo goes well — close with this
 
-> "This is one audience surface, one composer, one CLI, ~6,000 lines
-> of stdlib Python. The larger parent plugin has fourteen more
-> audiences, a KB flywheel, signed artifacts, multi-jurisdiction
-> compliance, and the rest. We built this MVP first because we wanted
-> to prove one thing exceptionally well before showing you everything.
-> Where would you like to go next — clinician audience, lab QC,
-> compliance, or somewhere else?"
+> "This is one audience surface, one composer, one CLI, ~24,000 lines
+> of stdlib Python, 1,045 unit tests, and 115 canonical eval prompts.
+> The larger parent plugin has fourteen more audiences, a KB flywheel,
+> signed artifacts, multi-jurisdiction compliance, and the rest. We
+> built v0.2 to prove that researcher-grade rigor + scaffolding +
+> live frontier discovery can ship at elite-tier quality before
+> showing you everything else. Where would you like to go next —
+> clinician audience, lab QC, compliance, or somewhere else?"
 
 That question reframes the conversation from "is this real?" to
 "where do you want to deploy this?" — which is the conversation a
-working MVP earns.
+working elite-tier build earns.

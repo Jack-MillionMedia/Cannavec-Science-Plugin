@@ -140,10 +140,20 @@ citation site, not only in a synthesis block.
    implementation tasks for the same module.
 5. PRs MUST include a `tests/` diff or document why none was needed.
 
-## Out Of Scope For v0.x
+## Out Of Scope For v0.2
 
-The following are deliberately deferred until after the MVP proves
-client value:
+The v0.2 elite-development build (spec 002) crossed the v0.x boundary
+and promoted four items previously deferred: bioRxiv / medRxiv preprint
+discovery (US1), the endocannabinoidome reference surface (US6), a
+single-layer regulatory-feasibility advisory for US-federal / EU / Canada
+/ UK (US6), and researcher-workflow scaffolders (PICO, power, GRADE
+evidence-profile, IRB protocol skeleton) under US2. These now ship under
+the same constitutional gates (§I primary-source, §II deterministic
+backbone, §III test-first, §V safety, §VI phytochemistry precision, §VII
+GRADE honesty, §IX live-discovery contract). Adding them did NOT broaden
+the researcher-only audience scope-lock in §IV.
+
+The following remain deliberately deferred past v0.2:
 
 - Multi-audience templates (patient, clinician, cultivator, lab,
   compliance, retail, policy, hemp, microbiome, veterinary)
@@ -151,18 +161,21 @@ client value:
 - Signed reproducible artifacts and verification
 - Watchlist + daily digest
 - Persistent expert profiles
-- Multi-jurisdiction legal / regulatory surface
+- Per-state US regulatory-feasibility rows (the v0.2 advisory is
+  US-federal only; per-state law lives in the parent plugin)
 - Hemp-derived intoxicating-cannabinoid state law
 - Industrial-hemp material-science framing
-- Microbiome / endocannabinoidome surface
+- Microbiome surface (the eCBome ships in v0.2 but the gut-microbiome
+  / endocannabinoidome cross-talk surface does not)
 - CourtListener / legal-discovery integration
 - Pesticides registry
-- Per-state US compliance rows
 - Oncology palliation-vs-cure framing as a standalone surface
+- AlphaFold predicted structures (RCSB experimental only)
+- Curator-agent auto-mutation of registry rows on freshness-probe results
 
 These features may exist in the larger Cannavec plugin. They are
-explicitly NOT promised by this MVP. Demo-time conflation between
-the two products is a constitution violation.
+explicitly NOT promised by this elite-tier build. Demo-time conflation
+between the two products is a constitution violation.
 
 ## Governance
 
@@ -178,3 +191,10 @@ the spec's "Why this priority" section and document the new eval
 surface area.
 
 **Version**: 1.0.0 | **Ratified**: 2026-05-21 | **Last Amended**: 2026-05-21
+
+Codebase boundary: v0.x → v0.2 crossed via spec 002 (elite development).
+The principles above are unchanged in number and intent; the principle
+texts that explicitly deepened under v0.2 (§I, §VI, §VII, §VIII, §IX,
+§XI) keep their numbering and ordering. No constitutional amendment was
+required because the v0.x qualifier is the mechanism the constitution
+itself defines for moving items off the "Out Of Scope" list.

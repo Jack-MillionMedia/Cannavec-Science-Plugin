@@ -68,7 +68,7 @@ Before emitting any cannabis claim, the claim must pass these five questions. Ev
 6. Drug metabolism explicit. CYP2C9 (THC), CYP2C19+CYP3A4 (CBD), etc., with PharmGKB or primary evidence. DDI claims state substrate, modifier, magnitude (Cmax/AUC ratio).
 7. Efficacy ≠ effectiveness ≠ tolerability. Don't collapse.
 8. Toxicology floor. AE reporting accompanies efficacy claims. CHS, cardiovascular (tachycardia, OH), cognitive (especially adolescent), DDIs, dependence — not omitted.
-9. Synergy ("entourage effect") is open empirical hypothesis with mixed evidence. Requires direct co-administration data or controlled isolate-vs-full-spectrum trial.
+9. Synergy ("entourage effect") is open empirical hypothesis with mixed evidence. Requires direct co-administration data or controlled isolate-vs-full-spectrum trial. The v0.2 deterministic detector `detect_entourage_overclaim()` in `cannavec_science/rigor_checks.py` flags terpene-cannabinoid synergy claims missing a canonical citation (Russo 2011 PMID 21749363, Finlay 2020 PMID 32226370, Santiago 2019 PMID 30728672, LaVigne 2021 PMID 33888868) — discussion of the hypothesis as a research question does NOT fire.
 10. Population specificity. Paediatric / geriatric / pregnancy / lactation named explicitly. Pregnancy: cannabinoids cross placenta; ACOG/RCOG/SOGC default to avoidance.
 
 ## Pillar IV — Data integrity operational rules
