@@ -46,6 +46,17 @@ class Provenance(str, Enum):
     LIVE_CTGOV = "live_ctgov"
     LIVE_PREPRINT = "live_preprint"
     LIVE_COURTLISTENER = "live_courtlistener"
+    # Spec 001-ext — cannabis-primary-source widening (life-science layer).
+    # Each row carries primary-source identifiers (PubChem CID,
+    # PharmGKB accession, PDB ID, OpenTargets ENSG, GWAS study accession,
+    # BindingDB monomer/PDB/UniProt key) so Constitution §I
+    # (Primary-Source-Or-Refuse) holds.
+    LIVE_PUBCHEM = "live_pubchem"
+    LIVE_PHARMGKB = "live_pharmgkb"
+    LIVE_RCSB = "live_rcsb"
+    LIVE_OPENTARGETS = "live_opentargets"
+    LIVE_GWAS = "live_gwas"
+    LIVE_BINDINGDB = "live_bindingdb"
     # Spec 003 — adverse-event signal feeds (US5).
     LIVE_FAERS = "live_faers"
     LIVE_MAUDE = "live_maude"

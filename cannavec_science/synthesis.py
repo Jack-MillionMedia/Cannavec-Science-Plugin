@@ -76,7 +76,20 @@ __all__ = [
 # ── Constants ────────────────────────────────────────────────────────
 
 
-_SOURCE_KEYS = ("pubmed", "chembl", "ctgov", "preprint", "courtlistener")
+_SOURCE_KEYS = (
+    "pubmed",
+    "chembl",
+    "ctgov",
+    "preprint",
+    "courtlistener",
+    # Cannabis-primary-source widening (life-science skill layer).
+    "pubchem",
+    "pharmgkb",
+    "rcsb",
+    "opentargets",
+    "gwas",
+    "bindingdb",
+)
 
 
 # Direction-classification regexes. Order matters: a single abstract
@@ -218,7 +231,22 @@ def _citation_key(source: str, row: dict) -> str:
     6. ``native_id`` (fallback)
     7. ``source:title`` (last-resort fallback)
     """
-    for k in ("pmid", "doi", "nct_id", "opinion_id", "chembl_id", "native_id"):
+    for k in (
+        "pmid",
+        "doi",
+        "nct_id",
+        "opinion_id",
+        "chembl_id",
+        # Cannabis-primary-source widening: each life-science source
+        # contributes a canonical identifier so cross-source de-dup
+        # collapses two rows that cite the same primary record.
+        "cid",
+        "accession_id",
+        "pdb_id",
+        "ensembl_id",
+        "monomer_id",
+        "native_id",
+    ):
         v = row.get(k)
         if v:
             return f"{k}:{v}"
@@ -425,6 +453,12 @@ _SOURCE_DISPLAY = {
     "ctgov": "CT.gov",
     "preprint": "Preprints",
     "courtlistener": "CourtListener",
+    "pubchem": "PubChem",
+    "pharmgkb": "PharmGKB",
+    "rcsb": "RCSB PDB",
+    "opentargets": "Open Targets",
+    "gwas": "GWAS Catalog",
+    "bindingdb": "BindingDB",
 }
 
 

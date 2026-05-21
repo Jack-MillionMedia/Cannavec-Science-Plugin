@@ -94,7 +94,10 @@ class PingAllTests(unittest.TestCase):
         results = ping_all(probe=_fast_probe)
         names = {r.source for r in results}
         self.assertEqual(names, {
-            "pubmed", "chembl", "ctgov", "biorxiv", "medrxiv", "courtlistener"
+            # Original Spec-002 set.
+            "pubmed", "chembl", "ctgov", "biorxiv", "medrxiv", "courtlistener",
+            # Cannabis-primary-source widening (life-science skill layer).
+            "pubchem", "pharmgkb", "rcsb", "opentargets", "gwas", "bindingdb",
         })
 
 
