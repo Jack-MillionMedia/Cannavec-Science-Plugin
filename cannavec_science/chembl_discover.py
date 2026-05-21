@@ -215,6 +215,28 @@ class ChEMBLSearcher:
         rows = self._fetch_bioactivity(chembl_id, max_results)
         return _sort_rows(rows)[:max_results]
 
+    def fetch_compound(self, chembl_id: str) -> Optional[dict]:
+        """Fetch a single ChEMBL compound record by ID (spec 003 US5 / FR-005).
+
+        Returns the raw molecule dict (with ``molecule_chembl_id``,
+        ``pref_name``, ``molecule_properties`` keys) or ``None`` when
+        the ID is malformed or unresolved.
+        """
+        q = (chembl_id or "").strip().upper()
+        if not (q.startswith("CHEMBL") and q[6:].isdigit()):
+            raise ValueError(
+                f"ChEMBL IDs must match ^CHEMBL\\d+$; got {chembl_id!r}"
+            )
+        preflight(q)
+        url = _MOLECULE_DETAIL_URL.format(chembl_id=q)
+        try:
+            data = self._fetch_json(url)
+        except NetworkError:
+            return None
+        if "molecule_chembl_id" in data:
+            return data
+        return None
+
     # ── Internals ────────────────────────────────────────────────────
 
     def _resolve_compound(self, query: str) -> Optional[dict]:

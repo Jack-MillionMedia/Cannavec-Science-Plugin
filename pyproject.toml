@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cannavec-science"
-version = "0.2.0"
-description = "Elite-tier cannabis-science primitives for the working researcher (Cannavec Science Claude Code plugin v0.2). GRADE evidence-grading with deterministic citation-network-driven downgrades, 15 banned-pattern detectors, safety preflight, seven phytochemistry rigor checks (incl. entourage-overclaim detector), PubMed / Crossref citation verification with forward-cite pushback signal, retraction enforcement at composition time, eight science registries with freshness watch, live discovery across eleven primary-source databases (PubMed, ChEMBL, CT.gov, PubChem, PharmGKB, RCSB, Open Targets, GWAS, BindingDB, bioRxiv, medRxiv), researcher-workflow scaffolders (PICO, sample-size power, GRADE evidence-profile, IRB protocol skeleton), regulatory-feasibility advisory, endocannabinoidome reference, BibTeX / RIS / CSL-JSON bibliography export."
+version = "0.3.0"
+description = "Elite-tier cannabis-science primitives for the working researcher (Cannavec Science Claude Code plugin v0.3). GRADE evidence-grading with deterministic citation-network-driven downgrades and topical-relevance grade aggregation, 15 banned-pattern detectors, safety preflight, seven phytochemistry rigor checks (incl. entourage-overclaim detector), span-aware named-cannabinoid resolution (no Δ⁹-THC monograph for Δ⁸-THC queries), cannabinoid-scoped AE / interaction / contraindication / population registry detectors, cannabis-noun → cannabinoid-set expansion for partner-drug matching, eCBome registry threaded into compose_answer, identifier verification across all five Constitution §I shapes (PMID, DOI, NCT, ChEMBL, UniProt), registry inventory subcommand, retraction enforcement at composition time, eight science registries with freshness watch, live discovery across eleven primary-source databases, researcher-workflow scaffolders (PICO, sample-size power, GRADE evidence-profile, IRB protocol skeleton), regulatory-feasibility advisory, BibTeX / RIS / CSL-JSON bibliography export."
 authors = [{ name = "Jack-MillionMedia" }]
 license = { text = "MIT" }
 readme = "README.md"

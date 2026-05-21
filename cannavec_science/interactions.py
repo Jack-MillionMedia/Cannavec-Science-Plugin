@@ -1381,27 +1381,61 @@ _CANNABINOID_KEYWORDS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bthcv\b|\btetrahydrocannabivarin\b", re.IGNORECASE), "THCV"),
 )
 
+# Spec 003 US6 / FR-006 — cannabis-noun → cannabinoid-set expansion.
+# When the prompt contains "cannabis" / "marijuana" / "marihuana" /
+# "weed" without naming a specific cannabinoid, every interaction row
+# whose cannabinoid is in this set becomes a candidate.
+_CANNABIS_NOUN_RE = re.compile(
+    r"\bcannabis\b|\bmarijuana\b|\bmarihuana\b|\bweed\b",
+    re.IGNORECASE,
+)
+_CANNABIS_NOUN_EXPANSION: tuple[str, ...] = (
+    "CBD", "Δ⁹-THC", "CBN", "CBG", "THCV",
+)
+
+
+def _resolve_interaction_cannabinoids(
+    text: str,
+    cannabinoid_filter: frozenset[str] | set[str] | None,
+) -> set[str]:
+    direct = {label for rx, label in _CANNABINOID_KEYWORDS
+              if rx.search(text)}
+    cannabis_noun = _CANNABIS_NOUN_RE.search(text) is not None
+    if cannabis_noun and not direct:
+        direct.update(_CANNABIS_NOUN_EXPANSION)
+    if cannabinoid_filter is not None:
+        if cannabinoid_filter:
+            direct = direct & set(cannabinoid_filter)
+        else:
+            direct = set()
+    return direct
+
 
 def detect_interaction_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[CannabinoidInteraction, ...]:
     """Return registry entries that match a (cannabinoid, partner) pair in ``text``.
 
     A registry entry matches when:
       - a cannabinoid keyword for ``x.cannabinoid`` appears in ``text``, AND
       - a partner keyword whose mapped value is the same string as
-        ``x.partner_drug`` OR appears as a substring of ``x.partner_drug``
-        (e.g. "phenytoin" matches both the specific CBD↔phenytoin entry
-        and the class-level Δ⁹-THC↔"CYP2C9 substrates (warfarin,
-        phenytoin)" entry).
+        ``x.partner_drug`` OR appears as a substring of ``x.partner_drug``.
+
+    Spec 003 US6 / FR-006: the word "cannabis" / "marijuana" /
+    "marihuana" / "weed" expands to the cannabinoid set
+    {CBD, Δ⁹-THC, CBN, CBG, THCV} so "cannabis × tacrolimus" matches
+    the CBD-tacrolimus row.
+
+    Spec 003 US2 / FR-002: ``cannabinoid_filter`` restricts the
+    cannabinoid set to the prompt's named cannabinoids. When set by
+    :func:`compose_answer`, this is the :class:`NamedCannabinoidSet`.
 
     Returns an empty tuple if no cannabinoid + partner-drug pair is
-    co-mentioned. The function is intentionally conservative — false
-    positives (random co-mentions) are worse than false negatives,
-    since callers may render the registry entries to the user.
+    co-mentioned.
     """
-    cannabinoids = {label for rx, label in _CANNABINOID_KEYWORDS
-                    if rx.search(text)}
+    cannabinoids = _resolve_interaction_cannabinoids(text, cannabinoid_filter)
     partners = {label for rx, label in _PARTNER_KEYWORDS
                 if rx.search(text)}
     if not cannabinoids or not partners:
@@ -1478,21 +1512,16 @@ _CLASS_KEYWORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
 
 def detect_interaction_class_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[CannabinoidInteraction, ...]:
     """Return all registry entries that match a *class* keyword in ``text``.
 
     Companion to :func:`detect_interaction_mention` for the generic-
-    question case: prompts like "What are the major CYP-mediated
-    cannabinoid drug interactions?" that name a class of interaction
-    (rather than a specific partner drug) currently return 0 hits from
-    the strict matcher. This fallback surfaces every registry row that
-    matches the class scope, optionally filtered by any cannabinoid
-    named in the prompt.
-
-    Scope semantics:
-      - ``"all"`` — every row in the registry (subject to cannabinoid
-        filter when one is named).
-      - ``"cyp"`` — only rows whose mechanism includes a CYP isoform.
+    question case (e.g., "what are the major CYP-mediated cannabinoid
+    drug interactions?"). When ``cannabinoid_filter`` is set (spec
+    003 US2 / FR-002), only rows whose ``cannabinoid`` field
+    intersects the filter are returned.
 
     Returns ``()`` when no class keyword is matched, so callers can
     safely chain: ``hits = detect_interaction_mention(t) or
@@ -1501,18 +1530,16 @@ def detect_interaction_class_mention(
     scope: str | None = None
     for rx, s in _CLASS_KEYWORDS:
         if rx.search(text):
-            # First match wins — class keywords don't compound. CYP is
-            # more specific than "all", so check CYP first by ordering
-            # in _CLASS_KEYWORDS… but to be explicit, prefer the
-            # narrower scope when both could match.
             if scope is None or s == "cyp":
                 scope = s
     if scope is None:
         return ()
-    cannabinoids = {label for rx, label in _CANNABINOID_KEYWORDS
-                    if rx.search(text)}
+    cannabinoids = _resolve_interaction_cannabinoids(text, cannabinoid_filter)
     if cannabinoids:
         rows = [r for r in _REGISTRY if r.cannabinoid in cannabinoids]
+    elif cannabinoid_filter is not None:
+        # Spec 003 US2 / FR-002 — no registry cannabinoid intersects.
+        rows = []
     else:
         rows = list(_REGISTRY)
     if scope == "cyp":

@@ -7,7 +7,8 @@
     "rigor_negative": 20,
     "refusal": 15,
     "live": 10,
-    "cross_cutting": 5
+    "cross_cutting": 5,
+    "routing_surfacing": 15
   },
   "prompts": [
     {
@@ -1036,6 +1037,179 @@
       "prompt": "Does THCV reduce HbA1c in type 2 diabetes patients?",
       "expect": {
         "is_refusal": false
+      }
+    },
+    {
+      "id": "routing_delta_8_thc_no_major_monograph",
+      "category": "routing_surfacing",
+      "prompt": "Δ⁸-THC pharmacology and safety",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Minor cannabinoid monograph — Δ⁸-THC"
+        ],
+        "must_not_include_section": [
+          "Major cannabinoid monograph — THC"
+        ]
+      }
+    },
+    {
+      "id": "routing_delta_8_ascii_no_major",
+      "category": "routing_surfacing",
+      "prompt": "delta-8-THC potency and CB1 binding",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Minor cannabinoid monograph — Δ⁸-THC"
+        ],
+        "must_not_include_section": [
+          "Major cannabinoid monograph — THC"
+        ]
+      }
+    },
+    {
+      "id": "routing_hhc_vs_delta_8_both_minors",
+      "category": "routing_surfacing",
+      "prompt": "HHC vs Δ⁸-THC pharmacology",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Minor cannabinoid monograph — HHC",
+          "Minor cannabinoid monograph — Δ⁸-THC"
+        ],
+        "must_not_include_section": [
+          "Major cannabinoid monograph — THC"
+        ]
+      }
+    },
+    {
+      "id": "routing_thcp_no_major",
+      "category": "routing_surfacing",
+      "prompt": "THCP CB1 affinity",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Minor cannabinoid monograph — THCP"
+        ],
+        "must_not_include_section": [
+          "Major cannabinoid monograph — THC"
+        ]
+      }
+    },
+    {
+      "id": "routing_thco_no_major",
+      "category": "routing_surfacing",
+      "prompt": "THCO acetate safety and pharmacology",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Minor cannabinoid monograph — THCO"
+        ],
+        "must_not_include_section": [
+          "Major cannabinoid monograph — THC"
+        ]
+      }
+    },
+    {
+      "id": "routing_cbn_sleep_specific",
+      "category": "routing_surfacing",
+      "prompt": "CBN sleep evidence",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Minor cannabinoid monograph — CBN"
+        ]
+      }
+    },
+    {
+      "id": "routing_cbg_specific",
+      "category": "routing_surfacing",
+      "prompt": "CBG antibacterial pharmacology",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Minor cannabinoid monograph — CBG"
+        ]
+      }
+    },
+    {
+      "id": "routing_entourage_grade_unsupported",
+      "category": "routing_surfacing",
+      "prompt": "What is the evidence that the entourage effect is real?",
+      "expect": {
+        "highest_grade_unsupported": true
+      }
+    },
+    {
+      "id": "routing_entourage_hypothesis_unsupported",
+      "category": "routing_surfacing",
+      "prompt": "Is the entourage hypothesis supported by clinical evidence?",
+      "expect": {
+        "highest_grade_unsupported": true
+      }
+    },
+    {
+      "id": "routing_cannabis_tacrolimus_expansion",
+      "category": "routing_surfacing",
+      "prompt": "cannabis interaction with tacrolimus transplant",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
+    },
+    {
+      "id": "routing_marijuana_warfarin_expansion",
+      "category": "routing_surfacing",
+      "prompt": "marijuana warfarin drug interaction",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
+    },
+    {
+      "id": "routing_hhc_safety_zero_unrelated_claims",
+      "category": "routing_surfacing",
+      "prompt": "HHC safety profile and adverse events",
+      "expect": {
+        "is_refusal": false,
+        "claims_must_only_mention_cannabinoids": ["HHC"],
+        "must_include_section": [
+          "Minor cannabinoid monograph — HHC"
+        ]
+      }
+    },
+    {
+      "id": "routing_ecbome_anandamide",
+      "category": "routing_surfacing",
+      "prompt": "anandamide FAAH inhibition",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Endocannabinoidome (eCBome) reference"
+        ]
+      }
+    },
+    {
+      "id": "routing_ecbome_2ag",
+      "category": "routing_surfacing",
+      "prompt": "2-AG MAGL endocannabinoid signaling",
+      "expect": {
+        "is_refusal": false,
+        "must_include_section": [
+          "Endocannabinoidome (eCBome) reference"
+        ]
+      }
+    },
+    {
+      "id": "routing_dravet_does_not_pull_ecbome",
+      "category": "routing_surfacing",
+      "prompt": "CBD evidence in Dravet syndrome",
+      "expect": {
+        "is_refusal": false,
+        "must_not_include_section": [
+          "Endocannabinoidome (eCBome) reference"
+        ],
+        "min_grade": "B"
       }
     }
   ]

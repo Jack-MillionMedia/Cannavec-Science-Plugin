@@ -1,4 +1,4 @@
-# Cannavec Science (v0.2 — elite-tier build)
+# Cannavec Science (v0.3 — routing-and-surfacing build)
 
 **A focused Claude Code plugin for elite-tier cannabis-research science.**
 
@@ -10,21 +10,84 @@ researcher-workflow scaffolding (PICO, sample-size power, GRADE
 evidence-profile table, IRB protocol skeleton). Cannavec Science ships
 exactly those things — researcher-only, stdlib-only, deterministic.
 
-This is the **v0.2 elite-development build** descending from the larger
-[Cannavec plugin](https://github.com/Jack-MillionMedia/Cannavec-Plugin).
-The v0.1 MVP held five commands, one audience, eight curated science
-registries, and a deterministic backbone in ~19,000 LOC. The v0.2 build
-closes the six gaps the 2026-05-21 elite-tier rating identified
-(preprints, eval breadth, citation-network analysis, registry freshness,
-researcher-workflow scaffolding, cannabis-specific blind spots) without
-breaking the audience scope-lock — and is now **1,045 unit tests strong**
-across the deterministic backbone.
+This is the **v0.3 routing-and-surfacing build** descending from the
+v0.2 elite-development build. v0.2 already did the hard part well — the
+deterministic backbone, GRADE wording-vs-grade guard, K2 hard-refuse,
+banned-pattern detector, retraction enforcement, freshness probe,
+regulatory-feasibility advisory, and the seven rigor detectors were
+all trustworthy. The 2026-05-21 industry-expert review (spec 003)
+found four P1 shipping bugs and three confidence-laundering failure
+modes inside the otherwise-credible v0.2 surface. v0.3 closes them all
+without breaking the researcher-only audience lock — and is now
+**1,140+ unit tests strong** with a 15-prompt routing-and-surfacing
+eval bucket on top of the 104-prompt v0.2 offline canonical battery.
+
+### What v0.3 fixes
+
+1. **Δ⁸-THC pharmacology no longer fires the Δ⁹-THC monograph** —
+   span-aware `NamedCannabinoidSet` resolves the prompt's named-isomer
+   set BEFORE any registry detector fires (US1 / FR-001).
+2. **`HHC safety profile` returns 0 cannabinoid-attributed AE claims**
+   instead of 26 unrelated CBD / Δ⁹-THC rows — every AE / interaction
+   / contraindication / population detector now accepts a
+   `cannabinoid_filter` keyword and `compose_answer` wires the prompt's
+   named-isomer set through (US2 / FR-002).
+3. **`entourage effect evidence` no longer reports "highest evidence
+   grade: Level A"** — the answer-level grade aggregation now respects
+   a deterministic topical-relevance signal. Hypothesis-anchored prompts
+   require the canonical citations (Russo 2011 / Finlay 2020 /
+   Santiago 2019 / LaVigne 2021) to count as topical (US3 / FR-003).
+4. **`source-health` no longer crashes with `AttributeError`** —
+   the CLI handler reads the actual `SourceHealth` dataclass shape
+   (`status`, `latency_ms`, `error_excerpt`) plus a new `--json`
+   structured output (US4 / FR-004).
+5. **`verify` accepts all five Constitution §I identifier shapes** —
+   PMID, DOI, NCT, ChEMBL, and UniProt resolvers, each with the
+   established offline-injected-fetcher contract per Constitution §III
+   (US5 / FR-005).
+6. **`cannabis × tacrolimus` now matches the CBD-tacrolimus row** —
+   the noun "cannabis" / "marijuana" / "marihuana" / "weed" expands to
+   the cannabinoid set {CBD, Δ⁹-THC, CBN, CBG, THCV} for partner-drug
+   matching (US6 / FR-006).
+7. **`anandamide FAAH inhibition` now surfaces the eCBome registry** —
+   `compose_answer` imports `cannavec_science.ecbome` and attaches
+   eCBome entries when the prompt names a mediator / receptor / enzyme
+   / transporter (US7 / FR-007).
+8. **`python3 -m cannavec_science registries` lists every covered
+   cannabinoid / terpene / interaction-partner / AE / contraindication
+   / PGx allele / eCBome entry** — markdown + `--format json` (US8 /
+   FR-008).
+9. **0-claim answers carry a discriminated-union classification** —
+   refusal / out-of-scope-audience / out-of-scope-deferred /
+   in-scope-uncurated / in-scope-phrasing-mismatched, with an
+   actionable hint pointing the user at `discover` or the parent
+   plugin (US9 / FR-009).
+10. **The rigor report deduplicates violations by (detector, span)** —
+    one (terpene, cannabinoid) pair in one sentence fires one
+    violation, not two (US10 / FR-010).
 
 ## What ships
 
-- **Five slash commands.** No more, no less. v0.2 adds new functionality
-  through flags + Python-module subcommands, never a sixth slash command
-  (Constitution §IV).
+- **Five slash commands.** No more, no less. v0.2 / v0.3 add new
+  functionality through flags + Python-module subcommands, never a
+  sixth slash command (Constitution §IV).
+- **Span-aware `NamedCannabinoidSet` (v0.3)** — every prompt's named-
+  isomer set is resolved deterministically before any registry detector
+  fires. The Δ⁸-THC / HHC / THCO / THCP / THCV / CBDV / CBC / CBN / CBG
+  / THCA / CBDA branches no longer collapse into the Δ⁹-THC monograph.
+- **Cannabinoid-scoped registry detectors (v0.3)** — AE, interaction,
+  contraindication, and population detectors accept a `cannabinoid_filter`
+  parameter; `compose_answer` wires the prompt's named-isomer set
+  through so a CBD safety query never surfaces Δ⁹-THC AE rows.
+- **Topical-relevance grade aggregation (v0.3)** — `EvidenceSummary.
+  highest_grade` is computed over topically-relevant claims only.
+  Hypothesis-anchored prompts like "entourage effect evidence" require
+  the canonical citations to count as topical.
+- **Five-shape `verify` resolver (v0.3)** — PMID, DOI, NCT, ChEMBL,
+  and UniProt, with the established offline-injected-fetcher contract.
+- **`registries` subcommand (v0.3)** — list every curated row, grouped
+  by registry, with row counts, last-verified dates, and entry labels.
+  Markdown + `--format json`.
 - **Eight curated science registries** — major + minor cannabinoids
   (including Δ⁸-THC, HHC, THCO, THCP at v0.2 elite depth), terpenes,
   drug interactions, adverse events, populations, contraindications,
@@ -112,8 +175,8 @@ cd Cannavec-Science-Plugin
 # That's it. No `pip install`. Stdlib only.
 
 # Smoke test:
-python3 -m unittest discover -s tests   # 1,045 tests, ~0.1 s
-python3 evals/run_evals.py              # 104 offline canonical evals (115 total; 11 live skipped offline)
+python3 -m unittest discover -s tests   # 1,140+ tests, ~2 s
+python3 evals/run_evals.py              # 119 offline canonical evals (130 total; 11 live skipped offline)
 
 # The four golden v0.1 flows:
 python3 -m cannavec_science answer "What is the evidence for CBD in Dravet syndrome?"
@@ -130,6 +193,18 @@ python3 -m cannavec_science discover "CB2 microglia" --sources biorxiv,medrxiv -
 python3 -m cannavec_science verify 28538134                     # auto-adds citation_network block
 python3 -m cannavec_science freshness --registry interactions   # offline retraction-watch probe
 python3 -m cannavec_science rigor "myrcene potentiates THC sedation"   # entourage-overclaim detector
+
+# v0.3 routing-and-surfacing flows:
+python3 -m cannavec_science answer "Δ⁸-THC pharmacology and safety"  # no Δ⁹-THC monograph
+python3 -m cannavec_science answer "HHC safety profile"              # 0 spurious CBD/THC AE claims
+python3 -m cannavec_science answer "entourage effect evidence"       # highest grade: Unsupported
+python3 -m cannavec_science answer "cannabis interaction with tacrolimus"  # CBD-tacrolimus row fires
+python3 -m cannavec_science answer "anandamide FAAH inhibition"      # eCBome reference surfaces
+python3 -m cannavec_science verify NCT02224560                       # ClinicalTrials.gov resolver
+python3 -m cannavec_science verify CHEMBL5803                        # ChEMBL compound resolver
+python3 -m cannavec_science verify P21554                            # UniProt CB1 resolver
+python3 -m cannavec_science registries                               # full registry inventory
+python3 -m cannavec_science source-health --json                     # no-AttributeError + JSON
 ```
 
 ## The five commands

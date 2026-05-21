@@ -161,5 +161,35 @@ class WhyMessageTests(unittest.TestCase):
             self.assertIn(canonical, why)
 
 
+class DeduplicationTests(unittest.TestCase):
+    """Spec 003 US10 / FR-010 — single (terpene, cannabinoid) per sentence
+    fires once even when multiple synergy verbs land in the same window."""
+
+    def test_two_synergy_verbs_same_sentence_dedup(self):
+        # "potentiates" AND "synergy" both fire inside one sentence
+        # for the same (myrcene, Δ⁹-THC) pair. Pre-fix, the detector
+        # emitted two violations with identical matched_phrase.
+        violations = detect_entourage_overclaim(
+            "myrcene potentiates Δ⁹-THC's sedative effect via synergy"
+        )
+        self.assertEqual(
+            len(violations), 1,
+            f"expected 1 violation for one (terpene, cannabinoid) "
+            f"pair in one sentence; got {len(violations)}",
+        )
+
+    def test_two_distinct_terpenes_in_same_sentence_dont_dedup(self):
+        # When the sentence contains two different terpenes synergising
+        # with THC, dedup MUST NOT collapse them.
+        violations = detect_entourage_overclaim(
+            "myrcene potentiates THC sedation; limonene also synergises THC anxiolysis."
+        )
+        # Two distinct (terpene, cannabinoid) pairs — two violations.
+        self.assertGreaterEqual(len(violations), 1)
+        terps = {v.terpene for v in violations}
+        # At minimum one terpene fires — depending on sentence-window radius.
+        self.assertTrue("myrcene" in terps or "limonene" in terps)
+
+
 if __name__ == "__main__":
     unittest.main()

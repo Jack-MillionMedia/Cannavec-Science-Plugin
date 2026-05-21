@@ -253,13 +253,100 @@ What the client should notice:
   The constitution's own v0.x qualifier defines the mechanism;
   no amendment required.
 
+## v0.3 routing-and-surfacing flows (3 min)
+
+The 2026-05-21 industry-expert review (spec 003) found four shipping
+bugs and three confidence-laundering failure modes inside the v0.2
+surface. v0.3 closes all of them — these are the proofs.
+
+### Flow 10 — Δ⁸-THC no longer fires Δ⁹-THC monograph
+
+```bash
+python3 -m cannavec_science answer "Δ⁸-THC pharmacology and safety"
+```
+
+What the client sees: the Δ⁸-THC minor monograph (Pertwee 2008 CB1
+binding, Abrahamov 1995 antiemetic, regulatory status). No Δ⁹-THC
+major monograph. Span-aware `NamedCannabinoidSet` suppresses the
+`\bTHC\b` match embedded inside `Δ⁸-THC`.
+
+### Flow 11 — HHC safety returns 0 spurious AE claims
+
+```bash
+python3 -m cannavec_science answer "HHC safety profile"
+```
+
+What the client sees: the HHC monograph's narrative safety profile.
+No 26-row dump of CBD / Δ⁹-THC AE rows mis-attributed to HHC. The
+AE detector accepts `cannabinoid_filter` and `compose_answer` wires
+it through.
+
+### Flow 12 — Entourage-effect grade is Unsupported
+
+```bash
+python3 -m cannavec_science answer "What is the evidence that the entourage effect is real?"
+```
+
+What the client sees: `Highest evidence grade: Unsupported` with the
+note "10 claim(s) rendered for context only — none topically relevant
+to the question." The topical-relevance signal requires the canonical
+entourage citations (Russo 2011 / Finlay 2020 / Santiago 2019 /
+LaVigne 2021) to count as topical.
+
+### Flow 13 — Five-shape `verify`
+
+```bash
+python3 -m cannavec_science verify NCT02224560     # CT.gov
+python3 -m cannavec_science verify CHEMBL5803      # ChEMBL
+python3 -m cannavec_science verify P21554          # UniProt CB1
+```
+
+What the client sees: each identifier resolves to its primary record
+(trial title + status, compound + formula + SMILES, protein + gene
++ organism). Constitution §I's full five-shape menu now resolves.
+
+### Flow 14 — `cannabis × tacrolimus` interaction expansion
+
+```bash
+python3 -m cannavec_science answer "cannabis interaction with tacrolimus transplant"
+```
+
+What the client sees: the CBD-tacrolimus interaction row (case-report
+graded Level C, Leino 2019 / Hauser 2020). The literal noun "cannabis"
+expands to {CBD, Δ⁹-THC, CBN, CBG, THCV} for partner-drug matching.
+
+### Flow 15 — Registry inventory
+
+```bash
+python3 -m cannavec_science registries
+```
+
+What the client sees: every covered cannabinoid, terpene, interaction
+partner, AE, contraindication, PGx allele, and eCBome entry — grouped
+by registry — with row counts and last-verified dates. Industry-expert
+discoverability without grepping the source tree.
+
+### Flow 16 — `source-health` no longer crashes
+
+```bash
+python3 -m cannavec_science source-health --json
+```
+
+What the client sees: structured JSON with `source`, `status`,
+`latency_ms`, `error_excerpt` per source. Pre-v0.3 this crashed with
+`AttributeError: 'SourceHealth' object has no attribute 'ok'`.
+
 ## When the demo goes well — close with this
 
 > "This is one audience surface, one composer, one CLI, ~24,000 lines
-> of stdlib Python, 1,045 unit tests, and 115 canonical eval prompts.
-> The larger parent plugin has fourteen more audiences, a KB flywheel,
+> of stdlib Python, 1,140+ unit tests, and 119 offline canonical eval
+> prompts across six buckets (curated, rigor-positive, rigor-negative,
+> refusal, cross-cutting, routing-and-surfacing). v0.3 took the v0.2
+> elite-tier build through an industry-expert review and closed every
+> P1 / P2 / P3 finding inside the existing constitutional gates. The
+> larger parent plugin has fourteen more audiences, a KB flywheel,
 > signed artifacts, multi-jurisdiction compliance, and the rest. We
-> built v0.2 to prove that researcher-grade rigor + scaffolding +
+> built v0.3 to prove that researcher-grade rigor + honest routing +
 > live frontier discovery can ship at elite-tier quality before
 > showing you everything else. Where would you like to go next —
 > clinician audience, lab QC, compliance, or somewhere else?"

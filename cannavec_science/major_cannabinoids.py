@@ -500,10 +500,29 @@ def detect_major_cannabinoid_mention(text: str) -> tuple[MajorCannabinoid, ...]:
     """
     seen: set[str] = set()
     out: list[MajorCannabinoid] = []
+    for entry, _span in detect_major_cannabinoid_mention_with_spans(text):
+        if entry.name not in seen:
+            seen.add(entry.name)
+            out.append(entry)
+    return tuple(out)
+
+
+def detect_major_cannabinoid_mention_with_spans(
+    text: str,
+) -> tuple[tuple[MajorCannabinoid, tuple[int, int]], ...]:
+    """Return ``(entry, span)`` pairs for every major-cannabinoid hit.
+
+    Spec 003 US1 / FR-001 — exposes match spans so the compose layer
+    can suppress Δ⁹-THC / CBD hits that overlap a more specific minor-
+    cannabinoid mention (Δ⁸-THC, THCV, CBDV, etc.). The first-fire
+    span per match is returned; downstream consumers deduplicate by
+    entry name.
+    """
+    out: list[tuple[MajorCannabinoid, tuple[int, int]]] = []
     for pat, name in _DETECT_PATTERNS:
-        if pat.search(text) and name not in seen:
+        for m in pat.finditer(text):
             entry = find_major_cannabinoid(name)
-            if entry is not None:
-                seen.add(name)
-                out.append(entry)
+            if entry is None:
+                continue
+            out.append((entry, m.span()))
     return tuple(out)
