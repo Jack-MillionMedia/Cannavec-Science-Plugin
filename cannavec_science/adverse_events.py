@@ -1103,8 +1103,21 @@ _CANNABINOID_KEYWORDS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bcbd\b|\bcannabidiol\b", re.IGNORECASE), "CBD"),
     (re.compile(r"\bthc\b|\btetrahydrocannabinol\b|\bdelta[-\s]?9\b|"
                 r"\bΔ9\b|\bΔ⁹\b", re.IGNORECASE), "Δ⁹-THC"),
-    (re.compile(r"\bcannabis\b|\bmarijuana\b|\bweed\b", re.IGNORECASE),
+    (re.compile(r"\bcannabis\b|\bmarijuana\b|\bmarihuana\b|\bweed\b",
+                re.IGNORECASE),
      "cannabis"),
+)
+
+# Spec 003 US6 / FR-006 — when the prompt names "cannabis" / "marijuana"
+# / "marihuana" / "weed" without naming a specific cannabinoid, expand
+# to the registry-curated cannabinoid set so partner-drug matching
+# fires on every covered isomer. Order matters only for determinism.
+_CANNABIS_NOUN_EXPANSION: tuple[str, ...] = (
+    "CBD", "Δ⁹-THC", "CBN", "CBG", "THCV",
+)
+_CANNABIS_NOUN_RE = re.compile(
+    r"\bcannabis\b|\bmarijuana\b|\bmarihuana\b|\bweed\b",
+    re.IGNORECASE,
 )
 
 
@@ -1152,12 +1165,52 @@ _EVENT_KEYWORDS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
+def _resolve_cannabinoids(
+    text: str,
+    cannabinoid_filter: frozenset[str] | set[str] | None,
+) -> set[str]:
+    """Resolve the prompt's cannabinoid set per spec 003 US2 / US6.
+
+    - When ``cannabinoid_filter`` is set, return only registry-curated
+      cannabinoid names that intersect the filter (US2).
+    - When the prompt names "cannabis" / "marijuana" but no specific
+      cannabinoid, expand to the registry cannabinoid set (US6).
+    """
+    direct = {label for rx, label in _CANNABINOID_KEYWORDS
+              if label != "cannabis" and rx.search(text)}
+    cannabis_noun = _CANNABIS_NOUN_RE.search(text) is not None
+    if cannabis_noun and not direct:
+        direct.update(_CANNABIS_NOUN_EXPANSION)
+    if cannabis_noun:
+        # Preserve the literal "cannabis" partner-matcher (for rows like
+        # "cannabis use disorder") so cannabis-keyed rows keep firing.
+        direct.add("cannabis")
+    if cannabinoid_filter is not None:
+        # An empty filter (frozenset()) means "no cannabinoid named" —
+        # leave direct alone; the caller will downstream-filter rows
+        # whose cannabinoid intersects the empty set (= empty result).
+        if cannabinoid_filter:
+            direct = direct & set(cannabinoid_filter)
+        else:
+            direct = set()
+    return direct
+
+
 def detect_adverse_event_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[AdverseEvent, ...]:
-    """Return registry entries that match a (cannabinoid, AE) pair in ``text``."""
-    cannabinoids = {label for rx, label in _CANNABINOID_KEYWORDS
-                    if rx.search(text)}
+    """Return registry entries that match a (cannabinoid, AE) pair in ``text``.
+
+    ``cannabinoid_filter`` (spec 003 US2 / FR-002) restricts the
+    cannabinoid set to those named in the filter — set by
+    :func:`compose_answer` to the prompt's
+    :class:`NamedCannabinoidSet.all_names`. When ``None`` (the default),
+    behaviour matches the historical "every cannabinoid keyword fires"
+    contract.
+    """
+    cannabinoids = _resolve_cannabinoids(text, cannabinoid_filter)
     events = {label for rx, label in _EVENT_KEYWORDS if rx.search(text)}
     if not cannabinoids or not events:
         return ()
@@ -1245,6 +1298,8 @@ _AE_CLASS_KEYWORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
 
 def detect_adverse_event_class_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[AdverseEvent, ...]:
     """Return all AE rows that match a *class* keyword in ``text``.
 
@@ -1252,6 +1307,10 @@ def detect_adverse_event_class_mention(
     ask about an AE *class* (e.g. "cardiovascular adverse events of
     THC") rather than naming a specific event ("tachycardia"). Closes
     the 2026-05-19 Oracle Evaluator §4.3 retrieval gap.
+
+    ``cannabinoid_filter`` (spec 003 US2 / FR-002): when set, only
+    rows whose ``cannabinoid`` field intersects the filter are
+    returned.
 
     Returns ``()`` when no class keyword matched, so callers can
     chain: ``hits = detect_adverse_event_mention(t) or
@@ -1269,10 +1328,14 @@ def detect_adverse_event_class_mention(
                 scope = s
     if scope is None:
         return ()
-    cannabinoids = {label for rx, label in _CANNABINOID_KEYWORDS
-                    if rx.search(text)}
+    cannabinoids = _resolve_cannabinoids(text, cannabinoid_filter)
     if cannabinoids:
         rows = [r for r in _REGISTRY if r.cannabinoid in cannabinoids]
+    elif cannabinoid_filter is not None:
+        # Spec 003 US2 / FR-002 — the prompt named a specific cannabinoid
+        # (filter set), but no registry-curated cannabinoid intersects.
+        # Surfacing unrelated AE rows confidence-launders the answer.
+        rows = []
     else:
         rows = list(_REGISTRY)
     if organ_scope:

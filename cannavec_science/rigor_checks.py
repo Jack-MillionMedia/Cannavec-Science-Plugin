@@ -969,7 +969,10 @@ def detect_entourage_overclaim(text: str) -> tuple[EntourageViolation, ...]:
     as a debated research topic does NOT fire.
     """
     out: list[EntourageViolation] = []
-    seen_spans: set[tuple[int, int]] = set()
+    # Dedup key per spec 003 US10 / FR-010: a single (terpene,
+    # cannabinoid, sentence-window) yields one violation even when
+    # multiple synergy verbs fire inside that window.
+    seen_keys: set[tuple[str, str, int, int]] = set()
     for m in _SYNERGY_VERB_RE.finditer(text):
         w_start, w_end = _sentence_window_bounds(text, m.span(), radius=200)
         window = text[w_start:w_end]
@@ -983,14 +986,15 @@ def detect_entourage_overclaim(text: str) -> tuple[EntourageViolation, ...]:
         # False-positive guard: canonical citation in window.
         if _ENTOURAGE_CITATIONS_RE.search(window):
             continue
-        # De-dup on the terpene+cannabinoid+verb-span tuple.
-        key = (m.start(), m.end())
-        if key in seen_spans:
+        terp_token = terp.group(0).lower()
+        cann_token = cann.group(0).upper()
+        key = (terp_token, cann_token, w_start, w_end)
+        if key in seen_keys:
             continue
-        seen_spans.add(key)
+        seen_keys.add(key)
         out.append(EntourageViolation(
-            terpene=terp.group(0).lower(),
-            cannabinoid=cann.group(0).upper(),
+            terpene=terp_token,
+            cannabinoid=cann_token,
             matched_phrase=window.strip()[:160],
             span=m.span(),
         ))

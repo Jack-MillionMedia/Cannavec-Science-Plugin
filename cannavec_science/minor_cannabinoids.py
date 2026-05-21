@@ -1718,12 +1718,30 @@ def detect_minor_cannabinoid_mention(text: str) -> tuple[MinorCannabinoid, ...]:
     """
     seen: set[str] = set()
     out: list[MinorCannabinoid] = []
+    for entry, _span in detect_minor_cannabinoid_mention_with_spans(text):
+        if entry.name not in seen:
+            seen.add(entry.name)
+            out.append(entry)
+    return tuple(out)
+
+
+def detect_minor_cannabinoid_mention_with_spans(
+    text: str,
+) -> tuple[tuple[MinorCannabinoid, tuple[int, int]], ...]:
+    """Return ``(entry, span)`` pairs for every minor-cannabinoid hit.
+
+    Spec 003 US1 / FR-001 — exposes match spans so the compose layer
+    can suppress an overlapping major-cannabinoid hit ("THC" inside
+    "Δ⁸-THC"). Multiple matches per entry are returned in document order;
+    downstream consumers deduplicate by entry name.
+    """
+    out: list[tuple[MinorCannabinoid, tuple[int, int]]] = []
     for pat, name in _DETECT_PATTERNS:
-        if pat.search(text) and name not in seen:
+        for m in pat.finditer(text):
             entry = find_minor_cannabinoid(name)
-            if entry is not None:
-                seen.add(name)
-                out.append(entry)
+            if entry is None:
+                continue
+            out.append((entry, m.span()))
     return tuple(out)
 
 

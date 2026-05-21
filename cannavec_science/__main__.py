@@ -264,31 +264,38 @@ _DISCOVERER_REGISTRY = {
 }
 
 
-def _cmd_verify(args: argparse.Namespace) -> int:
-    from cannavec_science.pubmed_verify import verify_pmid, verify_doi
+_NCT_RE = __import__("re").compile(r"^NCT\d{8}$", __import__("re").IGNORECASE)
+_CHEMBL_RE = __import__("re").compile(r"^CHEMBL\d+$", __import__("re").IGNORECASE)
+
+
+def _classify_identifier(ident: str) -> str:
+    """Classify an identifier into one of the five §I shapes."""
+    s = ident.strip()
+    if not s:
+        return "unknown"
+    if s.isdigit():
+        return "PMID"
+    if _NCT_RE.match(s):
+        return "NCT"
+    if _CHEMBL_RE.match(s):
+        return "ChEMBL"
+    if "/" in s or s.startswith("10."):
+        return "DOI"
+    from cannavec_science.uniprot_verify import is_uniprot_accession
+    if is_uniprot_accession(s):
+        return "UniProt"
+    return "unknown"
+
+
+def _verify_pmid_render(ident: str, args: argparse.Namespace) -> int:
+    from cannavec_science.pubmed_verify import verify_pmid
     from cannavec_science.retraction import is_retracted
 
-    ident = args.identifier.strip()
-    if ident.isdigit():
-        result = verify_pmid(ident)
-        rec = is_retracted(pmid=ident)
-        kind = "PMID"
-    elif "/" in ident or ident.startswith("10."):
-        result = verify_doi(ident)
-        rec = is_retracted(doi=ident)
-        kind = "DOI"
-    else:
-        print(f"[error] not a recognized identifier: {ident}", file=sys.stderr)
-        return 2
+    result = verify_pmid(ident)
+    rec = is_retracted(pmid=ident)
 
-    # Spec 002 US4 — populate citation-network block by default for
-    # PMIDs. Skipped when --no-citation-network is set OR when the
-    # identifier is a DOI (NCBI elink keyed off PMIDs).
     citation_block = None
-    if (
-        kind == "PMID"
-        and not getattr(args, "no_citation_network", False)
-    ):
+    if not getattr(args, "no_citation_network", False):
         from cannavec_science.citation_network import build_citation_network
         try:
             citation_block = build_citation_network(ident)
@@ -301,7 +308,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     if getattr(args, "json", False):
         out = {
             "identifier": ident,
-            "kind": kind,
+            "kind": "PMID",
             "first_author": getattr(result, "first_author_surname", None)
                 or getattr(result, "first_author", None),
             "year": getattr(result, "year", None),
@@ -319,12 +326,15 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         print(json.dumps(out, indent=2, default=str))
         return 1 if rec is not None or not result else 0
 
-    print(f"## Identifier verification — {kind} {ident}")
+    print(f"## Identifier verification — PMID {ident}")
     print("")
     if not result:
-        print(f"- **Status:** FAIL — identifier not resolvable upstream")
+        print("- **Status:** FAIL — identifier not resolvable upstream")
         return 1
-    print(f"- **First author:** {getattr(result, 'first_author_surname', None) or getattr(result, 'first_author', None) or '?'}")
+    print(
+        f"- **First author:** "
+        f"{getattr(result, 'first_author_surname', None) or getattr(result, 'first_author', None) or '?'}"
+    )
     print(f"- **Year:** {getattr(result, 'year', None) or '?'}")
     print(f"- **Journal:** {getattr(result, 'journal', None) or '?'}")
     if hasattr(result, "title") and result.title:
@@ -332,16 +342,271 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     retr_status = getattr(result, "retraction_status", "unknown")
     print(f"- **Retraction status:** {retr_status}")
     if rec is not None:
-        print(f"- **Retraction registry:** **{rec.status.value}**"
-              f" ({getattr(rec, 'date', '?')})")
-        print(f"- **Verdict:** FAIL")
+        print(
+            f"- **Retraction registry:** **{rec.status.value}**"
+            f" ({getattr(rec, 'date', '?')})"
+        )
+        print("- **Verdict:** FAIL")
         return 1
-    print(f"- **Verdict:** PASS")
+    print("- **Verdict:** PASS")
     if citation_block is not None and not citation_block.error:
         print("")
         from cannavec_science.citation_network import render_markdown as render_cn
         print(render_cn(citation_block))
     return 0
+
+
+def _verify_doi_render(ident: str, args: argparse.Namespace) -> int:
+    from cannavec_science.pubmed_verify import verify_doi
+    from cannavec_science.retraction import is_retracted
+
+    result = verify_doi(ident)
+    rec = is_retracted(doi=ident)
+
+    if getattr(args, "json", False):
+        out = {
+            "identifier": ident,
+            "kind": "DOI",
+            "first_author": getattr(result, "first_author_surname", None)
+                or getattr(result, "first_author", None),
+            "year": getattr(result, "year", None),
+            "journal": getattr(result, "journal", None),
+            "title": getattr(result, "title", None),
+            "retraction_status": getattr(result, "retraction_status", "unknown"),
+        }
+        if rec is not None:
+            out["retraction_registry"] = {
+                "status": rec.status.value,
+                "date": getattr(rec, "date", None),
+            }
+        print(json.dumps(out, indent=2, default=str))
+        return 1 if rec is not None or not result else 0
+
+    print(f"## Identifier verification — DOI {ident}")
+    print("")
+    if not result:
+        print("- **Status:** FAIL — identifier not resolvable upstream")
+        return 1
+    print(
+        f"- **First author:** "
+        f"{getattr(result, 'first_author_surname', None) or getattr(result, 'first_author', None) or '?'}"
+    )
+    print(f"- **Year:** {getattr(result, 'year', None) or '?'}")
+    print(f"- **Journal:** {getattr(result, 'journal', None) or '?'}")
+    if hasattr(result, "title") and result.title:
+        print(f"- **Title:** {result.title}")
+    retr_status = getattr(result, "retraction_status", "unknown")
+    print(f"- **Retraction status:** {retr_status}")
+    if rec is not None:
+        print(
+            f"- **Retraction registry:** **{rec.status.value}**"
+            f" ({getattr(rec, 'date', '?')})"
+        )
+        print("- **Verdict:** FAIL")
+        return 1
+    print("- **Verdict:** PASS")
+    return 0
+
+
+def _verify_nct_render(ident: str, args: argparse.Namespace) -> int:
+    """Resolve an NCT ID via CT.gov v2 (spec 003 US5 / FR-005)."""
+    from cannavec_science.ctgov_discover import CTGovSearcher
+    from cannavec_science.discover_guard import DiscoverRefused
+
+    try:
+        row = CTGovSearcher().fetch_trial(ident.upper())
+    except DiscoverRefused as exc:
+        print(f"[refused] {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # NetworkError, ValueError, etc.
+        print(f"[error] {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False):
+        if row is None:
+            out = {"identifier": ident, "kind": "NCT", "status": "not_found"}
+            print(json.dumps(out, indent=2, default=str))
+            return 1
+        out = {"identifier": ident, "kind": "NCT", "trial": row.to_dict()}
+        print(json.dumps(out, indent=2, default=str))
+        return 0
+
+    print(f"## Identifier verification — NCT {ident}")
+    print("")
+    if row is None:
+        print("- **Status:** FAIL — NCT not resolvable on ClinicalTrials.gov")
+        return 1
+    print(f"- **Title:** {row.title}")
+    print(f"- **Phase:** {row.phase}")
+    print(f"- **Status:** {row.status}")
+    if row.sponsor:
+        print(f"- **Sponsor:** {row.sponsor}")
+    if row.pi_name:
+        print(f"- **PI:** {row.pi_name}")
+    if row.condition:
+        print(f"- **Conditions:** {', '.join(row.condition)}")
+    if row.intervention:
+        print(f"- **Interventions:** {', '.join(row.intervention)}")
+    if row.primary_endpoints:
+        print(f"- **Primary endpoints:** {', '.join(row.primary_endpoints)}")
+    if row.enrollment_count is not None:
+        print(f"- **Enrolment:** {row.enrollment_count}")
+    if row.start_date:
+        print(f"- **Started:** {row.start_date}")
+    print(f"- **URL:** {row.url}")
+    print("- **Verdict:** PASS")
+    return 0
+
+
+def _verify_chembl_render(ident: str, args: argparse.Namespace) -> int:
+    """Resolve a ChEMBL ID via the ChEMBL REST (spec 003 US5 / FR-005)."""
+    from cannavec_science.chembl_discover import ChEMBLSearcher
+    from cannavec_science.discover_guard import DiscoverRefused
+
+    try:
+        compound = ChEMBLSearcher().fetch_compound(ident.upper())
+    except DiscoverRefused as exc:
+        print(f"[refused] {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False):
+        if compound is None:
+            out = {"identifier": ident, "kind": "ChEMBL", "status": "not_found"}
+            print(json.dumps(out, indent=2, default=str))
+            return 1
+        out = {
+            "identifier": ident,
+            "kind": "ChEMBL",
+            "compound": {
+                "chembl_id": compound.get("molecule_chembl_id"),
+                "pref_name": compound.get("pref_name"),
+                "molecule_type": compound.get("molecule_type"),
+                "molecular_formula": (
+                    compound.get("molecule_properties") or {}
+                ).get("full_molformula"),
+                "smiles": (
+                    compound.get("molecule_structures") or {}
+                ).get("canonical_smiles"),
+                "url": f"https://www.ebi.ac.uk/chembl/compound_report_card/"
+                       f"{compound.get('molecule_chembl_id')}/",
+            },
+        }
+        print(json.dumps(out, indent=2, default=str))
+        return 0
+
+    print(f"## Identifier verification — ChEMBL {ident.upper()}")
+    print("")
+    if compound is None:
+        print("- **Status:** FAIL — compound not resolvable on ChEMBL")
+        return 1
+    chembl_id = compound.get("molecule_chembl_id")
+    pref_name = compound.get("pref_name") or "(unnamed)"
+    mol_props = compound.get("molecule_properties") or {}
+    structures = compound.get("molecule_structures") or {}
+    print(f"- **ChEMBL ID:** {chembl_id}")
+    print(f"- **Compound name:** {pref_name}")
+    if compound.get("molecule_type"):
+        print(f"- **Type:** {compound.get('molecule_type')}")
+    if mol_props.get("full_molformula"):
+        print(f"- **Formula:** {mol_props.get('full_molformula')}")
+    if mol_props.get("full_mwt"):
+        print(f"- **Molecular weight:** {mol_props.get('full_mwt')}")
+    if structures.get("canonical_smiles"):
+        print(f"- **SMILES:** `{structures.get('canonical_smiles')}`")
+    if structures.get("standard_inchi_key"):
+        print(f"- **InChI key:** {structures.get('standard_inchi_key')}")
+    print(
+        f"- **URL:** https://www.ebi.ac.uk/chembl/compound_report_card/"
+        f"{chembl_id}/"
+    )
+    print("- **Verdict:** PASS")
+    return 0
+
+
+def _verify_uniprot_render(ident: str, args: argparse.Namespace) -> int:
+    """Resolve a UniProt accession via the UniProt REST (spec 003 US5 / FR-005)."""
+    from cannavec_science.uniprot_verify import verify_uniprot
+
+    try:
+        record = verify_uniprot(ident.upper())
+    except Exception as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False):
+        if record is None:
+            out = {
+                "identifier": ident,
+                "kind": "UniProt",
+                "status": "not_found",
+            }
+            print(json.dumps(out, indent=2, default=str))
+            return 1
+        out = {
+            "identifier": ident,
+            "kind": "UniProt",
+            "protein": record.to_dict(),
+        }
+        print(json.dumps(out, indent=2, default=str))
+        return 0
+
+    print(f"## Identifier verification — UniProt {ident.upper()}")
+    print("")
+    if record is None:
+        print("- **Status:** FAIL — accession not resolvable on UniProt")
+        return 1
+    print(f"- **Protein name:** {record.protein_name}")
+    if record.gene_symbol:
+        print(f"- **Gene symbol:** {record.gene_symbol}")
+    if record.organism:
+        organism = record.organism
+        if record.organism_taxon_id is not None:
+            organism = f"{organism} (taxon {record.organism_taxon_id})"
+        print(f"- **Organism:** {organism}")
+    if record.sequence_length is not None:
+        print(f"- **Sequence length:** {record.sequence_length} aa")
+    print(
+        f"- **Review status:** "
+        f"{'reviewed (Swiss-Prot)' if record.reviewed else 'unreviewed (TrEMBL)'}"
+    )
+    print(f"- **URL:** {record.url}")
+    print("- **Verdict:** PASS")
+    return 0
+
+
+def _cmd_verify(args: argparse.Namespace) -> int:
+    """Verify a single identifier (spec 003 US5 / FR-005).
+
+    Accepts the five Constitution §I shapes: PMID, DOI, NCT, ChEMBL,
+    UniProt. Unknown shapes return a descriptive error listing the
+    accepted shapes so the user can re-key.
+    """
+    ident = args.identifier.strip()
+    kind = _classify_identifier(ident)
+    if kind == "PMID":
+        return _verify_pmid_render(ident, args)
+    if kind == "DOI":
+        return _verify_doi_render(ident, args)
+    if kind == "NCT":
+        return _verify_nct_render(ident, args)
+    if kind == "ChEMBL":
+        return _verify_chembl_render(ident, args)
+    if kind == "UniProt":
+        return _verify_uniprot_render(ident, args)
+    print(
+        f"[error] not a recognized identifier: {ident}\n"
+        f"  Accepted shapes (Constitution §I): "
+        f"PMID (digits), DOI (10.*/...), NCT (NCT\\d{{8}}), "
+        f"ChEMBL (CHEMBL\\d+), UniProt (e.g. P21554, Q8NER1).",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def _cmd_rigor(args: argparse.Namespace) -> int:
@@ -352,15 +617,34 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
     report = run_rigor_checks(text)
     banned = detect_banned_patterns(text)
 
+    # Spec 003 US10 / FR-010 — dedup the rendered output by
+    # (detector, span) so identical findings can never appear twice.
+    def _dedup(items, span_fn):
+        seen: set[tuple] = set()
+        out = []
+        for v in items:
+            key = tuple(span_fn(v))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(v)
+        return out
+
+    iso = _dedup(report.isomer_violations, lambda v: v.span)
+    recv = _dedup(report.receptor_violations, lambda v: v.span)
+    dose = _dedup(report.dose_route_violations, lambda v: v.span)
+    thca = _dedup(report.thca_thc_violations, lambda v: v.span)
+    matrix = _dedup(report.matrix_unit_violations, lambda v: v.span)
+    decarb = _dedup(report.decarb_context_violations,
+                    lambda v: (0, len(v.claim_phrase)))
+    ent = _dedup(
+        report.entourage_violations,
+        lambda v: (v.terpene, v.cannabinoid, v.span),
+    )
+
     n = (
-        len(report.isomer_violations)
-        + len(report.receptor_violations)
-        + len(report.dose_route_violations)
-        + len(report.thca_thc_violations)
-        + len(report.matrix_unit_violations)
-        + len(report.decarb_context_violations)
-        + len(report.entourage_violations)
-        + len(banned)
+        len(iso) + len(recv) + len(dose) + len(thca)
+        + len(matrix) + len(decarb) + len(ent) + len(banned)
     )
 
     print("## Rigor & banned-pattern report")
@@ -370,41 +654,41 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
     print(f"- **Banned-pattern hits:** {len(banned)}")
     print("")
 
-    if report.isomer_violations:
+    if iso:
         print("### Isomer collapse (bare cannabinoid in pharmacology context)")
-        for v in report.isomer_violations:
+        for v in iso:
             print(f"- `{v.matched_phrase}` — {v.context_hint}")
         print("")
-    if report.receptor_violations:
+    if recv:
         print("### Receptor without UniProt ID")
-        for v in report.receptor_violations:
+        for v in recv:
             print(f"- `{v.matched_phrase}` ({v.receptor})")
         print("")
-    if report.dose_route_violations:
+    if dose:
         print("### Dose without administration route")
-        for v in report.dose_route_violations:
+        for v in dose:
             print(f"- `{v.dose}` in: {v.sentence}")
         print("")
-    if report.thca_thc_violations:
+    if thca:
         print("### THCA-vs-THC conflation")
-        for v in report.thca_thc_violations:
+        for v in thca:
             print(f"- `{v.matched_phrase}` — disambiguate THCA vs Δ⁹-THC")
         print("")
-    if report.matrix_unit_violations:
+    if matrix:
         print("### Matrix-unit confusion")
-        for v in report.matrix_unit_violations:
+        for v in matrix:
             print(f"- `{v.unit_phrase}` — add matrix tag "
                   f"(plasma / urine / flower / extract)")
         print("")
-    if report.decarb_context_violations:
+    if decarb:
         print("### Decarboxylation context missing")
-        for v in report.decarb_context_violations:
+        for v in decarb:
             print(f"- `{v.claim_phrase}` — raw-extract pharmacology should "
                   f"cite acid cannabinoid (THCA/CBDA)")
         print("")
-    if report.entourage_violations:
+    if ent:
         print("### Entourage-overclaim (synergy claim without canonical citation)")
-        for v in report.entourage_violations:
+        for v in ent:
             print(f"- `{v.terpene}` × `{v.cannabinoid}` — cite Russo 2011 / "
                   f"Finlay 2020 / Santiago 2019 / LaVigne 2021 or reframe "
                   f"as open hypothesis.")
@@ -517,12 +801,68 @@ def _cmd_freshness_report(args: argparse.Namespace) -> int:
     return _cmd_freshness(args)
 
 
+def _cmd_registries(args: argparse.Namespace) -> int:
+    """Emit the curated-registry inventory (spec 003 US8 / FR-008).
+
+    Industry-expert discoverability — every registry the plugin
+    curates, with row counts, last-verified dates, and entry labels.
+    """
+    from cannavec_science.registries import (
+        all_registry_groups,
+        build_inventory,
+        render_json,
+        render_markdown,
+    )
+
+    registry = args.registry or "all"
+    if registry != "all" and registry not in all_registry_groups():
+        print(
+            f"[error] unknown registry: {registry}; expected one of "
+            f"{all_registry_groups()} or 'all'",
+            file=sys.stderr,
+        )
+        return 2
+    inv = build_inventory(registry)
+    if getattr(args, "format", "markdown") == "json":
+        print(render_json(inv))
+    else:
+        print(render_markdown(inv))
+    return 0
+
+
 def _cmd_source_health(args: argparse.Namespace) -> int:
-    from cannavec_science.source_health import ping_all
+    """Probe per-source liveness (spec 003 US4 / FR-004).
+
+    Reads the actual ``SourceHealth`` dataclass fields (``status``,
+    ``latency_ms``, ``error_excerpt``) — earlier prototypes used a
+    deleted ``ok``/``rtt_ms``/``error`` shape and crashed.
+    """
+    from cannavec_science.source_health import HealthStatus, ping_all
 
     healths = ping_all()
     sources = {h.source: h for h in healths}
     requested = {s.strip() for s in (args.sources or "pubmed,chembl,ctgov").split(",")}
+
+    if getattr(args, "json", False):
+        payload = []
+        any_down = False
+        for src in sorted(requested):
+            h = sources.get(src)
+            if h is None:
+                payload.append({
+                    "source": src,
+                    "status": "unknown",
+                    "latency_ms": None,
+                    "error_excerpt": "not configured",
+                })
+                any_down = True
+                continue
+            row = h.to_dict()
+            payload.append(row)
+            if h.status != HealthStatus.GREEN:
+                any_down = True
+        print(json.dumps({"sources": payload}, indent=2, default=str))
+        return 1 if any_down else 0
 
     print("## Source health probe")
     print("")
@@ -533,12 +873,12 @@ def _cmd_source_health(args: argparse.Namespace) -> int:
             print(f"- **{src}**: not configured")
             any_down = True
             continue
-        status = "ok" if h.ok else "FAIL"
-        print(f"- **{src}**: {status} (rtt {h.rtt_ms:.0f}ms)")
-        if not h.ok:
+        rtt = f"{h.latency_ms}ms" if h.latency_ms is not None else "n/a"
+        print(f"- **{src}**: {h.status.value} (rtt {rtt})")
+        if h.status != HealthStatus.GREEN:
             any_down = True
-            if h.error:
-                print(f"  - error: {h.error}")
+            if h.error_excerpt:
+                print(f"  - error: {h.error_excerpt}")
     return 1 if any_down else 0
 
 
@@ -603,19 +943,29 @@ def _build_parser() -> argparse.ArgumentParser:
     d.add_argument("--json", action="store_true")
     d.set_defaults(func=_cmd_discover)
 
-    # verify
-    v = sub.add_parser("verify",
-                       help="Spot-check a single PMID or DOI.")
+    # verify (v0.3: now accepts all five Constitution §I shapes)
+    v = sub.add_parser(
+        "verify",
+        help=(
+            "Spot-check a single primary-source identifier (PMID, DOI, "
+            "NCT, ChEMBL, or UniProt accession)."
+        ),
+    )
     v.add_argument("identifier")
     v.add_argument("--no-citation-network", action="store_true",
-                   help="Skip the forward-citation network probe.")
+                   help="Skip the forward-citation network probe (PMIDs).")
     v.add_argument("--json", action="store_true",
                    help="Emit verification result as JSON.")
     v.set_defaults(func=_cmd_verify)
 
     # rigor
-    r = sub.add_parser("rigor",
-                       help="Run six phytochemistry rigor detectors on text.")
+    r = sub.add_parser(
+        "rigor",
+        help=(
+            "Run the seven phytochemistry rigor detectors + the 15 "
+            "banned-pattern detector on arbitrary text."
+        ),
+    )
     r.add_argument("text")
     r.set_defaults(func=_cmd_rigor)
 
@@ -628,10 +978,38 @@ def _build_parser() -> argparse.ArgumentParser:
     b.add_argument("--out", help="Write to file (else stdout)")
     b.set_defaults(func=_cmd_bibliography)
 
+    # registries (spec 003 US8 / FR-008)
+    rg = sub.add_parser(
+        "registries",
+        help=(
+            "List every curated registry's row count, entries, and "
+            "last-verified date. Industry-expert discoverability."
+        ),
+    )
+    rg.add_argument(
+        "--registry",
+        default="all",
+        help=(
+            "Registry to inventory: 'all' (default) or one of "
+            "major_cannabinoids, minor_cannabinoids, terpenes, "
+            "interactions, adverse_events, populations, "
+            "contraindications, pharmacogenomics, ecbome."
+        ),
+    )
+    rg.add_argument(
+        "--format",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="Output format (default: markdown).",
+    )
+    rg.set_defaults(func=_cmd_registries)
+
     # source-health
     sh = sub.add_parser("source-health",
                         help="Probe per-source liveness.")
     sh.add_argument("--sources", default="pubmed,chembl,ctgov")
+    sh.add_argument("--json", action="store_true",
+                    help="Emit structured JSON instead of Markdown.")
     sh.set_defaults(func=_cmd_source_health)
 
     # freshness (spec 002 US5)

@@ -245,6 +245,25 @@ class CTGovSearcher:
         rows.sort(key=_row_sort_key)
         return rows[:max_results]
 
+    def fetch_trial(self, nct_id: str) -> Optional[CTGovTrialRow]:
+        """Fetch a single trial by NCT ID (spec 003 US5 / FR-005).
+
+        Returns ``None`` when the trial does not resolve. Preflight is
+        run on the NCT ID itself (safe — a bare NCT never trips banned
+        patterns). Raises ``ValueError`` for malformed NCT IDs.
+        """
+        if not _NCT_RE.match(nct_id or ""):
+            raise ValueError(
+                f"NCT IDs must match ^NCT\\d{{8}}$; got {nct_id!r}"
+            )
+        preflight(nct_id)
+        url = _CTGOV_DETAIL_URL.format(nct_id=nct_id)
+        try:
+            data = self._fetch_json(url)
+        except NetworkError:
+            return None
+        return _parse_study(data)
+
     def compare_endpoints(self, nct_a: str, nct_b: str) -> dict:
         """Fetch two trials and emit a side-by-side endpoint payload.
 

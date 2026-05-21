@@ -746,12 +746,57 @@ _COMPOUND_KEYWORDS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
     (re.compile(r"\bthc\b|\btetrahydrocannabinol\b|\bdelta[-\s]?9\b|"
                 r"\bΔ9\b|\bΔ⁹\b", re.IGNORECASE),
      ("Δ⁹-THC", "high-THC cannabis", "any cannabinoid")),
-    (re.compile(r"\bcannabis\b|\bmarijuana\b|\bweed\b", re.IGNORECASE),
+    (re.compile(r"\bcannabis\b|\bmarijuana\b|\bmarihuana\b|\bweed\b",
+                re.IGNORECASE),
      ("any cannabinoid", "high-THC cannabis", "inhaled cannabis")),
     (re.compile(r"\binhal\w*\b|\bsmoke\w*\b|\bvape\w*\b|"
                 r"\bsmoked\b|\bvaped\b", re.IGNORECASE),
      ("inhaled cannabis", "any cannabinoid")),
 )
+
+# Spec 003 US2 / US6 — map cannabinoid_filter names to the compound
+# labels the registry uses. The registry talks about "CBD", "Δ⁹-THC",
+# "any cannabinoid", "high-THC cannabis", "inhaled cannabis".
+_CANNABINOID_TO_COMPOUNDS: dict[str, tuple[str, ...]] = {
+    "CBD": ("CBD", "any cannabinoid"),
+    "Δ⁹-THC": ("Δ⁹-THC", "high-THC cannabis", "any cannabinoid"),
+    "CBN": ("any cannabinoid",),
+    "CBG": ("any cannabinoid",),
+    "THCV": ("any cannabinoid",),
+    "Δ⁸-THC": ("any cannabinoid",),
+    "HHC": ("any cannabinoid",),
+    "THCO": ("any cannabinoid",),
+    "THCP": ("any cannabinoid",),
+    "THCA": ("any cannabinoid",),
+    "CBDA": ("CBD", "any cannabinoid"),
+    "CBC": ("any cannabinoid",),
+    "CBDV": ("any cannabinoid",),
+}
+
+
+def _resolve_compounds(
+    text: str,
+    cannabinoid_filter: frozenset[str] | set[str] | None,
+) -> set[str]:
+    """Resolve the registry compound-label set the prompt names.
+
+    - Default: every keyword regex that hits contributes its mapped labels.
+    - With ``cannabinoid_filter`` set: restrict to the labels mapped from
+      the filter names. (Spec 003 US2 / FR-002.)
+    """
+    compounds: set[str] = set()
+    if cannabinoid_filter is not None:
+        if not cannabinoid_filter:
+            return set()
+        for cn in cannabinoid_filter:
+            compounds.update(_CANNABINOID_TO_COMPOUNDS.get(cn, ()))
+        if not compounds:
+            return set()
+        return compounds
+    for rx, labels in _COMPOUND_KEYWORDS:
+        if rx.search(text):
+            compounds.update(labels)
+    return compounds
 
 _POPULATION_KEYWORDS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
     (re.compile(r"\bschizophreni\w*\b|\bpsychos\w*\b|\bpsychiatric\b",
@@ -780,12 +825,16 @@ _POPULATION_KEYWORDS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
 
 def detect_contraindication_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[Contraindication, ...]:
-    """Return registry entries matched by a (compound, population) pair in ``text``."""
-    compounds: set[str] = set()
-    for rx, labels in _COMPOUND_KEYWORDS:
-        if rx.search(text):
-            compounds.update(labels)
+    """Return registry entries matched by a (compound, population) pair in ``text``.
+
+    Spec 003 US2 / FR-002: ``cannabinoid_filter`` restricts the
+    compound set to those mapped from the named-cannabinoid set in the
+    prompt.
+    """
+    compounds = _resolve_compounds(text, cannabinoid_filter)
     populations: set[str] = set()
     for rx, labels in _POPULATION_KEYWORDS:
         if rx.search(text):
@@ -837,13 +886,13 @@ _CONTRA_CLASS_KEYWORDS: tuple[re.Pattern[str], ...] = tuple(
 
 def detect_contraindication_class_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[Contraindication, ...]:
     """Return all contraindication rows matching a *class* keyword in ``text``.
 
-    Companion to :func:`detect_contraindication_mention` for prompts
-    that ask the general question "what are the contraindications of
-    cannabis / CBD / THC?" without naming a specific population.
-    Optionally filters by any compound named in the prompt.
+    Spec 003 US2 / FR-002: ``cannabinoid_filter`` restricts to rows
+    whose compound maps from the named-cannabinoid set.
     """
     matched = False
     for rx in _CONTRA_CLASS_KEYWORDS:
@@ -852,14 +901,14 @@ def detect_contraindication_class_mention(
             break
     if not matched:
         return ()
-    compounds: set[str] = set()
-    for rx, labels in _COMPOUND_KEYWORDS:
-        if rx.search(text):
-            compounds.update(labels)
+    compounds = _resolve_compounds(text, cannabinoid_filter)
     if compounds:
         rows = [r for r in _REGISTRY
                 if any(c.lower() in r.compound.lower()
                        or r.compound.lower() in c.lower() for c in compounds)]
+    elif cannabinoid_filter is not None:
+        # Spec 003 US2 / FR-002 — no registry compound intersects.
+        rows = []
     else:
         rows = list(_REGISTRY)
     seen: set[tuple[str, str]] = set()

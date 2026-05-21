@@ -4,6 +4,12 @@ A Cannavec Science ``Answer`` is the composable, audience-agnostic object
 every surface produces. Prose output is one rendering; ``Answer`` is the
 underlying typed contract.
 
+Spec 003 US1 / FR-001 — the composer resolves a typed
+``NamedCannabinoidSet`` BEFORE firing the major-cannabinoid monograph
+detector. The set is built from both detectors' spans, with major-
+cannabinoid hits suppressed when they overlap a more specific minor-
+cannabinoid hit (so "Δ⁸-THC" does not also fire the Δ⁹-THC monograph).
+
 Compared to the parent Cannavec plugin's answer module (1569 LOC) this
 MVP version is deliberately slimmer (researcher audience only, no
 jurisdiction layer, no multi-audience templates, eight science
@@ -28,6 +34,7 @@ Composition order (per Constitution §V — safety-layer sovereignty):
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Iterable
@@ -219,23 +226,53 @@ class Answer:
                 n_retracted_citations=len(self.retractions_suppressed),
             )
             return
+        # Spec 003 US3 / FR-003 — when the composer has tagged a
+        # topically-relevant subset, compute ``highest_grade`` over
+        # *that* subset only. Falls back to all claims when no signal
+        # is present (legacy callers / pre-v0.3 surfaces).
+        relevant = getattr(self, "_topically_relevant_claims", None)
+        if relevant is None:
+            relevant = tuple(self.claims)
         highest = EvidenceLevel.UNSUPPORTED
-        n_primary = 0
-        n_missing = 0
-        for c in self.claims:
+        for c in relevant:
             grade = c.best_supportable_grade()
             if grade.rank > highest.rank:
                 highest = grade
+        n_primary = 0
+        n_missing = 0
+        for c in self.claims:
             if any(s.pmid or s.doi or s.url for s in c.sources):
                 n_primary += 1
             if missing_disclosures(c.claim_type, c.disclosures_present):
                 n_missing += 1
+        notes: tuple[str, ...] = ()
+        if (
+            relevant is not None
+            and len(relevant) < len(self.claims)
+            and highest != EvidenceLevel.UNSUPPORTED
+        ):
+            notes = (
+                f"{len(self.claims) - len(relevant)} claim(s) rendered for "
+                f"context only — not graded as evidence for this question "
+                f"(topical relevance signal, spec 003 US3).",
+            )
+        elif (
+            relevant is not None
+            and len(relevant) == 0
+            and len(self.claims) > 0
+        ):
+            notes = (
+                f"{len(self.claims)} claim(s) rendered for context only — "
+                f"none topically relevant to the question. ``highest_grade`` "
+                f"is reported as ``Unsupported`` per spec 003 US3.",
+            )
         self.evidence_summary = EvidenceSummary(
             highest_grade=highest,
             n_claims=len(self.claims),
             n_with_primary_source=n_primary,
             n_missing_required_disclosures=n_missing,
             n_retracted_citations=len(self.retractions_suppressed),
+            notes=notes,
         )
 
     @property
@@ -433,6 +470,115 @@ class Answer:
         }
 
 
+# Spec 003 US2 / FR-002 — the canonical cannabinoid name set used by
+# the AE / interaction / contraindication / population registries. Each
+# registry talks about a cannabinoid by a slightly different label
+# (the major-cannabinoid registry uses ``THC`` for Δ⁹-THC, while the AE
+# registry uses ``Δ⁹-THC`` directly). The resolver normalises both into
+# a canonical set so downstream filters match.
+_NAME_ALIASES: dict[str, tuple[str, ...]] = {
+    "THC": ("THC", "Δ⁹-THC"),
+    "Δ⁹-THC": ("THC", "Δ⁹-THC"),
+    "CBD": ("CBD",),
+}
+
+
+def _canonical_cannabinoid_names(names: Iterable[str]) -> frozenset[str]:
+    """Expand each name to its registry-side aliases (spec 003 US2)."""
+    out: set[str] = set()
+    for n in names:
+        if n in _NAME_ALIASES:
+            out.update(_NAME_ALIASES[n])
+        else:
+            out.add(n)
+    return frozenset(out)
+
+
+@dataclass(frozen=True)
+class NamedCannabinoidSet:
+    """Spec 003 US1 / FR-001 — deterministic resolution of the named-
+    cannabinoid set in a prompt.
+
+    Built by :func:`resolve_named_cannabinoid_set`. ``major`` and
+    ``minor`` are tuples of registry entries (in registry order),
+    deduplicated by name. ``all_names`` is the union as a frozenset for
+    quick membership tests by detectors that need cannabinoid filtering
+    (AE / interaction / contraindication / population).
+
+    Span-aware: when a major-cannabinoid regex hit ("THC" in "Δ⁸-THC")
+    is contained inside a minor-cannabinoid hit, the major hit is
+    suppressed.
+    """
+
+    major: tuple = ()
+    minor: tuple = ()
+    all_names: frozenset[str] = field(default_factory=frozenset)
+
+    @property
+    def total(self) -> int:
+        return len(self.major) + len(self.minor)
+
+
+def resolve_named_cannabinoid_set(prompt: str) -> NamedCannabinoidSet:
+    """Return the deterministically resolved named-cannabinoid set.
+
+    See :class:`NamedCannabinoidSet`. The resolution rules:
+
+    - Major hits whose match span is fully contained inside any minor
+      hit's span are suppressed (the "THC inside Δ⁸-THC" case).
+    - Both detectors deduplicate by entry name (so two "THC" matches
+      yield one entry).
+    - Registry order is preserved within each tier.
+    """
+    from cannavec_science.major_cannabinoids import (
+        detect_major_cannabinoid_mention_with_spans,
+    )
+    from cannavec_science.minor_cannabinoids import (
+        detect_minor_cannabinoid_mention_with_spans,
+    )
+
+    minor_pairs = detect_minor_cannabinoid_mention_with_spans(prompt)
+    major_pairs = detect_major_cannabinoid_mention_with_spans(prompt)
+
+    minor_spans = tuple(span for _entry, span in minor_pairs)
+
+    def _is_contained(major_span: tuple[int, int]) -> bool:
+        ms, me = major_span
+        for ns, ne in minor_spans:
+            if ns <= ms and me <= ne:
+                return True
+        return False
+
+    seen_major: set[str] = set()
+    major_entries: list = []
+    for entry, span in major_pairs:
+        if _is_contained(span):
+            continue
+        if entry.name in seen_major:
+            continue
+        seen_major.add(entry.name)
+        major_entries.append(entry)
+
+    seen_minor: set[str] = set()
+    minor_entries: list = []
+    for entry, _span in minor_pairs:
+        if entry.name in seen_minor:
+            continue
+        seen_minor.add(entry.name)
+        minor_entries.append(entry)
+
+    raw_names = (
+        {e.name for e in major_entries}
+        | {e.name for e in minor_entries}
+    )
+    names = _canonical_cannabinoid_names(raw_names)
+    return NamedCannabinoidSet(
+        major=tuple(major_entries),
+        minor=tuple(minor_entries),
+        all_names=names,
+    )
+
+
 def compose_answer(
     prompt: str,
     audience: str = "researcher",
@@ -544,6 +690,28 @@ def compose_answer(
                     f"reserve {v.cannabinoid} for decarboxylated samples."
                 ),
             })
+        for v in report.entourage_violations:
+            a.rigor_violations.append({
+                "detector": "entourage_overclaim",
+                "match": v.matched_phrase,
+                "span": list(v.span),
+                "resolution": (
+                    f"cite Russo 2011 / Finlay 2020 / Santiago 2019 / "
+                    f"LaVigne 2021 or reframe `{v.terpene}` × "
+                    f"`{v.cannabinoid}` as an open empirical hypothesis."
+                ),
+            })
+        # Spec 003 US10 / FR-010: dedup by (detector, span) so
+        # downstream renderers can't surface the same finding twice.
+        seen: set[tuple[str, tuple[int, int]]] = set()
+        deduped: list[dict] = []
+        for v in a.rigor_violations:
+            key = (v.get("detector", ""), tuple(v.get("span") or ()))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(v)
+        a.rigor_violations = deduped
         a.add_trace("rigor_violations", len(a.rigor_violations))
 
     for caution in verdict.required_cautions:
@@ -609,32 +777,54 @@ def compose_answer(
     )
     from cannavec_science.terpenes import detect_terpene_mention
 
+    # Spec 003 US1 / FR-001 — resolve the named-cannabinoid set BEFORE
+    # firing any registry detector, with span-aware deduplication so
+    # "Δ⁸-THC pharmacology" never lights up the Δ⁹-THC monograph.
+    cannabinoid_set = resolve_named_cannabinoid_set(prompt)
+    cannabinoid_filter = cannabinoid_set.all_names or None
+
     matched_population_rows = _specific_or_class(
-        detect_population_mention(prompt),
-        detect_population_class_mention(prompt),
+        detect_population_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
+        detect_population_class_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
     )
     matched_interaction_rows = _specific_or_class(
-        detect_interaction_mention(prompt),
-        detect_interaction_class_mention(prompt),
+        detect_interaction_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
+        detect_interaction_class_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
     )
     matched_ae_rows = _specific_or_class(
-        detect_adverse_event_mention(prompt),
-        detect_adverse_event_class_mention(prompt),
+        detect_adverse_event_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
+        detect_adverse_event_class_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
     )
     matched_contraindication_rows = _specific_or_class(
-        detect_contraindication_mention(prompt),
-        detect_contraindication_class_mention(prompt),
+        detect_contraindication_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
+        detect_contraindication_class_mention(
+            prompt, cannabinoid_filter=cannabinoid_filter,
+        ),
     )
-    matched_minor_cb_rows = detect_minor_cannabinoid_mention(prompt)
-    # Major-cannabinoid monograph fires only when the prompt names
-    # 2+ cannabinoids (comparison intent). A specific "how does CBD
-    # interact with clobazam" query should not dump the full CBD
-    # monograph — the strict interaction matcher already handles it.
-    major_hits_raw = detect_major_cannabinoid_mention(prompt)
-    total_compounds_named = len(major_hits_raw) + len(matched_minor_cb_rows)
-    matched_major_cb_rows = major_hits_raw if total_compounds_named >= 2 else ()
+    matched_minor_cb_rows = cannabinoid_set.minor
+    # Major-cannabinoid monograph fires when the prompt names a major
+    # cannabinoid (CBD / Δ⁹-THC). The span-aware resolver above already
+    # suppresses major hits embedded inside minor hits.
+    matched_major_cb_rows = cannabinoid_set.major
     matched_terpene_rows = detect_terpene_mention(prompt)
     matched_pgx_rows = find_pgx_hits(prompt)
+    # Spec 003 US7 / FR-007 — eCBome surfacing.
+    from cannavec_science.ecbome import detect_ecbome_mention
+    matched_ecbome_rows = detect_ecbome_mention(prompt)
 
     a.add_trace("registry.populations", len(matched_population_rows))
     a.add_trace("registry.interactions", len(matched_interaction_rows))
@@ -644,6 +834,7 @@ def compose_answer(
     a.add_trace("registry.major_cannabinoids", len(matched_major_cb_rows))
     a.add_trace("registry.terpenes", len(matched_terpene_rows))
     a.add_trace("registry.pharmacogenomics", len(matched_pgx_rows))
+    a.add_trace("registry.ecbome", len(matched_ecbome_rows))
 
     # Citation attachment runs regardless of refusal — the population-
     # level evidence base exists whether or not Cannavec Science
@@ -697,16 +888,236 @@ def compose_answer(
                     _fmt_minor(compound),
                 )
                 _attach_monograph_citations(a, compound)
-    elif matched_minor_cb_rows or matched_major_cb_rows:
-        # Refused prompt: still surface the cannabinoid citations so
-        # downstream readers see the evidence base.
+        # Spec 003 US7 / FR-007 — eCBome entries render as a reference
+        # section + citations. Every entry carries a UniProt or HMDB ID
+        # per §I, so the citation set is identifier-anchored.
+        if matched_ecbome_rows:
+            from cannavec_science.ecbome import render_markdown as render_ecbome
+            a.add_section(
+                "Endocannabinoidome (eCBome) reference",
+                render_ecbome(matched_ecbome_rows).removeprefix(
+                    "## Endocannabinoidome (eCBome) reference\n"
+                ).strip(),
+            )
+            for entry in matched_ecbome_rows:
+                _attach_ecbome_citations(a, entry)
+    elif matched_minor_cb_rows or matched_major_cb_rows or matched_ecbome_rows:
+        # Refused prompt: still surface the cannabinoid + eCBome
+        # citations so downstream readers see the evidence base.
         for compound in matched_major_cb_rows:
             _attach_monograph_citations(a, compound)
         for compound in matched_minor_cb_rows:
             _attach_monograph_citations(a, compound)
+        for entry in matched_ecbome_rows:
+            _attach_ecbome_citations(a, entry)
+
+    # Spec 003 US3 / FR-003 — apply the topical-relevance signal so
+    # ``highest_grade`` reflects topically relevant claims only.
+    _apply_topical_relevance(a, prompt, cannabinoid_set)
+
+    # Spec 003 US9 / FR-009 — when 0 claims and no refusal, classify
+    # the 0-claim case so the user gets actionable guidance.
+    _classify_zero_claims(a, prompt, cannabinoid_set, banned_hits)
 
     a.refresh_evidence_summary()
     return a
+
+
+def _attach_ecbome_citations(a: Answer, entry) -> None:
+    """Attach an eCBome entry's primary-source citations to the Answer.
+
+    Spec 003 US7 / FR-007 — every eCBome entry has a UniProt or HMDB
+    identifier per §I; the cited papers anchor each entry's binding /
+    mechanism profile.
+    """
+    for c in getattr(entry, "citations", ()) or ():
+        pmid = getattr(c, "pmid", None)
+        doi = getattr(c, "doi", None)
+        if not (pmid or doi):
+            continue
+        a.add_citation(Citation(
+            label=getattr(c, "label", "") or entry.name,
+            pmid=pmid,
+            doi=doi,
+            year=getattr(c, "year", None),
+        ))
+
+
+# Spec 003 US3 / FR-003 — hypothesis-anchored prompts whose claims must
+# carry a topical citation to count as relevant. Each entry maps a
+# prompt-side regex to the set of canonical primary-source PMIDs that
+# anchor the hypothesis. A claim is topical to the hypothesis only when
+# at least one of its sources cites one of those PMIDs.
+_HYPOTHESIS_ANCHORED_PROMPTS: tuple[tuple[re.Pattern[str], frozenset[str], frozenset[str]], ...] = (
+    (
+        re.compile(
+            r"\bentourage\s+(?:effect|hypothesis|theory)\b",
+            re.IGNORECASE,
+        ),
+        # Canonical PMIDs that DO anchor an entourage-effect claim.
+        frozenset({
+            "21749363",  # Russo 2011
+            "32226370",  # Finlay 2020
+            "30728672",  # Santiago 2019
+            "33888868",  # LaVigne 2021
+        }),
+        # Topical-keyword fallback: claim text must contain "entourage"
+        # or be about the terpene-cannabinoid synergy literature.
+        frozenset({"entourage", "terpene synergy", "terpene-cannabinoid"}),
+    ),
+)
+
+
+def _topical_relevance_for_claim(
+    claim: Claim,
+    prompt: str,
+    cannabinoid_set: "NamedCannabinoidSet",
+) -> bool:
+    """Spec 003 US3 / FR-003 — deterministic topical-relevance signal.
+
+    Composition of cases:
+
+    1. **Hypothesis-anchored prompt** (e.g., "entourage effect
+       evidence"): claim is relevant only when one of its sources is
+       in the prompt's canonical-citation set OR the claim text
+       contains a topical keyword.
+    2. **Cannabinoid-named prompt**: claim relevant when a named
+       cannabinoid appears in the claim text.
+    3. **Topic-keyword-matching prompt** (sleep, pain, anxiety, etc.):
+       claim relevant when both prompt and claim share a topic tag.
+    4. **Default**: when the prompt names no cannabinoid and matches
+       no hypothesis anchor, fall back to "all claims relevant".
+
+    This is intentionally narrow: a Lennox-Gastaut CBD claim does NOT
+    become topical to "entourage effect evidence" merely because the
+    composer pulled it from the CBD monograph for context.
+    """
+    text = claim.text.lower()
+    claim_pmids = {s.pmid for s in claim.sources if s.pmid}
+
+    # Hypothesis-anchored prompts: the strictest topical filter.
+    for rx, canonical_pmids, topical_keywords in _HYPOTHESIS_ANCHORED_PROMPTS:
+        if rx.search(prompt):
+            if claim_pmids & canonical_pmids:
+                return True
+            for kw in topical_keywords:
+                if kw in text:
+                    return True
+            return False
+
+    if cannabinoid_set.all_names:
+        for name in cannabinoid_set.all_names:
+            if name.lower() in text:
+                return True
+        from cannavec_science.intent import topic_keywords
+        prompt_topics = topic_keywords(prompt)
+        if prompt_topics:
+            claim_topics = topic_keywords(claim.text)
+            if prompt_topics & claim_topics:
+                return True
+        return False
+
+    # No anchor of any kind — claims pass through.
+    return True
+
+
+def _apply_topical_relevance(
+    a: Answer,
+    prompt: str,
+    cannabinoid_set: "NamedCannabinoidSet",
+) -> None:
+    """Mark each claim with a ``topical_relevance`` signal and stash the
+    topically-relevant subset on the Answer for grade aggregation.
+
+    The evidence-summary highest-grade computation in
+    :meth:`Answer.refresh_evidence_summary` reads this attribute when
+    present.
+    """
+    relevant: list[Claim] = []
+    for c in a.claims:
+        if _topical_relevance_for_claim(c, prompt, cannabinoid_set):
+            relevant.append(c)
+    a._topically_relevant_claims = tuple(relevant)
+
+
+_ZERO_CLAIM_OUT_OF_SCOPE_AUDIENCE_RE = re.compile(
+    r"\b(?:bedrocan|cultivar|cultivars|cultivation|trichom\w*|"
+    r"pesticide|harvest|grow(?:ing)?\b|nutrient|hydroponic|"
+    r"cannabis\s+(?:retail|sale|store|cafe|dispens\w*)|"
+    r"hemp[- ]derived|lab\s*qc|lab\s+test\w*\s+method|"
+    r"compliance\s+testing)\b",
+    re.IGNORECASE,
+)
+
+_ZERO_CLAIM_DEFERRED_RE = re.compile(
+    r"\b(?:decarboxylation\s+kinetics|"
+    r"hplc\s+method|gc[- ]ms\s+vs\s+hplc|"
+    r"chemovar\s+type|chemovar\s+classification|"
+    r"vapor\s+pyrolysis|combustion\s+byproduct\w*|"
+    r"light\s+spectrum|uv-?b\s+effect|"
+    r"thca\s+synthase|cbda\s+synthase|"
+    r"botanical\s+taxonomy|sativa\s+l\.?\s+species)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_zero_claims(
+    a: Answer,
+    prompt: str,
+    cannabinoid_set: "NamedCannabinoidSet",
+    banned_hits: tuple,
+) -> None:
+    """Spec 003 US9 / FR-009 — when 0 claims and no refusal, attach a
+    classification note describing why.
+
+    Five exclusive cases:
+
+    - **refusal** — safety / banned-pattern fired (already handled
+      upstream; we skip).
+    - **out_of_scope_audience** — patient / cultivator / retail / lab-
+      QC / hemp-derived / per-state regulatory questions.
+    - **out_of_scope_deferred** — analytical-chemistry / cultivation-
+      science questions (v0.4 horizon per spec 003 US11 / US12).
+    - **in_scope_uncurated** — in §IV but no registry row matched.
+      Points the user at ``discover`` for a live search.
+    - **in_scope_phrasing_mismatched** — registry has rows for the
+      named cannabinoid but the predicate didn't match. Suggest a
+      reframing.
+    """
+    if a.claims or a.is_refusal:
+        return
+    if _ZERO_CLAIM_OUT_OF_SCOPE_AUDIENCE_RE.search(prompt):
+        a.notes = a.notes + (
+            "0 curated claims: this question targets a non-researcher "
+            "audience (cultivation / lab-QC / retail / hemp-derived) — "
+            "see the parent Cannavec plugin for those surfaces. The v0.x "
+            "Cannavec Science MVP is researcher-only per Constitution §IV.",
+        )
+        return
+    if _ZERO_CLAIM_DEFERRED_RE.search(prompt):
+        a.notes = a.notes + (
+            "0 curated claims: this question is in §IV (research-grade) "
+            "but sits in the v0.4 analytical-chemistry / cultivation-"
+            "science horizon — see spec 003 US11 / US12. Use the "
+            "`discover` subcommand for a live PubMed / ChEMBL search.",
+        )
+        return
+    if cannabinoid_set.all_names:
+        # In scope but the registries didn't fire on a specific row.
+        a.notes = a.notes + (
+            "0 curated claims: the named cannabinoid is covered by the "
+            "registries but the prompt's predicate didn't match a row. "
+            "Try rephrasing with explicit drug / event / indication terms "
+            "(e.g. 'CBD × tacrolimus', 'HHC vs Δ⁹-THC pharmacology') or "
+            "use the `discover` subcommand for a live PubMed search.",
+        )
+        return
+    # In scope but unanchored (no cannabinoid named, no audience drift).
+    a.notes = a.notes + (
+        "0 curated claims: question appears in scope but no registry "
+        "detector fired. Try the `discover` subcommand for a live "
+        "PubMed / ChEMBL / CT.gov search.",
+    )
 
 
 def _attach_citations_from_row(a: Answer, row) -> None:

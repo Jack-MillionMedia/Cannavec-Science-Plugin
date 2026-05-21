@@ -673,10 +673,23 @@ _INDICATION_KEYWORD_TO_LABELS: tuple[
 )
 
 
+_POPULATION_CANNABINOID_MAP: dict[str, tuple[str, ...]] = {
+    "CBD": ("cbd", "cannabidiol", "nabiximols"),
+    "Δ⁹-THC": ("thc", "tetrahydrocannabinol", "nabiximols",
+               "nabilone", "dronabinol"),
+}
+
+
 def detect_population_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[TrialSupportedPopulation, ...]:
-    """Return registry entries whose label matches a population cue in ``text``."""
+    """Return registry entries whose label matches a population cue.
+
+    Spec 003 US2 / FR-002: ``cannabinoid_filter`` restricts to rows
+    whose ``cannabinoid`` field intersects the filter's mapped name set.
+    """
     labels = {label for rx, label in _POPULATION_KEYWORDS if rx.search(text)}
     for rx, fallback_labels in _INDICATION_KEYWORD_TO_LABELS:
         if rx.search(text):
@@ -686,9 +699,20 @@ def detect_population_mention(
     out: list[TrialSupportedPopulation] = []
     seen: set[str] = set()
     for x in _REGISTRY:
-        if x.label in labels and x.label not in seen:
-            out.append(x)
-            seen.add(x.label)
+        if x.label not in labels or x.label in seen:
+            continue
+        if cannabinoid_filter is not None:
+            if not cannabinoid_filter:
+                continue
+            allowed = set()
+            for cn in cannabinoid_filter:
+                allowed.update(_POPULATION_CANNABINOID_MAP.get(cn, ()))
+            if not allowed:
+                continue
+            if not any(a in x.cannabinoid.lower() for a in allowed):
+                continue
+        out.append(x)
+        seen.add(x.label)
     return tuple(out)
 
 
@@ -715,13 +739,18 @@ _INDICATION_CLASS_KEYWORDS: tuple[re.Pattern[str], ...] = tuple(
 
 def detect_population_class_mention(
     text: str,
+    *,
+    cannabinoid_filter: frozenset[str] | set[str] | None = None,
 ) -> tuple[TrialSupportedPopulation, ...]:
     """Return all trial-supported populations matching a class keyword.
 
-    Companion to :func:`detect_population_mention` for prompts asking
-    the general question ("what are the FDA-approved indications for
-    CBD?") without naming a specific condition. Optionally filters by
-    a cannabinoid named in the prompt.
+    Spec 003 US2 / FR-002: ``cannabinoid_filter`` (when passed by
+    :func:`compose_answer`) restricts to rows whose ``cannabinoid``
+    field intersects the filter via :data:`_POPULATION_CANNABINOID_MAP`.
+
+    When called without ``cannabinoid_filter`` (legacy callers), the
+    prompt itself is scanned for cannabinoid cues — preserving the
+    pre-v0.3 contract for direct callers.
     """
     matched = False
     for rx in _INDICATION_CLASS_KEYWORDS:
@@ -730,26 +759,37 @@ def detect_population_class_mention(
             break
     if not matched:
         return ()
-    cannabinoid_filter: str | None = None
-    text_lower = text.lower()
-    for cn in ("cannabidiol", "cbd"):
-        if re.search(rf"\b{cn}\b", text_lower):
-            cannabinoid_filter = "cbd"
-            break
-    if cannabinoid_filter is None:
-        for cn in ("tetrahydrocannabinol", "thc", "delta-9", "delta 9"):
-            if re.search(rf"\b{re.escape(cn)}\b", text_lower):
-                cannabinoid_filter = "thc"
-                break
-    if cannabinoid_filter is None:
-        for cn in ("nabiximols", "sativex"):
+
+    allowed: set[str] = set()
+    if cannabinoid_filter is not None:
+        if not cannabinoid_filter:
+            return ()
+        for cn in cannabinoid_filter:
+            allowed.update(_POPULATION_CANNABINOID_MAP.get(cn, ()))
+        if not allowed:
+            return ()
+    else:
+        # Legacy single-token prompt scan.
+        text_lower = text.lower()
+        for cn in ("cannabidiol", "cbd"):
             if re.search(rf"\b{cn}\b", text_lower):
-                cannabinoid_filter = "nabiximols"
+                allowed.add("cbd")
                 break
+        if not allowed:
+            for cn in ("tetrahydrocannabinol", "thc", "delta-9", "delta 9"):
+                if re.search(rf"\b{re.escape(cn)}\b", text_lower):
+                    allowed.add("thc")
+                    break
+        if not allowed:
+            for cn in ("nabiximols", "sativex"):
+                if re.search(rf"\b{cn}\b", text_lower):
+                    allowed.add("nabiximols")
+                    break
+
     rows = list(_REGISTRY)
-    if cannabinoid_filter:
+    if allowed:
         rows = [r for r in rows
-                if cannabinoid_filter in r.cannabinoid.lower()]
+                if any(a in r.cannabinoid.lower() for a in allowed)]
     seen: set[str] = set()
     out: list[TrialSupportedPopulation] = []
     for r in rows:

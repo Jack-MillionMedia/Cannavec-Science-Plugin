@@ -143,6 +143,63 @@ def _eval_prompt(prompt: dict) -> tuple[bool, list[str]]:
                 f"did not fire (fired={sorted(fired)})"
             )
 
+    # Spec 003 US1 / US7 — section-level routing assertions.
+    if "must_include_section" in expect:
+        titles = {t for t, _ in a.sections}
+        for required in expect["must_include_section"]:
+            if not any(required in t for t in titles):
+                failures.append(
+                    f"must_include_section: {required!r} not in "
+                    f"section titles ({sorted(titles)})"
+                )
+
+    if "must_not_include_section" in expect:
+        titles = {t for t, _ in a.sections}
+        for forbidden in expect["must_not_include_section"]:
+            if any(forbidden in t for t in titles):
+                failures.append(
+                    f"must_not_include_section: {forbidden!r} fired in "
+                    f"section titles ({sorted(titles)})"
+                )
+
+    # Spec 003 US3 — answer-level highest_grade ceiling.
+    if "max_grade" in expect and a.evidence_summary is not None:
+        from cannavec_science.evidence import EvidenceLevel
+        want = EvidenceLevel(f"Level {expect['max_grade']}")
+        got = a.evidence_summary.highest_grade
+        if got.rank > want.rank:
+            failures.append(
+                f"max_grade: expected ≤ {want.value}, got {got.value}"
+            )
+
+    # Spec 003 US3 — highest_grade must equal Unsupported.
+    if expect.get("highest_grade_unsupported"):
+        from cannavec_science.evidence import EvidenceLevel
+        if a.evidence_summary is None:
+            failures.append("highest_grade_unsupported: no evidence summary")
+        elif a.evidence_summary.highest_grade != EvidenceLevel.UNSUPPORTED:
+            failures.append(
+                f"highest_grade_unsupported: got "
+                f"{a.evidence_summary.highest_grade.value}"
+            )
+
+    # Spec 003 US2 — every emitted claim must mention an allowed
+    # cannabinoid. (Empty list permits any.)
+    if "claims_must_only_mention_cannabinoids" in expect:
+        allowed = set(expect["claims_must_only_mention_cannabinoids"])
+        for c in a.claims:
+            # Spot-check the first part of the claim text — registry
+            # claims begin with the cannabinoid name.
+            head = c.text[:30].lower()
+            if not any(name.lower() in head for name in allowed):
+                # Also accept when the claim attributes generic
+                # "cannabis" but the prompt allowed it.
+                if "cannabis" not in head:
+                    failures.append(
+                        f"claims_must_only_mention_cannabinoids: claim "
+                        f"begins {c.text[:60]!r}; allowed {sorted(allowed)}"
+                    )
+
     return (not failures, failures)
 
 

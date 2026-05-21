@@ -68,6 +68,10 @@ class CategoryMinimumTests(unittest.TestCase):
     def test_cross_cutting_minimum_5(self):
         self._assert_bucket("cross_cutting", 5)
 
+    def test_routing_surfacing_minimum_15(self):
+        # Spec 003 US8 / SC-006 — v0.3 routing-and-surfacing bucket.
+        self._assert_bucket("routing_surfacing", 15)
+
     def test_minimums_in_metadata_match_spec(self):
         expected = {
             "curated": 25,
@@ -76,6 +80,7 @@ class CategoryMinimumTests(unittest.TestCase):
             "refusal": 15,
             "live": 10,
             "cross_cutting": 5,
+            "routing_surfacing": 15,
         }
         for cat, m in expected.items():
             self.assertEqual(

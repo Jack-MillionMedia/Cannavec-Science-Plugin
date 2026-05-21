@@ -17,7 +17,7 @@ export with inline GRADE annotation.
 Stdlib-only. Researcher audience only. Five slash commands.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from cannavec_science.evidence import (
     Claim,
