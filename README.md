@@ -1,26 +1,72 @@
-# Cannavec Science (v0.3 — routing-and-surfacing build)
+# Cannavec Science (v0.4 — industry-expert-depth build)
 
 **A focused Claude Code plugin for elite-tier cannabis-research science.**
 
 A working cannabis-research scientist needs more than a literature search:
 they need primary citations they can defend, phytochemistry precision
 they can publish, live access to the frontier (including preprints),
-deterministic GRADE-level rigor with field-pushback signal, and
-researcher-workflow scaffolding (PICO, sample-size power, GRADE
-evidence-profile table, IRB protocol skeleton). Cannavec Science ships
-exactly those things — researcher-only, stdlib-only, deterministic.
+deterministic GRADE-level rigor with field-pushback signal, researcher-
+workflow scaffolding (PICO, sample-size power, GRADE evidence-profile
+table, IRB protocol skeleton), and — new in v0.4 — primary-source-anchored
+analytical chemistry (decarboxylation kinetics, HPLC vs GC-MS method
+validation, chemovar Type I-V classification, vapor pyrolysis byproducts)
+and cultivation science (UV-B effects on biosynthesis, trichome biology,
+synthase genetics, the live botanical-taxonomy debate). Cannavec Science
+ships exactly those things — researcher-only, stdlib-only, deterministic.
 
-This is the **v0.3 routing-and-surfacing build** descending from the
-v0.2 elite-development build. v0.2 already did the hard part well — the
-deterministic backbone, GRADE wording-vs-grade guard, K2 hard-refuse,
-banned-pattern detector, retraction enforcement, freshness probe,
-regulatory-feasibility advisory, and the seven rigor detectors were
-all trustworthy. The 2026-05-21 industry-expert review (spec 003)
-found four P1 shipping bugs and three confidence-laundering failure
-modes inside the otherwise-credible v0.2 surface. v0.3 closes them all
-without breaking the researcher-only audience lock — and is now
-**1,140+ unit tests strong** with a 15-prompt routing-and-surfacing
-eval bucket on top of the 104-prompt v0.2 offline canonical battery.
+This is the **v0.4 industry-expert-depth build** descending from the
+v0.3 routing-and-surfacing build (spec 003) and the v0.2 elite-development
+build (spec 002). v0.4 lands two new curated registries (≥ 8 analytical-
+chemistry rows and ≥ 6 cultivation-science rows), closes a P1 rendering
+bug that swallowed the v0.3 0-claim classification messages, and tightens
+the indica/sativa-as-pharmacology refusal to catch abstract framings —
+all without broadening the researcher-only audience lock. The build is
+now **1,220+ unit tests strong** with a 13-prompt analytical-chemistry +
+cultivation-science eval bucket on top of the 130-prompt v0.3 offline
+canonical battery.
+
+### What v0.4 ships
+
+1. **Analytical-chemistry registry (≥ 8 curated rows)** — decarboxylation
+   kinetics (Veress 1990 PMID 2384545, Wang 2016, Citti 2018), HPLC
+   potency analysis vs GC-MS in-injector decarboxylation artefact (Dussy
+   2005, Citti 2018), chemovar Type I/II/III/IV/V classification
+   (Hazekamp & Fischedick 2012 PMID 22362625, Lewis 2018), THCA-/CBDA-
+   synthase locus inheritance (Hillig & Mahlberg 2004, Aizpurua-Olaizola
+   2016), and combustion-vs-vaporisation pyrolysis byproducts
+   (Pomahacova 2009, Moir 2008). Every row primary-cited per §I; every
+   row carries a topic-keyword detector that fires on
+   ``decarboxylation``, ``HPLC``, ``GC-MS``, ``chemovar``, ``pyrolysis``,
+   etc.
+2. **Cultivation-science registry (≥ 6 curated rows)** — UV-B effect
+   on cannabinoid biosynthesis (Lydon 1987 PMID 3621052), glandular
+   trichome biology (Livingston 2020 PMID 31867754, Tanney 2021),
+   THCA-/CBDA-synthase single-locus inheritance (de Meijer 2003 PMID
+   12663552), CBDA-synthase enzymology (Taura 2007), F1 heterozygote
+   Type II dominance, and the **honest-debate botanical taxonomy** row
+   surfacing both Small & Cronquist 1976 (single species) AND Hillig
+   2005 (multi-species) without picking a winner — same evidentiary
+   honesty Cannavec applies to entourage-effect prompts.
+3. **`Answer.notes` rendering fix** — v0.3 set the 0-claim classification
+   on `Answer.notes` (spec 003 US9) but `Answer.to_markdown()` never
+   surfaced it. v0.4 renders a `## Notes` section so the researcher
+   actually sees the actionable hint ("0 curated claims: this question
+   is in §IV but sits in the v0.4 horizon — use the `discover`
+   subcommand"). `Answer.to_dict()` JSON output now includes a `notes`
+   field at top level.
+4. **Strengthened indica/sativa banned pattern** — v0.3 caught the prose
+   form ("Indica strains are sedating because they have more myrcene")
+   but the abstract meta-framing ("indica vs sativa pharmacological
+   differences") slipped through. v0.4 adds a sibling pattern
+   (`indica_sativa_as_pharmacology_abstract`) that catches the abstract
+   framing WITHOUT ensnaring legitimate botanical-taxonomy framings
+   ("Cannabis sativa L. botanical taxonomy", "Is Cannabis sativa one
+   species or three?" — both pass cleanly into the cultivation-science
+   registry).
+5. **Two new registry-inventory groups** — `python3 -m cannavec_science
+   registries` now surfaces `analytical_chemistry` and
+   `cultivation_science` as discoverable groups; total inventory grows
+   from 145 → 159 rows across 11 (was 9) registries.
 
 ### What v0.3 fixes
 
@@ -175,8 +221,8 @@ cd Cannavec-Science-Plugin
 # That's it. No `pip install`. Stdlib only.
 
 # Smoke test:
-python3 -m unittest discover -s tests   # 1,140+ tests, ~2 s
-python3 evals/run_evals.py              # 119 offline canonical evals (130 total; 11 live skipped offline)
+python3 -m unittest discover -s tests   # 1,220+ tests, ~2 s
+python3 evals/run_evals.py              # 133 offline canonical evals (144 total; 11 live skipped offline)
 
 # The four golden v0.1 flows:
 python3 -m cannavec_science answer "What is the evidence for CBD in Dravet syndrome?"
@@ -205,6 +251,19 @@ python3 -m cannavec_science verify CHEMBL5803                        # ChEMBL co
 python3 -m cannavec_science verify P21554                            # UniProt CB1 resolver
 python3 -m cannavec_science registries                               # full registry inventory
 python3 -m cannavec_science source-health --json                     # no-AttributeError + JSON
+
+# v0.4 industry-expert-depth flows:
+python3 -m cannavec_science answer "Decarboxylation kinetics of THCA at 110 degrees C"  # Veress 1990 + Wang 2016
+python3 -m cannavec_science answer "HPLC vs GC-MS cannabinoid quantitation"             # GC in-injector artefact row
+python3 -m cannavec_science answer "Type II chemovar genetic basis"                     # Hazekamp & Fischedick 2012
+python3 -m cannavec_science answer "Cannabis vapor pyrolysis byproducts"                # Pomahacova 2009
+python3 -m cannavec_science answer "UV-B effect on cannabinoid biosynthesis"            # Lydon 1987
+python3 -m cannavec_science answer "THCA synthase CBDA synthase chemotype inheritance"  # de Meijer 2003
+python3 -m cannavec_science answer "Is Cannabis sativa one species or three?"           # honest taxonomy debate
+python3 -m cannavec_science answer "Bedrocan medical cannabis cultivars THC content"    # rendered audience hint
+python3 -m cannavec_science answer "indica vs sativa pharmacological differences"       # strengthened refusal
+python3 -m cannavec_science registries --registry analytical_chemistry                  # 8 analytical rows
+python3 -m cannavec_science registries --registry cultivation_science                   # 6 cultivation rows
 ```
 
 ## The five commands
@@ -256,6 +315,8 @@ cannavec_science/
 ├── protocol_skeleton.py    # v0.2 — 9-section IRB protocol stub
 ├── ecbome.py               # v0.2 — endocannabinoidome reference (28 entries)
 ├── regulatory_feasibility.py  # v0.2 — US/EU/CA/UK regulatory advisory
+├── analytical_chemistry.py # v0.4 — decarb kinetics, HPLC/GC-MS, chemovar, pyrolysis
+├── cultivation_science.py  # v0.4 — UV-B, trichome, synthase, taxonomy
 ├── major_cannabinoids.py   # Δ⁹-THC, CBD
 ├── minor_cannabinoids.py   # THCV, CBDV, CBC, CBN, CBG + v0.2 Δ⁸-THC, HHC, THCO, THCP
 ├── terpenes.py             # Terpene registry
@@ -270,8 +331,8 @@ cannavec_science/
 ## Tests + acceptance gate
 
 ```bash
-python3 -m unittest discover -s tests   # 1,045 tests, offline, ~0.1 s
-python3 evals/run_evals.py              # 104 offline canonical evals
+python3 -m unittest discover -s tests   # 1,220+ tests, offline, ~2 s
+python3 evals/run_evals.py              # 133 offline canonical evals (144 total; 11 live skipped offline)
 ```
 
 Before any push to the v0.2 branch, all of the following MUST hold

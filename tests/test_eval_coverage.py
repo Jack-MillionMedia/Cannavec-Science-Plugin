@@ -31,6 +31,11 @@ class EvalFileShapeTests(unittest.TestCase):
         data = _load_evals()
         self.assertGreaterEqual(len(data["prompts"]), 100)
 
+    def test_has_at_least_142_prompts_v04(self):
+        # Spec 004 SC-007 — v0.4 lifts the eval total to ≥ 142.
+        data = _load_evals()
+        self.assertGreaterEqual(len(data["prompts"]), 142)
+
 
 class CategoryMinimumTests(unittest.TestCase):
     """Per-bucket minimums per spec 002 FR-207 / FR-208."""
@@ -72,6 +77,11 @@ class CategoryMinimumTests(unittest.TestCase):
         # Spec 003 US8 / SC-006 — v0.3 routing-and-surfacing bucket.
         self._assert_bucket("routing_surfacing", 15)
 
+    def test_analytical_cultivation_minimum_10(self):
+        # Spec 004 US6 / FR-007 — v0.4 analytical-chemistry +
+        # cultivation-science bucket.
+        self._assert_bucket("analytical_cultivation", 10)
+
     def test_minimums_in_metadata_match_spec(self):
         expected = {
             "curated": 25,
@@ -81,6 +91,7 @@ class CategoryMinimumTests(unittest.TestCase):
             "live": 10,
             "cross_cutting": 5,
             "routing_surfacing": 15,
+            "analytical_cultivation": 10,
         }
         for cat, m in expected.items():
             self.assertEqual(

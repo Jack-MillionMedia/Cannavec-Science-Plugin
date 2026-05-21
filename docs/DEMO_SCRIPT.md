@@ -336,20 +336,135 @@ What the client sees: structured JSON with `source`, `status`,
 `latency_ms`, `error_excerpt` per source. Pre-v0.3 this crashed with
 `AttributeError: 'SourceHealth' object has no attribute 'ok'`.
 
+## v0.4 industry-expert-depth flows
+
+These flows demonstrate the v0.4 deliverables (spec 004): two new
+curated registries that close the analytical-chemistry and
+cultivation-science depth gaps an industry-expert review of v0.3
+identified.
+
+### Flow 17 — Analytical-chemistry registry (decarboxylation kinetics)
+
+```bash
+python3 -m cannavec_science answer "Decarboxylation kinetics of THCA at 110 degrees C"
+```
+
+What the client sees: three Level C claims with primary citations
+(Veress 1990 PMID 2384545 for the kinetic framework; Wang 2016 for
+modern matrix-controlled curves; Citti 2018 for analytical
+considerations). The `## Analytical-chemistry registry` section
+renders with explicit matrix + conditions metadata.
+
+Pre-v0.4 this returned silent 0 claims. v0.4 surfaces curated
+primary-cited claims for the formulation scientist asking about
+edibles process-engineering.
+
+### Flow 18 — Chemovar genetic basis (Hazekamp & Fischedick framework)
+
+```bash
+python3 -m cannavec_science answer "Type II chemovar genetic basis"
+```
+
+What the client sees: the Hazekamp & Fischedick 2012 (PMID 22362625)
+Type I/II/III/IV/V framework AND the synthase-locus inheritance
+explanation, both as Level C claims with primary citations.
+
+Why this matters for an industry expert: the chemovar framing IS the
+right modern lens (data, not marketing). The legacy indica / sativa /
+hybrid framing is what the banned-pattern detector refuses. The two
+surfaces are complementary.
+
+### Flow 19 — HPLC vs GC-MS in-injector artefact
+
+```bash
+python3 -m cannavec_science answer "HPLC vs GC-MS cannabinoid quantitation"
+```
+
+What the client sees: the curated row surfacing "GC-MS produces
+in-injector decarboxylation; the apparent Δ⁹-THC peak on a GC
+chromatogram is the SUM of native Δ⁹-THC PLUS decarboxylated THCA"
+— the SAME artefact the v0.3 THCA-vs-THC rigor detector catches in
+prose. Registry teaches, rigor detector enforces.
+
+### Flow 20 — Cultivation-science registry (UV-B + cannabinoid biosynthesis)
+
+```bash
+python3 -m cannavec_science answer "UV-B effect on cannabinoid biosynthesis"
+```
+
+What the client sees: the Lydon 1987 (PMID 3621052) canonical finding
+that UV-B supplementation increases Δ⁹-THC content of glandular
+trichomes in THC-chemotype plants, with the Magagnini 2018 follow-up.
+Level C; cannabinoid biosynthesis is the topic, plant science is the
+surface.
+
+### Flow 21 — Botanical taxonomy honest debate
+
+```bash
+python3 -m cannavec_science answer "Is Cannabis sativa one species or three?"
+```
+
+What the client sees: ONE Level C claim that cites BOTH Small &
+Cronquist 1976 (single-species framework) AND Hillig 2005
+(multi-species view) AND McPartland 2018 (review). Cannavec Science
+does NOT pick a winner — it surfaces the live scholarly debate.
+
+Critically: this query does NOT fire the strengthened indica/sativa
+banned pattern, because the botany framing is research-grade and
+distinct from the pharmacology framing.
+
+### Flow 22 — Strengthened indica/sativa refusal
+
+```bash
+python3 -m cannavec_science answer "indica vs sativa pharmacological differences"
+```
+
+What the client sees: a Refusal with the strengthened banned-pattern
+hit (`indica_sativa_as_pharmacology_abstract`). Pre-v0.4 this returned
+silent 0 claims because the abstract meta-framing did not satisfy the
+sedative-keyword co-occurrence the v0.3 pattern required.
+
+### Flow 23 — Rendered 0-claim hint
+
+```bash
+python3 -m cannavec_science answer "Bedrocan medical cannabis cultivars THC content"
+```
+
+What the client sees: under the standard answer block, a new
+`## Notes` section with the v0.3 audience-classification message
+("0 curated claims: this question targets a non-researcher audience
+— see the parent Cannavec plugin"). Pre-v0.4 the classification was
+set internally but never rendered; v0.4 closes the loop.
+
+### Flow 24 — Two new inventory groups
+
+```bash
+python3 -m cannavec_science registries --registry analytical_chemistry
+python3 -m cannavec_science registries --registry cultivation_science
+```
+
+What the client sees: each group renders its 8 / 6 rows grouped by
+topic. Total inventory across all registries grows from 145 (v0.3) to
+159 (v0.4) rows across 11 (was 9) registries.
+
 ## When the demo goes well — close with this
 
-> "This is one audience surface, one composer, one CLI, ~24,000 lines
-> of stdlib Python, 1,140+ unit tests, and 119 offline canonical eval
-> prompts across six buckets (curated, rigor-positive, rigor-negative,
-> refusal, cross-cutting, routing-and-surfacing). v0.3 took the v0.2
-> elite-tier build through an industry-expert review and closed every
-> P1 / P2 / P3 finding inside the existing constitutional gates. The
-> larger parent plugin has fourteen more audiences, a KB flywheel,
-> signed artifacts, multi-jurisdiction compliance, and the rest. We
-> built v0.3 to prove that researcher-grade rigor + honest routing +
-> live frontier discovery can ship at elite-tier quality before
-> showing you everything else. Where would you like to go next —
-> clinician audience, lab QC, compliance, or somewhere else?"
+> "This is one audience surface, one composer, one CLI, ~26,500 lines
+> of stdlib Python, 1,220+ unit tests, and 133 offline canonical eval
+> prompts across eight buckets (curated, rigor-positive, rigor-negative,
+> refusal, cross-cutting, routing-and-surfacing, analytical-cultivation,
+> live). v0.4 took the v0.3 routing-and-surfacing build through a
+> second-pass industry-expert review and (a) closed every new P1/P2/P3
+> finding the second pass turned up, AND (b) shipped the analytical-
+> chemistry + cultivation-science depth the first pass had scoped as
+> the v0.4 horizon — all inside the existing constitutional gates,
+> with no audience broadening. The larger parent plugin has fourteen
+> more audiences, a KB flywheel, signed artifacts, multi-jurisdiction
+> compliance, and the rest. We built v0.4 to prove that researcher-
+> grade rigor + honest routing + analytical depth + cultivation-science
+> coverage + live frontier discovery can ship at elite-tier quality
+> before showing you everything else. Where would you like to go next
+> — clinician audience, lab QC, compliance, or somewhere else?"
 
 That question reframes the conversation from "is this real?" to
 "where do you want to deploy this?" — which is the conversation a

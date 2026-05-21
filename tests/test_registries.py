@@ -22,6 +22,8 @@ class AllRegistryGroupsTests(unittest.TestCase):
     def test_canonical_order(self):
         names = all_registry_groups()
         # Spec 003 US8 acceptance: nine registries grouped in canonical order.
+        # Spec 004 US5 / FR-006: v0.4 adds analytical_chemistry +
+        # cultivation_science, bringing the total to 11.
         self.assertEqual(names, (
             "major_cannabinoids",
             "minor_cannabinoids",
@@ -32,13 +34,16 @@ class AllRegistryGroupsTests(unittest.TestCase):
             "contraindications",
             "pharmacogenomics",
             "ecbome",
+            "analytical_chemistry",
+            "cultivation_science",
         ))
 
 
 class BuildInventoryTests(unittest.TestCase):
-    def test_all_registries_returns_nine_groups(self):
+    def test_all_registries_returns_eleven_groups(self):
         inv = build_inventory("all")
-        self.assertEqual(len(inv.groups), 9)
+        # Spec 004 US5 / FR-006: v0.4 adds two new registries.
+        self.assertEqual(len(inv.groups), 11)
         self.assertGreater(inv.total_rows, 100)
 
     def test_single_registry_filter(self):

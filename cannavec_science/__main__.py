@@ -993,7 +993,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Registry to inventory: 'all' (default) or one of "
             "major_cannabinoids, minor_cannabinoids, terpenes, "
             "interactions, adverse_events, populations, "
-            "contraindications, pharmacogenomics, ecbome."
+            "contraindications, pharmacogenomics, ecbome, "
+            "analytical_chemistry, cultivation_science."
         ),
     )
     rg.add_argument(

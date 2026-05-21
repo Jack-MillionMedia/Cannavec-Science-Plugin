@@ -70,6 +70,47 @@ BANNED_PATTERN_REGISTRY: tuple[BannedPattern, ...] = (
             "effects is a marketing convention, not pharmacology."
         ),
     ),
+    # Spec 004 US4 / FR-005 — abstract-framing sibling of the indica/
+    # sativa pattern. v0.3 only caught the prose form ("indica strains
+    # are sedating"); a researcher asking the abstract meta question
+    # ("indica vs sativa pharmacological differences") got silent
+    # 0 claims. This sibling fires on indica/sativa + abstract framing
+    # words. The negative lookbehinds let through botanical / taxonomy
+    # framing because Cannabis sativa L. as a species name is research-
+    # grade botany, not pharmacology framing.
+    BannedPattern(
+        id="indica_sativa_as_pharmacology_abstract",
+        title="Indica/sativa framed as pharmacology (abstract framing)",
+        regex=_ci(
+            # Disallow contexts where the word is part of a binomial
+            # ("Cannabis sativa", "Cannabis sativa L.", "C. sativa") OR
+            # explicit taxonomic / botanical framing — these are research
+            # questions about plant systematics, not pharmacology framing.
+            r"(?<!cannabis\s)(?<!c\.\s)"
+            r"\b(?:indicas?|sativas?|hybrids?)\b"
+            r"(?![^.\n]*?\b(?:L\.|taxonom\w*|botan\w*|species\s+debate|"
+            r"systemati\w*|biosystemati\w*|cronquist|hillig)\b)"
+            r"[^.\n]{0,60}\b"
+            r"(?:pharmacolog\w*|pharmaceut\w*|"
+            r"effects?\b|differences?\b|"
+            r"pharmacodynam\w*|pharmacokineti\w*|"
+            r"mechanism\w*|receptor\s+activit\w*)"
+        ),
+        replacement=(
+            "Describe by chemotype (Type I/II/III/IV/V) and named dominant "
+            "cannabinoids + terpenes; indica/sativa as a pharmacology lens "
+            "is a marketing convention. The botanical taxonomy debate "
+            "(Small & Cronquist 1976 / Hillig & Mahlberg 2004 / McPartland "
+            "2018) is a separate, research-grade question — phrase it in "
+            "taxonomic / botanical terms if that is what you mean."
+        ),
+        why=(
+            "Indica/sativa/hybrid do not correlate with pharmacological "
+            "effects or pharmacokinetic profiles in modern hybridised "
+            "cultivars; abstract framings of the question reinforce the "
+            "same marketing convention as the prose form."
+        ),
+    ),
     BannedPattern(
         id="cultivar_as_effect",
         title="Cultivar-as-effect",

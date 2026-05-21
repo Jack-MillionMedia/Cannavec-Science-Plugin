@@ -84,6 +84,8 @@ def all_registry_groups() -> tuple[str, ...]:
         "contraindications",
         "pharmacogenomics",
         "ecbome",
+        "analytical_chemistry",
+        "cultivation_science",
     )
 
 
@@ -223,6 +225,36 @@ def _build_ecbome() -> RegistryGroup:
     )
 
 
+def _build_analytical_chemistry() -> RegistryGroup:
+    from cannavec_science.analytical_chemistry import (
+        all_analytical_chemistry_rows,
+    )
+    rows = all_analytical_chemistry_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="analytical_chemistry",
+        label="Analytical chemistry (v0.4)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_cultivation_science() -> RegistryGroup:
+    from cannavec_science.cultivation_science import (
+        all_cultivation_science_rows,
+    )
+    rows = all_cultivation_science_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="cultivation_science",
+        label="Cultivation science (v0.4)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
 _BUILDERS = {
     "major_cannabinoids": _build_major_cannabinoids,
     "minor_cannabinoids": _build_minor_cannabinoids,
@@ -233,6 +265,8 @@ _BUILDERS = {
     "contraindications": _build_contraindications,
     "pharmacogenomics": _build_pharmacogenomics,
     "ecbome": _build_ecbome,
+    "analytical_chemistry": _build_analytical_chemistry,
+    "cultivation_science": _build_cultivation_science,
 }
 
 
