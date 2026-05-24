@@ -1,6 +1,85 @@
-# Cannavec Science (v0.5 — industry-expert-clinical-depth build)
+# Cannavec Science (v0.6 — research-domain-breadth build)
 
 **A focused Claude Code plugin for elite-tier cannabis-research science.**
+
+The v0.6 build extends the v0.5 industry-expert-clinical-depth backbone
+across four research domains every working cannabis-research scientist
+asks about, adds a reporting-rigor module, and adds a thirteenth
+primary-source live-discovery lane. All shipping inside Constitution
+§IV (researcher-only). 1,501 unit tests green at HEAD; 188 eval prompts
+(173 offline) across ten buckets; twenty curated science registries
+with ≥ 215 total rows; thirteen live-discovery lanes.
+
+### What v0.6 ships
+
+1. **Pain medicine registry (≥ 7 curated rows)** — NASEM 2017
+   chapter-4 conclusive-evidence finding for chronic pain anchored
+   to Whiting 2015 JAMA SR (PMID 26103030), Stockings 2018 PAIN SR
+   (PMID 30121596), Mücke 2018 Cochrane neuropathic (PMID 29513392),
+   Boehnke 2019 J Pain prospective MMJ cohort (PMID 31237829),
+   Andreae 2015 J Pain IPD meta-analysis (PMID 25840040), and de
+   Vita 2018 experimental-pain SR (PMID 30362962). The Mücke vs
+   Whiting tone divergence is a teaching example of evidence-base vs
+   evidence-interpretation differences.
+2. **Cannabis-and-psychosis psychiatry registry (≥ 6 rows)** —
+   Di Forti 2019 EU-GEI multinational case-control Lancet Psychiatry
+   (PMID 30902669, the high-potency-cannabis daily-use first-episode-
+   psychosis study), Marconi 2016 Schizophr Bull dose-response SR
+   (PMID 26884547), Vaucher 2018 Mol Psychiatry Mendelian-randomization
+   bidirectional-causality analysis (PMID 29039420) WITH explicit
+   instrument-validity caveats, Bhattacharyya 2009 Arch Gen Psychiatry
+   acute-Δ⁹-THC fMRI healthy-volunteer challenge (PMID 19996036),
+   Hjorthøj 2023 Lancet Psychiatry Danish national-register cohort
+   (PMID 36402143), and Murray 2017 Lancet Psychiatry narrative
+   review.
+3. **Driving-impairment science registry (≥ 5 rows)** — Compton 2017
+   NHTSA Virginia Beach case-control crash-risk study (DOT HS 812 411,
+   the most-cited AND most-mis-cited result in the cannabis-driving
+   literature — unadjusted OR ≈ 1.25, adjusted OR ≈ 1.05 after
+   demographics + alcohol), Hartman 2015 Clin Chem plasma-Δ⁹-THC
+   dose-response (PMID 25371545), Marcotte 2022 JAMA Psychiatry
+   driving-simulator dose-and-duration RCT (PMID 35138350, ~1.5 h
+   peak impairment / ~5 h return-to-baseline), Brubacher 2022 NEJM
+   BC trauma-centre post-legalization cohort (PMID 35081282), and
+   Bondallaz 2016 Forensic Sci Int SR (PMID 27082781). The SCIENCE,
+   not the LAW — per-se law surfaces remain in the parent plugin
+   per Constitution §IV.
+4. **PTSD / anxiety / sleep registry (≥ 5 rows)** — Bonn-Miller 2021
+   PLOS One PTSD smoked-cannabis cross-over RCT (PMID 33667097)
+   surfaces with the **largely-negative primary endpoint honestly
+   stated** (no confidence-laundering); Crippa 2011 J Psychopharmacol
+   CBD-SAD SPECT acute challenge (PMID 20829306); Bergamaschi 2011
+   Neuropsychopharm CBD-SAD public-speaking (PMID 21307846); Bedi
+   2010 Drug Alcohol Depend biphasic acute-Δ⁹-THC anxiety dose-
+   response (PMID 19897322); and Walsh 2017 Sleep Med Rev cannabinoids-
+   and-sleep SR (PMID 28392485) with the 'limited and inconclusive
+   evidence' SR verdict honestly stated.
+5. **Reporting-rigor module (≥ 6 detectors)** — A §VII GRADE-honesty
+   deepening. Detectors flag when prompt text describes a study-design
+   class without acknowledging the appropriate EQUATOR-network
+   reporting guideline (CONSORT-2010 for RCTs per Schulz 2010 BMJ
+   PMID 20335313, PRISMA-2020 for SRs per Page 2021 BMJ PMID
+   33781993, STROBE for observational studies per von Elm 2007 PMID
+   17938396) or risk-of-bias / quality tool (ROB-2 for RCT bias per
+   Sterne 2019 BMJ PMID 31462531, ROBINS-I for non-randomized
+   intervention studies per Sterne 2016 BMJ PMID 27733354, AMSTAR-2
+   for SR quality per Shea 2017 BMJ PMID 28935701). Detectors
+   integrate into the existing `RigorCheckReport` and surface in the
+   `rigor` subcommand output. Each detector ships with positive +
+   negative unit tests.
+6. **OpenAlex live-discovery lane (13th primary source)** — Open
+   scholarly citation graph (PubMed + preprints + conference
+   proceedings + open citation network). Available via
+   `discover --include-openalex` or by adding `openalex` to
+   `--sources`. Source-health probe added. Same offline-test
+   contract as every other live lane (injected fetcher, no escape
+   network calls in the test suite).
+7. **Four new registry-inventory groups** — `python3 -m cannavec_science
+   registries` now surfaces `pain_medicine`, `psychiatry`,
+   `driving_impairment`, and `ptsd_anxiety_sleep`; total inventory
+   grows from 16 → 20 curated registries.
+
+### What v0.5 shipped (preserved)
 
 A working cannabis-research scientist needs more than a literature search:
 they need primary citations they can defend, phytochemistry precision

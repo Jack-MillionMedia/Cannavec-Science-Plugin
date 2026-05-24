@@ -94,6 +94,21 @@ def _eval_prompt(prompt: dict) -> tuple[bool, list[str]]:
             fired.add("decarb_context_missing")
         if report.entourage_violations:
             fired.add("entourage_overclaim")
+        # Spec 006 US5 — reporting-rigor detectors.
+        for v in report.reporting_rigor_violations:
+            kind = v.kind.value
+            if kind == "CONSORT":
+                fired.add("consort_missing")
+            elif kind == "PRISMA":
+                fired.add("prisma_missing")
+            elif kind == "STROBE":
+                fired.add("strobe_missing")
+            elif kind == "ROB-2":
+                fired.add("rob_2_missing")
+            elif kind == "ROBINS-I":
+                fired.add("robins_i_missing")
+            elif kind == "AMSTAR-2":
+                fired.add("amstar_2_missing")
         total = sum(
             len(getattr(report, attr))
             for attr in (
@@ -104,6 +119,7 @@ def _eval_prompt(prompt: dict) -> tuple[bool, list[str]]:
                 "matrix_unit_violations",
                 "decarb_context_violations",
                 "entourage_violations",
+                "reporting_rigor_violations",
             )
         )
 

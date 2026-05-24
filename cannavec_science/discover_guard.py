@@ -64,6 +64,10 @@ class Provenance(str, Enum):
     # PMC full-text + European non-MEDLINE-indexed journals). Twelfth
     # live primary-source lane.
     LIVE_EUROPEPMC = "live_europepmc"
+    # Spec 006 US6 — OpenAlex open scholarly citation graph (PubMed +
+    # preprints + conference proceedings + open citation network).
+    # Thirteenth live primary-source lane.
+    LIVE_OPENALEX = "live_openalex"
     # Spec 003 — adverse-event signal feeds (US5).
     LIVE_FAERS = "live_faers"
     LIVE_MAUDE = "live_maude"

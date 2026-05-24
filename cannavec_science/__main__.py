@@ -125,6 +125,9 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     # Spec 005 US6 — opt-in Europe PMC complement to PubMed.
     if getattr(args, "include_europepmc", False):
         sources.add("europepmc")
+    # Spec 006 US6 — opt-in OpenAlex open scholarly citation graph.
+    if getattr(args, "include_openalex", False):
+        sources.add("openalex")
     out_payload: dict = {"query": args.query, "sources": {}}
 
     for source_key in sorted(sources):
@@ -258,6 +261,13 @@ def _run_europepmc(args):
     )
 
 
+def _run_openalex(args):
+    from cannavec_science.openalex_discover import OpenAlexSearcher
+    return OpenAlexSearcher().search(
+        args.query, since=args.since, max_results=args.max,
+    )
+
+
 _DISCOVERER_REGISTRY = {
     "pubmed": _run_pubmed,
     "chembl": _run_chembl,
@@ -273,6 +283,8 @@ _DISCOVERER_REGISTRY = {
     "medrxiv": _run_medrxiv,
     # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
     "europepmc": _run_europepmc,
+    # Spec 006 US6 — OpenAlex thirteenth primary-source live lane.
+    "openalex": _run_openalex,
 }
 
 
@@ -653,16 +665,23 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
         report.entourage_violations,
         lambda v: (v.terpene, v.cannabinoid, v.span),
     )
+    # Spec 006 US5 — reporting-rigor violations (CONSORT, PRISMA,
+    # STROBE, ROB-2, ROBINS-I, AMSTAR-2).
+    reprig = _dedup(
+        report.reporting_rigor_violations,
+        lambda v: (v.kind.value, v.span),
+    )
 
     n = (
         len(iso) + len(recv) + len(dose) + len(thca)
-        + len(matrix) + len(decarb) + len(ent) + len(banned)
+        + len(matrix) + len(decarb) + len(ent) + len(reprig) + len(banned)
     )
 
     print("## Rigor & banned-pattern report")
     print("")
     print(f"- **Phytochemistry rigor violations:** "
-          f"{n - len(banned)}")
+          f"{n - len(banned) - len(reprig)}")
+    print(f"- **Reporting-rigor violations:** {len(reprig)}")
     print(f"- **Banned-pattern hits:** {len(banned)}")
     print("")
 
@@ -704,6 +723,16 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
             print(f"- `{v.terpene}` × `{v.cannabinoid}` — cite Russo 2011 / "
                   f"Finlay 2020 / Santiago 2019 / LaVigne 2021 or reframe "
                   f"as open hypothesis.")
+        print("")
+    if reprig:
+        print("### Reporting-rigor violations (EQUATOR-network / risk-of-bias)")
+        for v in reprig:
+            print(
+                f"- **{v.kind.value} missing** at `{v.anchor_text}` — "
+                f"recommend Schulz/Page/von-Elm/Sterne/Shea PMID "
+                f"{v.recommendation_pmid}"
+            )
+            print(f"  - Why: {v.why}")
         print("")
     if banned:
         print("### Banned-pattern hits")
@@ -937,7 +966,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Live multi-source fan-out across primary scientific sources: "
             "pubmed, chembl, ctgov (default) plus optional cannabis-primary "
             "widening: pubchem, pharmgkb, rcsb, opentargets, gwas, bindingdb, "
-            "v0.2 preprint lanes biorxiv, medrxiv, and v0.5 europepmc."
+            "v0.2 preprint lanes biorxiv, medrxiv, v0.5 europepmc, and v0.6 "
+            "openalex."
         ),
     )
     d.add_argument("query")
@@ -950,7 +980,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Comma-separated subset of: pubmed, chembl, ctgov, pubchem, "
             "pharmgkb, rcsb, opentargets, gwas, bindingdb, biorxiv, medrxiv, "
-            "europepmc."
+            "europepmc, openalex."
         ),
     )
     d.add_argument(
@@ -959,6 +989,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "Spec 005 US6 — opt-in addition of the Europe PMC lane to "
             "whatever --sources is set (complement to PubMed for "
             "European-indexed and PMC full-text literature)."
+        ),
+    )
+    d.add_argument(
+        "--include-openalex", action="store_true",
+        help=(
+            "Spec 006 US6 — opt-in addition of the OpenAlex lane "
+            "(open scholarly citation graph; PubMed + preprints + "
+            "conference proceedings + open citation network)."
         ),
     )
     d.add_argument("--json", action="store_true")
@@ -983,8 +1021,10 @@ def _build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser(
         "rigor",
         help=(
-            "Run the seven phytochemistry rigor detectors + the 15 "
-            "banned-pattern detector on arbitrary text."
+            "Run the seven phytochemistry rigor detectors + six "
+            "reporting-rigor detectors (CONSORT / PRISMA / STROBE / "
+            "ROB-2 / ROBINS-I / AMSTAR-2) + the 16 banned-pattern "
+            "detectors on arbitrary text."
         ),
     )
     r.add_argument("text")

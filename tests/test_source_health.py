@@ -100,6 +100,8 @@ class PingAllTests(unittest.TestCase):
             "pubchem", "pharmgkb", "rcsb", "opentargets", "gwas", "bindingdb",
             # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
             "europepmc",
+            # Spec 006 US6 — OpenAlex thirteenth primary-source live lane.
+            "openalex",
         })
 
 

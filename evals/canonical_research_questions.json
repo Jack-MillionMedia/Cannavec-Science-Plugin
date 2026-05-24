@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "_comment": "Canonical research-question eval seed for the Cannavec Science v0.5 industry-expert-clinical-depth build. ≥ 162 prompts across nine category buckets (curated, rigor_positive, rigor_negative, refusal, live, cross_cutting, routing_surfacing, analytical_cultivation, clinical_pharmacology_depth). The runner (evals/run_evals.py) drives the composer and asserts each prompt's declared expectations. Per-bucket minimums are enforced both at build time (this script's asserts) and at test time (tests/test_eval_coverage.py).",
+  "_comment": "Canonical research-question eval seed for the Cannavec Science v0.6 research-domain-breadth build. ≥ 187 prompts across ten category buckets (curated, rigor_positive, rigor_negative, refusal, live, cross_cutting, routing_surfacing, analytical_cultivation, clinical_pharmacology_depth, research_domain_breadth). The runner (evals/run_evals.py) drives the composer and asserts each prompt's declared expectations. Per-bucket minimums are enforced both at build time (this script's asserts) and at test time (tests/test_eval_coverage.py).",
   "category_minimums": {
     "curated": 25,
     "rigor_positive": 30,
@@ -10,7 +10,8 @@
     "cross_cutting": 5,
     "routing_surfacing": 15,
     "analytical_cultivation": 10,
-    "clinical_pharmacology_depth": 14
+    "clinical_pharmacology_depth": 14,
+    "research_domain_breadth": 16
   },
   "prompts": [
     {
@@ -1587,6 +1588,281 @@
       "id": "live_europepmc_bedrocan",
       "category": "live",
       "prompt": "Bedrocan medical cannabis Netherlands cannabinoid pharmacology",
+      "live": true,
+      "expect": {
+        "is_refusal": false
+      }
+    },
+    {
+      "id": "rdb_pain_nasem_2017",
+      "category": "research_domain_breadth",
+      "prompt": "NASEM 2017 cannabis chronic pain conclusive evidence chapter 4",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "26103030"
+        ]
+      }
+    },
+    {
+      "id": "rdb_pain_whiting_2015_jama",
+      "category": "research_domain_breadth",
+      "prompt": "Whiting 2015 JAMA cannabinoids medical use chronic pain systematic review",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "26103030"
+        ]
+      }
+    },
+    {
+      "id": "rdb_pain_stockings_2018",
+      "category": "research_domain_breadth",
+      "prompt": "Stockings 2018 PAIN cannabinoid chronic non-cancer pain systematic review",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "30121596"
+        ]
+      }
+    },
+    {
+      "id": "rdb_pain_mucke_cochrane",
+      "category": "research_domain_breadth",
+      "prompt": "Mücke 2018 Cochrane review nabiximols neuropathic pain cannabis-based medicines",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "29513392"
+        ]
+      }
+    },
+    {
+      "id": "rdb_pain_boehnke_cohort",
+      "category": "research_domain_breadth",
+      "prompt": "Boehnke 2019 J Pain medical cannabis prospective cohort qualifying conditions",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "31237829"
+        ]
+      }
+    },
+    {
+      "id": "rdb_pain_andreae_ipd",
+      "category": "research_domain_breadth",
+      "prompt": "Andreae 2015 IPD meta-analysis inhaled cannabis neuropathic pain NNT",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "25840040"
+        ]
+      }
+    },
+    {
+      "id": "rdb_psych_di_forti_eu_gei",
+      "category": "research_domain_breadth",
+      "prompt": "Di Forti 2019 EU-GEI high potency cannabis first episode psychosis Lancet Psychiatry",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "30902669"
+        ]
+      }
+    },
+    {
+      "id": "rdb_psych_marconi_dose_response",
+      "category": "research_domain_breadth",
+      "prompt": "Marconi 2016 cannabis psychosis dose-response systematic review meta-analysis Schizophr Bull",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "26884547"
+        ]
+      }
+    },
+    {
+      "id": "rdb_psych_vaucher_mr",
+      "category": "research_domain_breadth",
+      "prompt": "Vaucher 2018 Mendelian randomization cannabis schizophrenia Molecular Psychiatry",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "29039420"
+        ]
+      }
+    },
+    {
+      "id": "rdb_psych_bhattacharyya_fmri",
+      "category": "research_domain_breadth",
+      "prompt": "Bhattacharyya 2009 acute THC fMRI prefrontal striatum healthy volunteer challenge",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "19996036"
+        ]
+      }
+    },
+    {
+      "id": "rdb_psych_hjorthoj_denmark",
+      "category": "research_domain_breadth",
+      "prompt": "Hjorthøj 2023 cannabis use disorder schizophrenia Danish national register",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "36402143"
+        ]
+      }
+    },
+    {
+      "id": "rdb_drive_compton_nhtsa",
+      "category": "research_domain_breadth",
+      "prompt": "cannabis driving impairment Compton 2017 NHTSA Virginia Beach case-control crash risk",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
+    },
+    {
+      "id": "rdb_drive_hartman_plasma",
+      "category": "research_domain_breadth",
+      "prompt": "Hartman 2015 Clin Chem plasma THC dose response driving lateral control",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "25371545"
+        ]
+      }
+    },
+    {
+      "id": "rdb_drive_marcotte_simulator",
+      "category": "research_domain_breadth",
+      "prompt": "Marcotte 2022 JAMA Psychiatry driving simulator THC dose duration",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "35138350"
+        ]
+      }
+    },
+    {
+      "id": "rdb_drive_bondallaz_sr",
+      "category": "research_domain_breadth",
+      "prompt": "Bondallaz 2016 cannabis driving forensic science international systematic review",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "27082781"
+        ]
+      }
+    },
+    {
+      "id": "rdb_ptsd_bonn_miller_2021",
+      "category": "research_domain_breadth",
+      "prompt": "Bonn-Miller 2021 PTSD smoked cannabis cross-over randomized trial PLOS One veterans",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "33667097"
+        ]
+      }
+    },
+    {
+      "id": "rdb_anx_crippa_cbd_sad",
+      "category": "research_domain_breadth",
+      "prompt": "CBD social anxiety disorder Crippa 2011 J Psychopharmacol SPECT acute challenge",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "20829306"
+        ]
+      }
+    },
+    {
+      "id": "rdb_anx_bergamaschi_speech",
+      "category": "research_domain_breadth",
+      "prompt": "Bergamaschi 2011 cannabidiol public-speaking social anxiety Neuropsychopharmacology",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "21307846"
+        ]
+      }
+    },
+    {
+      "id": "rdb_sleep_walsh_sr",
+      "category": "research_domain_breadth",
+      "prompt": "Walsh 2017 cannabinoids sleep Sleep Medicine Reviews systematic review",
+      "expect": {
+        "is_refusal": false,
+        "must_include_pmid": [
+          "28392485"
+        ]
+      }
+    },
+    {
+      "id": "rigorpos_consort_missing_chronic_pain",
+      "category": "rigor_positive",
+      "prompt": "we conducted a randomized controlled trial of CBD in chronic pain",
+      "expect": {
+        "rigor_detectors_fire": [
+          "consort_missing"
+        ]
+      }
+    },
+    {
+      "id": "rigorpos_prisma_missing_sr",
+      "category": "rigor_positive",
+      "prompt": "this systematic review of cannabinoid trials in chronic neuropathic pain",
+      "expect": {
+        "rigor_detectors_fire": [
+          "prisma_missing"
+        ]
+      }
+    },
+    {
+      "id": "rigorpos_strobe_missing_cohort",
+      "category": "rigor_positive",
+      "prompt": "this prospective observational cohort of medical-cannabis users at the trauma center",
+      "expect": {
+        "rigor_detectors_fire": [
+          "strobe_missing"
+        ]
+      }
+    },
+    {
+      "id": "rigorpos_rob2_missing_appraisal",
+      "category": "rigor_positive",
+      "prompt": "we appraised risk of bias in the included randomized controlled trials",
+      "expect": {
+        "rigor_detectors_fire": [
+          "rob_2_missing"
+        ]
+      }
+    },
+    {
+      "id": "rigorpos_amstar2_missing_sr_quality",
+      "category": "rigor_positive",
+      "prompt": "we assessed the methodological quality of the included systematic reviews",
+      "expect": {
+        "rigor_detectors_fire": [
+          "amstar_2_missing"
+        ]
+      }
+    },
+    {
+      "id": "live_openalex_di_forti",
+      "category": "live",
+      "prompt": "cannabis psychosis Di Forti EU-GEI citation network OpenAlex",
+      "live": true,
+      "expect": {
+        "is_refusal": false
+      }
+    },
+    {
+      "id": "live_openalex_whiting_2015",
+      "category": "live",
+      "prompt": "Whiting 2015 JAMA cannabis chronic pain cited-by OpenAlex",
       "live": true,
       "expect": {
         "is_refusal": false
