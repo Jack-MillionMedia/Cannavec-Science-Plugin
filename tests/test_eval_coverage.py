@@ -91,6 +91,10 @@ class CategoryMinimumTests(unittest.TestCase):
         # Spec 005 US8 / FR-009 — v0.5 clinical-pharmacology-depth bucket.
         self._assert_bucket("clinical_pharmacology_depth", 14)
 
+    def test_research_domain_breadth_minimum_16(self):
+        # Spec 006 US8 / FR-009 — v0.6 research-domain-breadth bucket.
+        self._assert_bucket("research_domain_breadth", 16)
+
     def test_minimums_in_metadata_match_spec(self):
         expected = {
             "curated": 25,
@@ -102,6 +106,7 @@ class CategoryMinimumTests(unittest.TestCase):
             "routing_surfacing": 15,
             "analytical_cultivation": 10,
             "clinical_pharmacology_depth": 14,
+            "research_domain_breadth": 16,
         }
         for cat, m in expected.items():
             self.assertEqual(

@@ -863,6 +863,19 @@ def compose_answer(
     matched_chs_rows = detect_hyperemesis_syndrome_mention(prompt)
     matched_ecbome_inh_rows = detect_ecbome_inhibitor_mention(prompt)
     matched_biosynth_rows = detect_biosynthesis_mention(prompt)
+    # Spec 006 US1-US4 / FR-006 — research-domain-breadth registries.
+    from cannavec_science.pain_medicine import detect_pain_medicine_mention
+    from cannavec_science.psychiatry import detect_psychiatry_mention
+    from cannavec_science.driving_impairment import (
+        detect_driving_impairment_mention,
+    )
+    from cannavec_science.ptsd_anxiety_sleep import (
+        detect_ptsd_anxiety_sleep_mention,
+    )
+    matched_pain_rows = detect_pain_medicine_mention(prompt)
+    matched_psychiatry_rows = detect_psychiatry_mention(prompt)
+    matched_driving_rows = detect_driving_impairment_mention(prompt)
+    matched_ptsd_rows = detect_ptsd_anxiety_sleep_mention(prompt)
 
     a.add_trace("registry.populations", len(matched_population_rows))
     a.add_trace("registry.interactions", len(matched_interaction_rows))
@@ -881,6 +894,11 @@ def compose_answer(
     a.add_trace("registry.hyperemesis_syndrome", len(matched_chs_rows))
     a.add_trace("registry.ecbome_inhibitors", len(matched_ecbome_inh_rows))
     a.add_trace("registry.biosynthesis", len(matched_biosynth_rows))
+    # Spec 006 — research-domain-breadth trace counters.
+    a.add_trace("registry.pain_medicine", len(matched_pain_rows))
+    a.add_trace("registry.psychiatry", len(matched_psychiatry_rows))
+    a.add_trace("registry.driving_impairment", len(matched_driving_rows))
+    a.add_trace("registry.ptsd_anxiety_sleep", len(matched_ptsd_rows))
 
     # Citation attachment runs regardless of refusal — the population-
     # level evidence base exists whether or not Cannavec Science
@@ -903,6 +921,11 @@ def compose_answer(
         + list(matched_chs_rows)
         + list(matched_ecbome_inh_rows)
         + list(matched_biosynth_rows)
+        # Spec 006 — research-domain-breadth row citations.
+        + list(matched_pain_rows)
+        + list(matched_psychiatry_rows)
+        + list(matched_driving_rows)
+        + list(matched_ptsd_rows)
     )
     for row in all_rows:
         _attach_citations_from_row(a, row)
@@ -938,6 +961,15 @@ def compose_answer(
         for row in matched_ecbome_inh_rows:
             _attach_claim_safely(a, row, retraction_policy)
         for row in matched_biosynth_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        # Spec 006 US1-US4 / FR-006 — research-domain-breadth rows.
+        for row in matched_pain_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_psychiatry_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_driving_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_ptsd_rows:
             _attach_claim_safely(a, row, retraction_policy)
 
         # Minor + major cannabinoids render as monograph sections.

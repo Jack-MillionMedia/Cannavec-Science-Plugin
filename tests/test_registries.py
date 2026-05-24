@@ -26,6 +26,8 @@ class AllRegistryGroupsTests(unittest.TestCase):
         # cultivation_science, bringing the total to 11.
         # Spec 005 US7 / FR-008: v0.5 adds five clinical-pharmacology
         # depth registries, bringing the total to 16.
+        # Spec 006 US7 / FR-008: v0.6 adds four research-domain-breadth
+        # registries, bringing the total to 20.
         self.assertEqual(names, (
             "major_cannabinoids",
             "minor_cannabinoids",
@@ -43,15 +45,19 @@ class AllRegistryGroupsTests(unittest.TestCase):
             "hyperemesis_syndrome",
             "ecbome_inhibitors",
             "biosynthesis",
+            "pain_medicine",
+            "psychiatry",
+            "driving_impairment",
+            "ptsd_anxiety_sleep",
         ))
 
 
 class BuildInventoryTests(unittest.TestCase):
-    def test_all_registries_returns_sixteen_groups(self):
+    def test_all_registries_returns_twenty_groups(self):
         inv = build_inventory("all")
-        # Spec 005 US7 / FR-008: v0.5 adds five new registries.
-        self.assertEqual(len(inv.groups), 16)
-        self.assertGreater(inv.total_rows, 150)
+        # Spec 006 US7 / FR-008: v0.6 brings total to 20.
+        self.assertEqual(len(inv.groups), 20)
+        self.assertGreater(inv.total_rows, 180)
 
     def test_single_registry_filter(self):
         inv = build_inventory("minor_cannabinoids")

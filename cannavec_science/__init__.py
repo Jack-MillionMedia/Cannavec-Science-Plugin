@@ -1,54 +1,68 @@
 """Cannavec Science — research-grade cannabis-science primitives.
 
-v0.5 industry-expert-clinical-depth build for the working researcher.
-Inherits the full v0.4 industry-expert-depth surface and adds **five
-new curated registries** plus a **twelfth primary-source live lane**:
+v0.6 research-domain-breadth build for the working researcher.
+Inherits the full v0.5 industry-expert-clinical-depth surface and adds
+**four new curated registries** plus a **reporting-rigor module** and
+a **thirteenth primary-source live lane**:
 
-- **Clinical pharmacokinetics** (≥ 8 rows): THC inhaled / oral PK,
-  CBD oral PK + food effect (Birnbaum 2019), 11-OH-Δ⁹-THC active
-  metabolite (Wall 1983), nabiximols oromucosal (Karschner 2011),
-  plasma distribution (Garrett 1977), urine detection window
-  (Huestis 1996).
-- **Cannabis use disorder & withdrawal** (≥ 6 rows): DSM-5 CUD
-  framework (Hasin 2013), CUDIT-R (Adamson 2010), Cannabis Withdrawal
-  Scale (Allsop 2011), NESARC-III prevalence (Hasin 2015),
-  heritability (Verweij 2010), adolescent-onset telescoping
-  (Chen 2009 / Hall & Degenhardt 2009).
-- **Cannabinoid hyperemesis syndrome** (≥ 4 rows): Sorensen 2017 SR
-  + Allen 2004 + Simonetto 2012 case series, Rome IV framework
-  (Venkatesan 2019), capsaicin acute-phase treatment (Dezieck 2017),
-  post-legalization ED epidemiology (Kim 2018).
-- **eCBome inhibitor pharmacology** (≥ 5 rows): PF-04457845 cannabis-
-  withdrawal Phase 2a (D'Souza 2019) + OA-pain Phase 2 (Huggins 2012),
-  BIA 10-2474 Rennes disaster (Kerbrat 2016) WITH explicit
-  off-target-serine-hydrolase disambiguation (van Esbroeck 2017),
-  MAGL inhibitor ABX-1431 (Cisar 2018), dual FAAH/MAGL JZL195
-  (Long 2009).
-- **Cannabinoid biosynthesis pathway** (≥ 5 rows): OLS + OAC
-  polyketide entry (Taura 2009 + Gagne 2012), CBGAS prenyltransferase
-  (Page 2011), THCA synthase (Sirikantaramas 2004), CBDA synthase
-  (Taura 1996), yeast heterologous expression (Luo 2019 Nature).
-- **Europe PMC** twelfth primary-source live-discovery lane — complement
-  to PubMed; indexes PubMed + PMC full-text + European
-  non-MEDLINE-indexed journals.
+- **Pain medicine** (≥ 7 rows): NASEM 2017 chapter-4 chronic-pain
+  conclusive-evidence finding anchored to Whiting 2015 JAMA SR (PMID
+  26103030), Stockings 2018 PAIN SR (PMID 30121596), Mücke 2018
+  Cochrane neuropathic (PMID 29513392), Boehnke 2019 J Pain MMJ
+  prospective cohort (PMID 31237829), Andreae 2015 IPD meta-analysis
+  (PMID 25840040), de Vita 2018 experimental-pain SR (PMID 30362962).
+- **Cannabis-and-psychosis psychiatry** (≥ 6 rows): Di Forti 2019
+  EU-GEI Lancet Psychiatry (PMID 30902669), Marconi 2016 Schizophr
+  Bull dose-response SR (PMID 26884547), Vaucher 2018 Mendelian
+  randomization Mol Psychiatry (PMID 29039420), Bhattacharyya 2009
+  acute-THC fMRI Arch Gen Psychiatry (PMID 19996036), Hjorthøj 2023
+  Danish national-register cohort (PMID 36402143), Murray 2017
+  Lancet Psychiatry narrative review.
+- **Driving-impairment science** (≥ 5 rows): Compton 2017 NHTSA
+  Virginia Beach case-control crash-risk (DOT HS 812 411), Hartman
+  2015 Clin Chem plasma-THC dose-response (PMID 25371545), Marcotte
+  2022 JAMA Psychiatry driving-simulator RCT (PMID 35138350),
+  Brubacher 2022 NEJM BC post-legalization cohort (PMID 35081282),
+  Bondallaz 2016 Forensic Sci Int SR (PMID 27082781). The SCIENCE,
+  not the LAW — per-se law surfaces remain in the parent plugin.
+- **PTSD / anxiety / sleep** (≥ 5 rows): Bonn-Miller 2021 PLOS One
+  PTSD smoked-cannabis cross-over RCT (PMID 33667097) with the
+  largely-negative primary endpoint honestly stated; Crippa 2011
+  J Psychopharmacol CBD-SAD SPECT acute challenge (PMID 20829306);
+  Bergamaschi 2011 Neuropsychopharm CBD-SAD public-speaking (PMID
+  21307846); Bedi 2010 Drug Alcohol Depend biphasic acute Δ⁹-THC
+  anxiety dose-response (PMID 19897322); Walsh 2017 Sleep Med Rev
+  cannabinoids-and-sleep systematic review (PMID 28392485).
+- **Reporting-rigor module**: six deterministic EQUATOR-network +
+  risk-of-bias detectors — CONSORT-2010 for RCTs (Schulz 2010 BMJ
+  PMID 20335313), PRISMA-2020 for SRs (Page 2021 BMJ PMID 33781993),
+  STROBE for observational studies (von Elm 2007 PMID 17938396),
+  ROB-2 for RCT bias (Sterne 2019 BMJ PMID 31462531), ROBINS-I for
+  non-randomized intervention studies (Sterne 2016 BMJ PMID
+  27733354), AMSTAR-2 for SR quality (Shea 2017 BMJ PMID 28935701).
+  Detectors integrate into ``RigorCheckReport`` and surface in the
+  ``rigor`` subcommand output.
+- **OpenAlex** thirteenth primary-source live-discovery lane —
+  open scholarly citation graph (PubMed + preprints + conference
+  proceedings + open citation network).
 
 Backbone unchanged: GRADE evidence-grading, banned-pattern detection,
 safety preflight, seven phytochemistry rigor checks (incl. entourage-
 overclaim detector), PubMed/Crossref citation verification with forward-
 citation network analysis, retraction enforcement at composition time,
-**sixteen** science registries with ``last_verified`` + ``watch_pmids``
-freshness fields, live discovery across **twelve** primary scientific
+**twenty** science registries with ``last_verified`` + ``watch_pmids``
+freshness fields, live discovery across **thirteen** primary scientific
 sources (PubMed, ChEMBL, CT.gov, PubChem, PharmGKB, RCSB, Open Targets,
-GWAS, BindingDB, bioRxiv, medRxiv, Europe PMC), researcher-workflow
-scaffolders (PICO, power calculation, GRADE evidence-profile table,
-IRB protocol skeleton), regulatory-feasibility advisory (US / EU /
-Canada / UK), BibTeX/RIS/CSL-JSON bibliography export with inline
+GWAS, BindingDB, bioRxiv, medRxiv, Europe PMC, OpenAlex), researcher-
+workflow scaffolders (PICO, power calculation, GRADE evidence-profile
+table, IRB protocol skeleton), regulatory-feasibility advisory (US /
+EU / Canada / UK), BibTeX/RIS/CSL-JSON bibliography export with inline
 GRADE annotation, and the v0.4 ``Answer.notes`` render closure.
 
 Stdlib-only. Researcher audience only. Five slash commands.
 """
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from cannavec_science.evidence import (
     Claim,

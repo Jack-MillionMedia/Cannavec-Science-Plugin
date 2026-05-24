@@ -1009,7 +1009,8 @@ def detect_entourage_overclaim(text: str) -> tuple[EntourageViolation, ...]:
 class RigorCheckReport:
     """Combined report from running all seven cannabis-specific checks
     (spec 001 isomer/receptor/dose-route + spec 004 THCA-vs-THC /
-    matrix-unit / decarb-context + spec 002 US6 entourage-overclaim)."""
+    matrix-unit / decarb-context + spec 002 US6 entourage-overclaim)
+    plus the spec-006 reporting-guideline / risk-of-bias detectors."""
 
     isomer_violations: tuple[IsomerViolation, ...] = ()
     receptor_violations: tuple[ReceptorViolation, ...] = ()
@@ -1018,6 +1019,8 @@ class RigorCheckReport:
     matrix_unit_violations: tuple[MatrixUnitViolation, ...] = ()
     decarb_context_violations: tuple[DecarbContextViolation, ...] = ()
     entourage_violations: tuple[EntourageViolation, ...] = ()
+    # Spec 006 US5 — reporting-guideline + risk-of-bias rigor.
+    reporting_rigor_violations: tuple = ()
 
     @property
     def clean(self) -> bool:
@@ -1029,6 +1032,7 @@ class RigorCheckReport:
             or self.matrix_unit_violations
             or self.decarb_context_violations
             or self.entourage_violations
+            or self.reporting_rigor_violations
         )
 
     def summary(self) -> str:
@@ -1036,7 +1040,7 @@ class RigorCheckReport:
             return (
                 "Clean — no isomer / receptor-id / dose-route / "
                 "THCA-vs-THC / matrix-unit / decarb-context / "
-                "entourage-overclaim violations."
+                "entourage-overclaim / reporting-rigor violations."
             )
         lines: list[str] = []
         if self.isomer_violations:
@@ -1067,11 +1071,22 @@ class RigorCheckReport:
             lines.append("## Entourage-overclaim violations")
             for v in self.entourage_violations:
                 lines.append(f"- {v.why}")
+        if self.reporting_rigor_violations:
+            lines.append("## Reporting-rigor violations")
+            for v in self.reporting_rigor_violations:
+                lines.append(
+                    f"- [{v.kind.value}] {v.why} "
+                    f"(anchor: {v.anchor_text!r})"
+                )
         return "\n".join(lines)
 
 
 def run_rigor_checks(text: str) -> RigorCheckReport:
-    """Run all seven cannabis-specific rigor checks on `text`."""
+    """Run all seven cannabis-specific rigor checks on `text`,
+    plus the spec-006 reporting-guideline / risk-of-bias detectors."""
+    from cannavec_science.reporting_rigor import (
+        run_reporting_rigor_checks,
+    )
     return RigorCheckReport(
         isomer_violations=detect_isomer_collapse(text),
         receptor_violations=detect_missing_receptor_ids(text),
@@ -1080,4 +1095,5 @@ def run_rigor_checks(text: str) -> RigorCheckReport:
         matrix_unit_violations=detect_matrix_unit_confusion(text),
         decarb_context_violations=detect_decarb_context_missing(text),
         entourage_violations=detect_entourage_overclaim(text),
+        reporting_rigor_violations=run_reporting_rigor_checks(text),
     )

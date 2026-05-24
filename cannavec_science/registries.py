@@ -92,6 +92,11 @@ def all_registry_groups() -> tuple[str, ...]:
         "hyperemesis_syndrome",
         "ecbome_inhibitors",
         "biosynthesis",
+        # Spec 006 — research-domain-breadth additions.
+        "pain_medicine",
+        "psychiatry",
+        "driving_impairment",
+        "ptsd_anxiety_sleep",
     )
 
 
@@ -332,6 +337,62 @@ def _build_biosynthesis() -> RegistryGroup:
     )
 
 
+def _build_pain_medicine() -> RegistryGroup:
+    from cannavec_science.pain_medicine import all_pain_medicine_rows
+    rows = all_pain_medicine_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="pain_medicine",
+        label="Pain medicine (v0.6)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_psychiatry() -> RegistryGroup:
+    from cannavec_science.psychiatry import all_psychiatry_rows
+    rows = all_psychiatry_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="psychiatry",
+        label="Psychiatry / cannabis-psychosis (v0.6)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_driving_impairment() -> RegistryGroup:
+    from cannavec_science.driving_impairment import (
+        all_driving_impairment_rows,
+    )
+    rows = all_driving_impairment_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="driving_impairment",
+        label="Cannabis driving-impairment science (v0.6)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_ptsd_anxiety_sleep() -> RegistryGroup:
+    from cannavec_science.ptsd_anxiety_sleep import (
+        all_ptsd_anxiety_sleep_rows,
+    )
+    rows = all_ptsd_anxiety_sleep_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="ptsd_anxiety_sleep",
+        label="PTSD / anxiety / sleep (v0.6)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
 _BUILDERS = {
     "major_cannabinoids": _build_major_cannabinoids,
     "minor_cannabinoids": _build_minor_cannabinoids,
@@ -350,6 +411,11 @@ _BUILDERS = {
     "hyperemesis_syndrome": _build_hyperemesis_syndrome,
     "ecbome_inhibitors": _build_ecbome_inhibitors,
     "biosynthesis": _build_biosynthesis,
+    # Spec 006 — research-domain-breadth additions.
+    "pain_medicine": _build_pain_medicine,
+    "psychiatry": _build_psychiatry,
+    "driving_impairment": _build_driving_impairment,
+    "ptsd_anxiety_sleep": _build_ptsd_anxiety_sleep,
 }
 
 

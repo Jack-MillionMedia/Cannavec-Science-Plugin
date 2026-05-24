@@ -80,6 +80,10 @@ _PROBE_URLS = {
         "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
         "?query=cannabidiol&resulttype=core&format=json&pageSize=1"
     ),
+    # Spec 006 US6 — OpenAlex thirteenth primary-source live lane.
+    "openalex": (
+        "https://api.openalex.org/works?search=cannabidiol&per_page=1"
+    ),
 }
 
 
