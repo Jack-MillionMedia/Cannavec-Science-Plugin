@@ -197,49 +197,6 @@ eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
    leaving botanical-taxonomy framings ("Cannabis sativa L. botanical
    taxonomy") cleanly through.
 
-### What v0.4 ships
-
-1. **Analytical-chemistry registry (≥ 8 curated rows)** — decarboxylation
-   kinetics (Veress 1990 PMID 2384545, Wang 2016, Citti 2018), HPLC
-   potency analysis vs GC-MS in-injector decarboxylation artefact (Dussy
-   2005, Citti 2018), chemovar Type I/II/III/IV/V classification
-   (Hazekamp & Fischedick 2012 PMID 22362625, Lewis 2018), THCA-/CBDA-
-   synthase locus inheritance (Hillig & Mahlberg 2004, Aizpurua-Olaizola
-   2016), and combustion-vs-vaporisation pyrolysis byproducts
-   (Pomahacova 2009, Moir 2008). Every row primary-cited per §I; every
-   row carries a topic-keyword detector that fires on
-   ``decarboxylation``, ``HPLC``, ``GC-MS``, ``chemovar``, ``pyrolysis``,
-   etc.
-2. **Cultivation-science registry (≥ 6 curated rows)** — UV-B effect
-   on cannabinoid biosynthesis (Lydon 1987 PMID 3621052), glandular
-   trichome biology (Livingston 2020 PMID 31867754, Tanney 2021),
-   THCA-/CBDA-synthase single-locus inheritance (de Meijer 2003 PMID
-   12663552), CBDA-synthase enzymology (Taura 2007), F1 heterozygote
-   Type II dominance, and the **honest-debate botanical taxonomy** row
-   surfacing both Small & Cronquist 1976 (single species) AND Hillig
-   2005 (multi-species) without picking a winner — same evidentiary
-   honesty Cannavec applies to entourage-effect prompts.
-3. **`Answer.notes` rendering fix** — v0.3 set the 0-claim classification
-   on `Answer.notes` (spec 003 US9) but `Answer.to_markdown()` never
-   surfaced it. v0.4 renders a `## Notes` section so the researcher
-   actually sees the actionable hint ("0 curated claims: this question
-   is in §IV but sits in the v0.4 horizon — use the `discover`
-   subcommand"). `Answer.to_dict()` JSON output now includes a `notes`
-   field at top level.
-4. **Strengthened indica/sativa banned pattern** — v0.3 caught the prose
-   form ("Indica strains are sedating because they have more myrcene")
-   but the abstract meta-framing ("indica vs sativa pharmacological
-   differences") slipped through. v0.4 adds a sibling pattern
-   (`indica_sativa_as_pharmacology_abstract`) that catches the abstract
-   framing WITHOUT ensnaring legitimate botanical-taxonomy framings
-   ("Cannabis sativa L. botanical taxonomy", "Is Cannabis sativa one
-   species or three?" — both pass cleanly into the cultivation-science
-   registry).
-5. **Two new registry-inventory groups** — `python3 -m cannavec_science
-   registries` now surfaces `analytical_chemistry` and
-   `cultivation_science` as discoverable groups; total inventory grows
-   from 145 → 159 rows across 11 (was 9) registries.
-
 ### What v0.3 fixes
 
 1. **Δ⁸-THC pharmacology no longer fires the Δ⁹-THC monograph** —
@@ -365,9 +322,9 @@ eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
 
 ## What does NOT ship (deliberately)
 
-Per the [Constitution §IV](.specify/memory/constitution.md), the v0.2
-build is researcher-only. The following exist in the parent Cannavec
-plugin and remain **out of scope** past v0.2:
+Per the [Constitution §IV](.specify/memory/constitution.md), every
+build through v0.6 is researcher-only. The following exist in the
+parent Cannavec plugin and remain **out of scope** for this MVP:
 
 - Patient, clinician, cultivator, lab, compliance, retail,
   public-health, operator, policy, product, hemp, microbiome,
@@ -393,8 +350,8 @@ cd Cannavec-Science-Plugin
 # That's it. No `pip install`. Stdlib only.
 
 # Smoke test:
-python3 -m unittest discover -s tests   # 1,360+ tests, ~2-3 s
-python3 evals/run_evals.py              # 149 offline canonical evals (162 total; 13 live skipped offline)
+python3 -m unittest discover -s tests   # 1,501 tests, ~2-3 s
+python3 evals/run_evals.py              # 173 offline canonical evals (188 total; 15 live skipped offline)
 
 # The four golden v0.1 flows:
 python3 -m cannavec_science answer "What is the evidence for CBD in Dravet syndrome?"
@@ -470,72 +427,105 @@ python3 -m cannavec_science registries --registry biosynthesis                  
 | `/cannavec-science:verify <PMID\|DOI>` | Single-identifier spot-check with retraction status. v0.2 auto-fetches forward-citation network + field-pushback signal. |
 | `/cannavec-science:rigor <text>` | Run the seven phytochemistry rigor detectors (incl. v0.2 entourage-overclaim) + banned-pattern detector on arbitrary text. |
 
-## The deterministic backbone (v0.2)
+## The deterministic backbone
 
 ```
-cannavec_science/
-├── evidence.py             # GRADE, Source, Claim, ClaimType, source-authority weight
-├── banned_patterns.py      # 15 patterns + 30-char negation guard
-├── safety.py               # Refuse-harmful / refuse-individualized / proceed verdict
-├── rigor_checks.py         # Seven phytochemistry detectors (incl. v0.2 entourage)
-├── retraction.py           # Retraction registry + composition-time enforcement
-├── pubmed_verify.py        # E-utilities + Crossref verifier (stdlib urllib)
-├── pubmed_search.py        # Live PubMed search
-├── chembl_discover.py      # Live ChEMBL bioactivity
-├── ctgov_discover.py       # Live ClinicalTrials.gov
-├── pubchem_discover.py     # Live PubChem compound structure
-├── pharmgkb_discover.py    # Live PharmGKB pharmacogenomics
-├── rcsb_discover.py        # Live RCSB PDB structural biology
-├── opentargets_discover.py # Live Open Targets gene-disease evidence
-├── gwas_discover.py        # Live GWAS Catalog SNP-trait associations
-├── bindingdb_discover.py   # Live BindingDB measured binding affinities
-├── biorxiv_discover.py     # v0.2 — live bioRxiv preprint lane
-├── medrxiv_discover.py     # v0.2 — live medRxiv preprint lane
-├── _preprint_helpers.py    # v0.2 — shared DOI/version/Crossref helpers
-├── discover_guard.py       # Safety guard on live queries
-├── synthesis.py            # Cross-source synthesis verdict
-├── source_health.py        # Per-source liveness probe
-├── intent.py               # Intent classifier
-├── uncertainty.py          # GRADE wording-vs-grade verb picker
-├── answer.py               # Typed Answer + compose_answer + scaffolder threading
-├── evidence_synthesis.py   # Deterministic claim-set rollup
-├── bibliography.py         # BibTeX / RIS / CSL-JSON exporter
-├── contradiction.py        # Pairwise claim contradiction detector
-├── citation_network.py     # v0.2 — NCBI elink forward-cite + pushback signal
-├── freshness.py            # v0.2 — registry watch_pmids probe
-├── pico.py                 # v0.2 — PICO frame composer
-├── power_calc.py           # v0.2 — stdlib sample-size estimator (Cohen + Fleiss)
-├── grade_profile.py        # v0.2 — GRADE evidence-profile table (MD + CSV)
-├── protocol_skeleton.py    # v0.2 — 9-section IRB protocol stub
-├── ecbome.py               # v0.2 — endocannabinoidome reference (28 entries)
-├── regulatory_feasibility.py  # v0.2 — US/EU/CA/UK regulatory advisory
-├── analytical_chemistry.py # v0.4 — decarb kinetics, HPLC/GC-MS, chemovar, pyrolysis
-├── cultivation_science.py  # v0.4 — UV-B, trichome, synthase, taxonomy
-├── major_cannabinoids.py   # Δ⁹-THC, CBD
-├── minor_cannabinoids.py   # THCV, CBDV, CBC, CBN, CBG + v0.2 Δ⁸-THC, HHC, THCO, THCP
-├── terpenes.py             # Terpene registry
-├── terpene_reference.py    # Terpene analytical chemistry
-├── interactions.py         # 35-row drug-interaction registry
-├── adverse_events.py       # AE registry
-├── populations.py          # Trial-supported populations
-├── contraindications.py    # Contraindication registry
-└── pharmacogenomics.py     # CYP2C9 / CYP3A4 / CYP2C19 PGx
+cannavec_science/                       # 64 modules · stdlib-only
+
+# Core evidence + safety
+├── evidence.py                  # GRADE, Source, Claim, ClaimType, source-authority weight
+├── banned_patterns.py           # 16 patterns + 30-char negation guard
+├── safety.py                    # Refuse-harmful / refuse-individualized / proceed verdict
+├── rigor_checks.py              # 7 phytochemistry detectors (incl. entourage-overclaim)
+├── reporting_rigor.py           # 6 EQUATOR-network detectors (CONSORT / PRISMA / STROBE / ROB-2 / ROBINS-I / AMSTAR-2)
+├── retraction.py                # Retraction registry + composition-time enforcement
+├── uncertainty.py               # GRADE wording-vs-grade verb picker
+
+# Identifier verification
+├── pubmed_verify.py             # E-utilities + Crossref (stdlib urllib)
+├── uniprot_verify.py            # UniProt accession resolver
+
+# Live discovery (13 lanes)
+├── pubmed_search.py             # PubMed E-utilities search
+├── chembl_discover.py           # ChEMBL bioactivity
+├── ctgov_discover.py            # ClinicalTrials.gov
+├── pubchem_discover.py          # PubChem compound structure
+├── pharmgkb_discover.py         # PharmGKB pharmacogenomics
+├── rcsb_discover.py             # RCSB PDB structural biology
+├── opentargets_discover.py      # Open Targets gene-disease evidence
+├── gwas_discover.py             # GWAS Catalog SNP-trait associations
+├── bindingdb_discover.py        # BindingDB measured binding affinities
+├── biorxiv_discover.py          # bioRxiv preprints
+├── medrxiv_discover.py          # medRxiv preprints
+├── europepmc_discover.py        # Europe PMC (PubMed + PMC full-text + EU journals)
+├── openalex_discover.py         # OpenAlex open scholarly citation graph
+├── _preprint_helpers.py         # Shared DOI/version/Crossref helpers
+├── discover_guard.py            # Safety + banned-pattern preflight on live queries
+├── synthesis.py                 # Cross-source convergence verdict
+├── source_health.py             # Per-source liveness probe
+
+# Composition + export
+├── intent.py                    # Intent classifier
+├── answer.py                    # Typed Answer + compose_answer + scaffolder threading
+├── evidence_synthesis.py        # Deterministic claim-set rollup
+├── contradiction.py             # Pairwise claim contradiction detector
+├── citation_network.py          # NCBI elink forward-cite + pushback signal
+├── freshness.py                 # Registry watch_pmids probe
+├── bibliography.py              # BibTeX / RIS / CSL-JSON exporter (inline GRADE)
+├── registries.py                # Registry inventory subcommand surface
+
+# Researcher-workflow scaffolders
+├── pico.py                      # PICO frame composer
+├── power_calc.py                # Stdlib sample-size estimator (Cohen + Fleiss)
+├── grade_profile.py             # GRADE evidence-profile table (MD + CSV)
+├── protocol_skeleton.py         # 9-section IRB protocol stub
+├── regulatory_feasibility.py    # US-federal / EU-EMA / Canada / UK advisory
+
+# Curated science registries (20)
+├── major_cannabinoids.py        # Δ⁹-THC, CBD, THCA, CBDA
+├── minor_cannabinoids.py        # THCV, CBDV, CBC, CBN, CBG, Δ⁸-THC, HHC, THCO, THCP
+├── terpenes.py                  # Terpene registry
+├── terpene_reference.py         # Terpene analytical chemistry
+├── interactions.py              # Drug-interaction registry
+├── adverse_events.py            # AE registry
+├── populations.py               # Trial-supported populations
+├── contraindications.py         # Contraindication registry
+├── pharmacogenomics.py          # CYP2C9 / CYP3A4 / CYP2C19 PGx
+├── ecbome.py                    # Endocannabinoidome reference
+├── ecbome_inhibitors.py         # FAAH / MAGL drug-development pharmacology
+├── analytical_chemistry.py      # Decarb kinetics, HPLC/GC-MS, chemovar, pyrolysis
+├── cultivation_science.py       # UV-B, trichome, synthase genetics, taxonomy
+├── biosynthesis.py              # OLS/OAC → CBGAS → THCA/CBDA synthase pathway
+├── pharmacokinetics.py          # THC inhaled/oral PK, CBD food effect, 11-OH-THC
+├── use_disorder.py              # DSM-5 CUD, CUDIT-R, CWS, NESARC-III
+├── hyperemesis_syndrome.py      # CHS diagnostic criteria, Rome IV, capsaicin
+├── pain_medicine.py             # NASEM 2017 chronic pain + Whiting / Stockings / Mücke / Boehnke
+├── psychiatry.py                # Di Forti EU-GEI, Marconi, Vaucher MR, Hjorthøj
+├── driving_impairment.py        # Compton NHTSA, Hartman, Marcotte, Brubacher
+├── ptsd_anxiety_sleep.py        # Bonn-Miller 2021, Crippa/Bergamaschi CBD-SAD, Walsh sleep SR
+
+# Internal helpers
+├── _normalize.py                # Text normalization
+├── _markdown_skip.py            # Markdown-aware tokenization
+├── __init__.py
+└── __main__.py                  # CLI: python3 -m cannavec_science <subcommand>
 ```
 
 ## Tests + acceptance gate
 
 ```bash
-python3 -m unittest discover -s tests   # 1,220+ tests, offline, ~2 s
-python3 evals/run_evals.py              # 133 offline canonical evals (144 total; 11 live skipped offline)
+python3 -m unittest discover -s tests   # 1,501 tests, offline, ~2-3 s
+python3 evals/run_evals.py              # 173 offline canonical evals (188 total; 15 live skipped offline)
 ```
 
-Before any push to the v0.2 branch, all of the following MUST hold
-(per [`specs/002-elite-development/plan.md`](specs/002-elite-development/plan.md)):
+Before any push to a release branch, all of the following MUST hold
+(per [`specs/002-elite-development/plan.md`](specs/002-elite-development/plan.md)
+and the per-spec gates in `specs/004` → `specs/006`):
 
 - `python3 -m unittest discover -s tests` exits 0 in ≤ 60 seconds.
-- Total test count ≥ 1,000.
-- `python3 evals/run_evals.py` exits 0 with ≥ 100 prompts across six
-  buckets, each at or above its minimum.
+- Total test count ≥ 1,500.
+- `python3 evals/run_evals.py` exits 0 with ≥ 170 offline prompts
+  across the nine current buckets, each at or above its minimum.
 - `python3 -m cannavec_science answer "CBD Dravet syndrome" --pico --power-calc --grade-profile --protocol-skeleton`
   returns one composed answer with all four scaffolds present.
 - `python3 -m cannavec_science discover "CB2 microglia" --sources biorxiv,medrxiv --max 5`
