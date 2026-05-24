@@ -1,4 +1,4 @@
-# Cannavec Science (v0.4 — industry-expert-depth build)
+# Cannavec Science (v0.5 — industry-expert-clinical-depth build)
 
 **A focused Claude Code plugin for elite-tier cannabis-research science.**
 
@@ -7,23 +7,116 @@ they need primary citations they can defend, phytochemistry precision
 they can publish, live access to the frontier (including preprints),
 deterministic GRADE-level rigor with field-pushback signal, researcher-
 workflow scaffolding (PICO, sample-size power, GRADE evidence-profile
-table, IRB protocol skeleton), and — new in v0.4 — primary-source-anchored
-analytical chemistry (decarboxylation kinetics, HPLC vs GC-MS method
-validation, chemovar Type I-V classification, vapor pyrolysis byproducts)
-and cultivation science (UV-B effects on biosynthesis, trichome biology,
-synthase genetics, the live botanical-taxonomy debate). Cannavec Science
-ships exactly those things — researcher-only, stdlib-only, deterministic.
+table, IRB protocol skeleton), primary-source-anchored analytical
+chemistry and cultivation science, and — new in v0.5 — **clinical
+pharmacokinetics** (THC inhaled / oral PK, CBD food effect, 11-OH-Δ⁹-THC
+active metabolite, nabiximols oromucosal, distribution, urine detection
+window), **cannabis use disorder & withdrawal** (DSM-5 CUD framework,
+CUDIT-R, CWS, NESARC-III prevalence, twin-study heritability,
+adolescent-onset telescoping), **cannabinoid hyperemesis syndrome**
+(Sorensen 2017 / Allen 2004 diagnostic criteria, Rome IV, capsaicin
+treatment, post-legalization epidemiology), **eCBome enzyme-inhibitor
+pharmacology** (PF-04457845 cannabis-withdrawal Phase 2a, the BIA
+10-2474 Rennes disaster *with* off-target-serine-hydrolase
+disambiguation, MAGL inhibitor ABX-1431, dual JZL195), and **cannabinoid
+biosynthesis pathway** (OLS / OAC polyketide entry, CBGAS
+prenyltransferase, THCA / CBDA synthase enzymology, Luo 2019 yeast
+heterologous expression). Cannavec Science ships exactly those things —
+researcher-only, stdlib-only, deterministic.
 
-This is the **v0.4 industry-expert-depth build** descending from the
-v0.3 routing-and-surfacing build (spec 003) and the v0.2 elite-development
-build (spec 002). v0.4 lands two new curated registries (≥ 8 analytical-
-chemistry rows and ≥ 6 cultivation-science rows), closes a P1 rendering
-bug that swallowed the v0.3 0-claim classification messages, and tightens
-the indica/sativa-as-pharmacology refusal to catch abstract framings —
-all without broadening the researcher-only audience lock. The build is
-now **1,220+ unit tests strong** with a 13-prompt analytical-chemistry +
-cultivation-science eval bucket on top of the 130-prompt v0.3 offline
-canonical battery.
+This is the **v0.5 industry-expert-clinical-depth build** descending from
+the v0.4 industry-expert-depth build (spec 004) and earlier specs. v0.5
+lands five new curated registries (≥ 28 new rows total) and a twelfth
+primary-source live-discovery lane (Europe PMC, complement to PubMed)
+without broadening the researcher-only audience lock. The build is now
+**1,360+ unit tests strong** with a 16-prompt clinical-pharmacology-depth
+eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
+(149 offline)** in the eval suite.
+
+### What v0.5 ships
+
+1. **Clinical pharmacokinetics registry (≥ 8 curated rows)** — THC
+   inhaled (smoked + vaped) PK per Huestis 2005 (PMID 16142973) +
+   Spindle 2018, THC oral / dronabinol PK per Wall 1983 (PMID 6311559),
+   CBD oral food effect per Birnbaum 2019 (PMID 31166007 — the
+   Epidiolex label-supporting 4-5× AUC increase with high-fat meal),
+   11-OH-Δ⁹-THC active metabolite (the first-pass-effect explanation
+   for why edibles produce a longer / different subjective profile),
+   nabiximols oromucosal per Karschner 2011 (PMID 21240010), plasma
+   protein binding + adipose sequestration per Garrett 1977, and
+   SAMHSA-cutoff urine detection window per Huestis 1996 (PMID 8773290).
+2. **Cannabis use disorder & withdrawal registry (≥ 6 curated rows)** —
+   DSM-5 CUD framework per Hasin 2013 (PMID 23537606), CUDIT-R
+   screening instrument per Adamson 2010 (PMID 20231083), Cannabis
+   Withdrawal Scale per Allsop 2011 (PMID 21652129), NESARC-III
+   12-month / lifetime prevalence per Hasin 2015 (PMID 26502112),
+   twin-study heritability per Verweij 2010 (PMID 20096023), and
+   adolescent-onset telescoping per Chen 2009 / Hall & Degenhardt 2009.
+3. **Cannabinoid hyperemesis syndrome registry (≥ 4 curated rows)** —
+   diagnostic criteria per Sorensen 2017 systematic review (PMID
+   27567272) + Allen 2004 original 9-case series (PMID 15082584) +
+   Simonetto 2012 Mayo Clinic 98-case series (PMID 22305024), Rome IV
+   functional GI framework per Venkatesan 2019 (PMID 31480576),
+   topical capsaicin acute-phase treatment per Dezieck 2017 (PMID
+   28215116), and post-legalization Colorado ED epidemiology per
+   Kim 2018 (PMID 30049481). The existing static CHS caution remains
+   intact — the registry adds primary citations alongside it.
+4. **eCBome enzyme-inhibitor pharmacology registry (≥ 5 curated rows)**
+   — PF-04457845 cannabis-withdrawal Phase 2a per D'Souza 2019 (PMID
+   30985083), PF-04457845 osteoarthritis-pain Phase 2 per Huggins 2012
+   (PMID 22910298), **BIA 10-2474 Rennes Phase 1 disaster** per Kerbrat
+   2016 (PMID 27806243) *with explicit off-target-serine-hydrolase
+   disambiguation* per van Esbroeck 2017 (PMID 28912346 — the
+   activity-based protein profiling paper proving BIA 10-2474 toxicity
+   is OFF-TARGET, not on-target FAAH biology), MAGL inhibitor ABX-1431
+   per Cisar 2018 (PMID 29498523), and dual FAAH / MAGL inhibitor
+   JZL195 mechanism per Long 2009 (PMID 19429692).
+5. **Cannabinoid biosynthesis pathway registry (≥ 5 curated rows)** —
+   OLS + OAC polyketide entry per Taura 2009 (PMID 19429605) + Gagne
+   2012 (PMID 22802647), CBGAS aromatic prenyltransferase per Page
+   2011 (PMID 21896800), THCA synthase FAD-dependent oxidocyclase per
+   Sirikantaramas 2004 (PMID 15453749), CBDA synthase per Taura 1996
+   (PMID 8632416), and Saccharomyces-cerevisiae heterologous
+   expression per Luo 2019 (PMID 30814733).
+6. **Europe PMC live-discovery lane (12th primary source)** — Europe
+   PMC indexes PubMed PLUS the full PMC corpus PLUS European
+   non-MEDLINE-indexed journals. Available via
+   `discover --include-europepmc` (opt-in flag) or by adding
+   `europepmc` to `--sources`. Same offline-test contract as every
+   other live lane (injected fetcher, no escape network calls in the
+   test suite).
+7. **Five new registry-inventory groups** — `python3 -m cannavec_science
+   registries` now surfaces `pharmacokinetics`, `use_disorder`,
+   `hyperemesis_syndrome`, `ecbome_inhibitors`, and `biosynthesis`;
+   total inventory grows from 159 → ~187 rows across **16** (was 11)
+   curated registries.
+
+### What v0.4 shipped (preserved)
+
+1. Analytical-chemistry registry (≥ 8 curated rows) — decarboxylation
+   kinetics (Veress 1990 PMID 2384545, Wang 2016, Citti 2018), HPLC
+   potency analysis vs GC-MS in-injector decarboxylation artefact (Dussy
+   2005, Citti 2018), chemovar Type I/II/III/IV/V classification
+   (Hazekamp & Fischedick 2012 PMID 22362625, Lewis 2018), THCA-/CBDA-
+   synthase locus inheritance (Hillig & Mahlberg 2004, Aizpurua-Olaizola
+   2016), and combustion-vs-vaporisation pyrolysis byproducts
+   (Pomahacova 2009, Moir 2008).
+2. Cultivation-science registry (≥ 6 curated rows) — UV-B effect on
+   cannabinoid biosynthesis (Lydon 1987 PMID 3621052), glandular
+   trichome biology (Livingston 2020 PMID 31867754, Tanney 2021),
+   THCA-/CBDA-synthase single-locus inheritance (de Meijer 2003 PMID
+   12663552), CBDA-synthase enzymology (Taura 2007), F1 heterozygote
+   Type II dominance, and the **honest-debate botanical taxonomy** row
+   surfacing both Small & Cronquist 1976 (single species) AND Hillig
+   2005 (multi-species) without picking a winner.
+3. `Answer.notes` rendering fix — v0.3 set the 0-claim classification
+   on `Answer.notes` but `Answer.to_markdown()` never surfaced it.
+   v0.4 renders a `## Notes` section so the researcher actually sees
+   the actionable hint.
+4. Strengthened indica/sativa banned pattern catches the abstract
+   meta-framing ("indica vs sativa pharmacological differences") while
+   leaving botanical-taxonomy framings ("Cannabis sativa L. botanical
+   taxonomy") cleanly through.
 
 ### What v0.4 ships
 
@@ -221,8 +314,8 @@ cd Cannavec-Science-Plugin
 # That's it. No `pip install`. Stdlib only.
 
 # Smoke test:
-python3 -m unittest discover -s tests   # 1,220+ tests, ~2 s
-python3 evals/run_evals.py              # 133 offline canonical evals (144 total; 11 live skipped offline)
+python3 -m unittest discover -s tests   # 1,360+ tests, ~2-3 s
+python3 evals/run_evals.py              # 149 offline canonical evals (162 total; 13 live skipped offline)
 
 # The four golden v0.1 flows:
 python3 -m cannavec_science answer "What is the evidence for CBD in Dravet syndrome?"
@@ -264,6 +357,28 @@ python3 -m cannavec_science answer "Bedrocan medical cannabis cultivars THC cont
 python3 -m cannavec_science answer "indica vs sativa pharmacological differences"       # strengthened refusal
 python3 -m cannavec_science registries --registry analytical_chemistry                  # 8 analytical rows
 python3 -m cannavec_science registries --registry cultivation_science                   # 6 cultivation rows
+
+# v0.5 industry-expert-clinical-depth flows:
+python3 -m cannavec_science answer "THC inhaled vs oral pharmacokinetics Tmax Cmax"                # Huestis 2005 + Wall 1983
+python3 -m cannavec_science answer "CBD epidiolex food effect AUC fivefold high fat meal"          # Birnbaum 2019
+python3 -m cannavec_science answer "11-hydroxy-THC active metabolite oral dronabinol"              # first-pass effect
+python3 -m cannavec_science answer "cannabis use disorder DSM-5 criteria framework"                # Hasin 2013
+python3 -m cannavec_science answer "CUDIT-R cannabis use disorder identification test"             # Adamson 2010
+python3 -m cannavec_science answer "cannabis withdrawal syndrome scale Allsop 2011"                # CWS 19-item
+python3 -m cannavec_science answer "cannabinoid hyperemesis syndrome diagnostic criteria"          # Sorensen 2017 SR
+python3 -m cannavec_science answer "capsaicin cream cannabinoid hyperemesis treatment"             # Dezieck 2017
+python3 -m cannavec_science answer "PF-04457845 FAAH inhibitor cannabis withdrawal NEJM"           # D'Souza 2019
+python3 -m cannavec_science answer "BIA 10-2474 Rennes Phase 1 disaster"                           # off-target disambiguation
+python3 -m cannavec_science answer "MAGL inhibitor ABX-1431 lorcaserin"                            # Cisar 2018
+python3 -m cannavec_science answer "olivetolic acid synthase polyketide pathway biosynthesis"      # Taura 2009 OLS+OAC
+python3 -m cannavec_science answer "Luo 2019 yeast cannabinoid heterologous expression Nature"     # synbio platform
+python3 -m cannavec_science answer "THCA synthase enzymology FAD-dependent oxidocyclase"           # Sirikantaramas 2004
+python3 -m cannavec_science discover "nabiximols European approval" --include-europepmc            # twelfth live lane
+python3 -m cannavec_science registries --registry pharmacokinetics                                 # 8 PK rows
+python3 -m cannavec_science registries --registry use_disorder                                     # 6 CUD/CWS rows
+python3 -m cannavec_science registries --registry hyperemesis_syndrome                             # 4 CHS rows
+python3 -m cannavec_science registries --registry ecbome_inhibitors                                # 5 eCBome-inhibitor rows
+python3 -m cannavec_science registries --registry biosynthesis                                     # 5 biosynthesis rows
 ```
 
 ## The five commands

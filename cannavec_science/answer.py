@@ -846,6 +846,23 @@ def compose_answer(
     )
     matched_analytical_rows = detect_analytical_chemistry_mention(prompt)
     matched_cultivation_rows = detect_cultivation_science_mention(prompt)
+    # Spec 005 US1-US5 / FR-006 — clinical-pharmacology depth registries.
+    from cannavec_science.pharmacokinetics import (
+        detect_pharmacokinetics_mention,
+    )
+    from cannavec_science.use_disorder import detect_use_disorder_mention
+    from cannavec_science.hyperemesis_syndrome import (
+        detect_hyperemesis_syndrome_mention,
+    )
+    from cannavec_science.ecbome_inhibitors import (
+        detect_ecbome_inhibitor_mention,
+    )
+    from cannavec_science.biosynthesis import detect_biosynthesis_mention
+    matched_pk_rows = detect_pharmacokinetics_mention(prompt)
+    matched_cud_rows = detect_use_disorder_mention(prompt)
+    matched_chs_rows = detect_hyperemesis_syndrome_mention(prompt)
+    matched_ecbome_inh_rows = detect_ecbome_inhibitor_mention(prompt)
+    matched_biosynth_rows = detect_biosynthesis_mention(prompt)
 
     a.add_trace("registry.populations", len(matched_population_rows))
     a.add_trace("registry.interactions", len(matched_interaction_rows))
@@ -858,6 +875,12 @@ def compose_answer(
     a.add_trace("registry.analytical_chemistry", len(matched_analytical_rows))
     a.add_trace("registry.cultivation_science", len(matched_cultivation_rows))
     a.add_trace("registry.ecbome", len(matched_ecbome_rows))
+    # Spec 005 — clinical-pharmacology depth trace counters.
+    a.add_trace("registry.pharmacokinetics", len(matched_pk_rows))
+    a.add_trace("registry.use_disorder", len(matched_cud_rows))
+    a.add_trace("registry.hyperemesis_syndrome", len(matched_chs_rows))
+    a.add_trace("registry.ecbome_inhibitors", len(matched_ecbome_inh_rows))
+    a.add_trace("registry.biosynthesis", len(matched_biosynth_rows))
 
     # Citation attachment runs regardless of refusal — the population-
     # level evidence base exists whether or not Cannavec Science
@@ -874,6 +897,12 @@ def compose_answer(
         + list(matched_pgx_rows)
         + list(matched_analytical_rows)
         + list(matched_cultivation_rows)
+        # Spec 005 — clinical-pharmacology depth row citations.
+        + list(matched_pk_rows)
+        + list(matched_cud_rows)
+        + list(matched_chs_rows)
+        + list(matched_ecbome_inh_rows)
+        + list(matched_biosynth_rows)
     )
     for row in all_rows:
         _attach_citations_from_row(a, row)
@@ -897,6 +926,18 @@ def compose_answer(
         for row in matched_analytical_rows:
             _attach_claim_safely(a, row, retraction_policy)
         for row in matched_cultivation_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        # Spec 005 US1-US5 / FR-006 — clinical-pharmacology depth rows
+        # surface as typed claims via row-level to_claim().
+        for row in matched_pk_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_cud_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_chs_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_ecbome_inh_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        for row in matched_biosynth_rows:
             _attach_claim_safely(a, row, retraction_policy)
 
         # Minor + major cannabinoids render as monograph sections.
@@ -952,6 +993,61 @@ def compose_answer(
                 "Cultivation-science registry",
                 render_cultivation(matched_cultivation_rows).removeprefix(
                     "## Cultivation-science registry\n"
+                ).strip(),
+            )
+        # Spec 005 US1 / FR-006 — clinical pharmacokinetics registry render.
+        if matched_pk_rows:
+            from cannavec_science.pharmacokinetics import (
+                render_markdown as render_pk,
+            )
+            a.add_section(
+                "Pharmacokinetics registry",
+                render_pk(matched_pk_rows).removeprefix(
+                    "## Pharmacokinetics registry\n"
+                ).strip(),
+            )
+        # Spec 005 US2 / FR-006 — cannabis use disorder & withdrawal render.
+        if matched_cud_rows:
+            from cannavec_science.use_disorder import (
+                render_markdown as render_cud,
+            )
+            a.add_section(
+                "Cannabis use disorder & withdrawal registry",
+                render_cud(matched_cud_rows).removeprefix(
+                    "## Cannabis use disorder & withdrawal registry\n"
+                ).strip(),
+            )
+        # Spec 005 US3 / FR-006 — cannabinoid hyperemesis syndrome render.
+        if matched_chs_rows:
+            from cannavec_science.hyperemesis_syndrome import (
+                render_markdown as render_chs,
+            )
+            a.add_section(
+                "Cannabinoid hyperemesis syndrome registry",
+                render_chs(matched_chs_rows).removeprefix(
+                    "## Cannabinoid hyperemesis syndrome registry\n"
+                ).strip(),
+            )
+        # Spec 005 US4 / FR-006 — eCBome inhibitor pharmacology render.
+        if matched_ecbome_inh_rows:
+            from cannavec_science.ecbome_inhibitors import (
+                render_markdown as render_ecbome_inh,
+            )
+            a.add_section(
+                "eCBome inhibitor pharmacology registry",
+                render_ecbome_inh(matched_ecbome_inh_rows).removeprefix(
+                    "## eCBome inhibitor pharmacology registry\n"
+                ).strip(),
+            )
+        # Spec 005 US5 / FR-006 — biosynthesis pathway registry render.
+        if matched_biosynth_rows:
+            from cannavec_science.biosynthesis import (
+                render_markdown as render_biosynth,
+            )
+            a.add_section(
+                "Cannabinoid biosynthesis pathway registry",
+                render_biosynth(matched_biosynth_rows).removeprefix(
+                    "## Cannabinoid biosynthesis pathway registry\n"
                 ).strip(),
             )
     elif matched_minor_cb_rows or matched_major_cb_rows or matched_ecbome_rows:

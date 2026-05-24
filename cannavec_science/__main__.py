@@ -122,6 +122,9 @@ def _cmd_discover(args: argparse.Namespace) -> int:
 
     default_sources = "pubmed,chembl,ctgov"
     sources = {s.strip() for s in (args.sources or default_sources).split(",")}
+    # Spec 005 US6 — opt-in Europe PMC complement to PubMed.
+    if getattr(args, "include_europepmc", False):
+        sources.add("europepmc")
     out_payload: dict = {"query": args.query, "sources": {}}
 
     for source_key in sorted(sources):
@@ -248,6 +251,13 @@ def _run_medrxiv(args):
     )
 
 
+def _run_europepmc(args):
+    from cannavec_science.europepmc_discover import EuropePMCSearcher
+    return EuropePMCSearcher().search(
+        args.query, since=args.since, max_results=args.max,
+    )
+
+
 _DISCOVERER_REGISTRY = {
     "pubmed": _run_pubmed,
     "chembl": _run_chembl,
@@ -261,6 +271,8 @@ _DISCOVERER_REGISTRY = {
     # Spec 002 US1 — preprint lanes (Level D cap per FR-202).
     "biorxiv": _run_biorxiv,
     "medrxiv": _run_medrxiv,
+    # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
+    "europepmc": _run_europepmc,
 }
 
 
@@ -925,7 +937,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Live multi-source fan-out across primary scientific sources: "
             "pubmed, chembl, ctgov (default) plus optional cannabis-primary "
             "widening: pubchem, pharmgkb, rcsb, opentargets, gwas, bindingdb, "
-            "and v0.2 preprint lanes biorxiv, medrxiv."
+            "v0.2 preprint lanes biorxiv, medrxiv, and v0.5 europepmc."
         ),
     )
     d.add_argument("query")
@@ -937,7 +949,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="pubmed,chembl,ctgov",
         help=(
             "Comma-separated subset of: pubmed, chembl, ctgov, pubchem, "
-            "pharmgkb, rcsb, opentargets, gwas, bindingdb, biorxiv, medrxiv."
+            "pharmgkb, rcsb, opentargets, gwas, bindingdb, biorxiv, medrxiv, "
+            "europepmc."
+        ),
+    )
+    d.add_argument(
+        "--include-europepmc", action="store_true",
+        help=(
+            "Spec 005 US6 — opt-in addition of the Europe PMC lane to "
+            "whatever --sources is set (complement to PubMed for "
+            "European-indexed and PMC full-text literature)."
         ),
     )
     d.add_argument("--json", action="store_true")
@@ -994,7 +1015,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "major_cannabinoids, minor_cannabinoids, terpenes, "
             "interactions, adverse_events, populations, "
             "contraindications, pharmacogenomics, ecbome, "
-            "analytical_chemistry, cultivation_science."
+            "analytical_chemistry, cultivation_science, "
+            "pharmacokinetics, use_disorder, hyperemesis_syndrome, "
+            "ecbome_inhibitors, biosynthesis."
         ),
     )
     rg.add_argument(

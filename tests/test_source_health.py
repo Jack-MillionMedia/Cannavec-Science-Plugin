@@ -98,6 +98,8 @@ class PingAllTests(unittest.TestCase):
             "pubmed", "chembl", "ctgov", "biorxiv", "medrxiv", "courtlistener",
             # Cannabis-primary-source widening (life-science skill layer).
             "pubchem", "pharmgkb", "rcsb", "opentargets", "gwas", "bindingdb",
+            # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
+            "europepmc",
         })
 
 

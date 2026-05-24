@@ -75,6 +75,11 @@ _PROBE_URLS = {
         "https://bindingdb.org/rest/getLigandsByUniprots"
         "?uniprot=P21554&cutoff=10000&response=application/json"
     ),
+    # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
+    "europepmc": (
+        "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+        "?query=cannabidiol&resulttype=core&format=json&pageSize=1"
+    ),
 }
 
 
