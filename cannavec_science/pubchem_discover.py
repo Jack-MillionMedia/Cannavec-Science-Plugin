@@ -32,6 +32,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -57,7 +58,6 @@ _CID_SYNONYMS_URL = _PUG_BASE + "/compound/cid/{cid}/synonyms/JSON"
 
 _LANDING_URL = "https://pubchem.ncbi.nlm.nih.gov/compound/{cid}"
 
-_DEFAULT_TIMEOUT = 10
 _MAX_RESULTS_CEILING = 25
 
 _SUGGESTED_GRADE = "Level D (provisional, live_pubchem)"
@@ -71,15 +71,15 @@ Fetcher = Callable[[str], str]
 
 
 def default_pubchem_fetcher(url: str) -> str:
-    """Production fetcher — polite UA, JSON Accept, 10 s timeout."""
+    """Production fetcher — polite UA, JSON Accept, fast timeout, bounded retry."""
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-pubchem-discover/1.0",
+            "User-Agent": user_agent("pubchem-discover"),
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
         return resp.read().decode("utf-8")
 
 

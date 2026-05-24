@@ -53,6 +53,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, Iterable, Optional, Protocol
 
+from cannavec_science._http import (
+    TIMEOUT_SLOW,
+    crossref_contact,
+    retry_urlopen,
+    user_agent,
+)
+
 
 __all__ = [
     "PubMedRecord",
@@ -70,14 +77,9 @@ __all__ = [
 ]
 
 
-# ── User-Agent ────────────────────────────────────────────────────────
-
+# Back-compat shim — older internal callers may still reference this.
 def _user_agent() -> str:
-    try:
-        import cannavec  # noqa: WPS433 — local import keeps this importable
-        return f"cannavec-pubmed-verify/{cannavec.__version__}"
-    except Exception:   # noqa: BLE001 — fallback for build-time imports
-        return "cannavec-pubmed-verify/unknown"
+    return user_agent("pubmed-verify")
 
 
 # ── Fetcher protocol ──────────────────────────────────────────────────
@@ -125,35 +127,39 @@ def default_pubmed_fetcher(url: str) -> str:
     """Production fetcher for PubMed E-utilities.
 
     Sends a polite User-Agent and tool param so NCBI traffic shows the
-    plugin's identity. Surfaces network / HTTP errors as
-    :class:`urllib.error.URLError` so the caller can map them to a
-    NETWORK_ERROR verdict.
+    plugin's identity. Routes through :func:`retry_urlopen` so transient
+    NCBI 429 / 503 responses are retried with exponential backoff before
+    surfacing as :class:`urllib.error.URLError` or
+    :class:`cannavec_science._http.RetryableHTTPError`.
     """
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": _user_agent()},
+        headers={"User-Agent": user_agent("pubmed-verify")},
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         return _decode_response_strict(
             resp.read(), resp.headers.get_content_charset(),
         )
 
 
 def default_crossref_fetcher(url: str) -> str:
-    """Production fetcher for Crossref. Sends a polite User-Agent
-    with a mailto suffix per Crossref's etiquette guide.
+    """Production fetcher for Crossref.
+
+    Sends a polite User-Agent. When ``CANNAVEC_CROSSREF_MAILTO`` is set,
+    appends ``mailto:<addr>`` per Crossref's polite-pool etiquette; if
+    unset, omits the mailto entirely (polite-anonymous beats
+    impolitely-fake).
     """
+    contact = crossref_contact()
+    suffix = f" (mailto:{contact})" if contact else ""
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": (
-                f"{_user_agent()} (mailto:noreply@example.invalid; "
-                f"https://github.com/Jack-MillionMedia/Cannavec-Plugin)"
-            ),
+            "User-Agent": f"{user_agent('crossref-verify')}{suffix}",
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         return _decode_response_strict(
             resp.read(), resp.headers.get_content_charset(),
         )

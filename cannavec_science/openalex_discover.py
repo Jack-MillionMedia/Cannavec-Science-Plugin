@@ -47,6 +47,12 @@ import urllib.request
 from dataclasses import dataclass, asdict
 from typing import Callable, Optional
 
+from cannavec_science._http import (
+    TIMEOUT_SLOW,
+    crossref_contact,
+    retry_urlopen,
+    user_agent,
+)
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -67,11 +73,14 @@ _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
 
 _MAX_RESULTS_CEILING = 50
 _SINCE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_USER_AGENT = (
-    "cannavec-openalex-discover/0.6 "
-    "(+https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin "
-    "mailto:research@cannavec.example)"
-)
+def _openalex_user_agent() -> str:
+    contact = crossref_contact()
+    mailto = f" mailto:{contact}" if contact else ""
+    return (
+        f"{user_agent('openalex-discover')} "
+        "(+https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin"
+        f"{mailto})"
+    )
 
 
 class SearchRefused(Exception):
@@ -85,17 +94,22 @@ Fetcher = Callable[[str], str]
 
 
 def default_openalex_fetcher(url: str) -> str:
-    """Production fetcher — polite User-Agent + mailto, 12s timeout.
+    """Production fetcher — polite User-Agent + optional mailto, bounded retry.
 
     OpenAlex grants higher per-IP rate limits to clients that include
-    ``mailto=`` in either the URL or the User-Agent header; the
-    cannavec User-Agent embeds the mailto.
+    ``mailto=`` in either the URL or the User-Agent header; this
+    discoverer embeds the mailto from ``CANNAVEC_CROSSREF_MAILTO`` when
+    set. If unset, the request goes through anonymously rather than
+    with a fake address.
     """
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
+        headers={
+            "User-Agent": _openalex_user_agent(),
+            "Accept": "application/json",
+        },
     )
-    with urllib.request.urlopen(req, timeout=12) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
 

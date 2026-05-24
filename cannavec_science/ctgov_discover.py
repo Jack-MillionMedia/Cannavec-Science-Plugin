@@ -28,6 +28,7 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -51,7 +52,6 @@ _CTGOV_DETAIL_URL = _CTGOV_BASE + "/studies/{nct_id}?format=json"
 _CTGOV_PUBLIC_LINK = "https://clinicaltrials.gov/study/{nct_id}"
 
 _MAX_RESULTS_CEILING = 50
-_DEFAULT_TIMEOUT = 10  # seconds
 
 # CT.gov status precedence for sort order. Active recruiting first;
 # terminated / withdrawn last. Any unknown status sinks to the bottom.
@@ -92,15 +92,15 @@ Fetcher = Callable[[str], str]
 
 
 def default_ctgov_fetcher(url: str) -> str:
-    """Production fetcher — polite User-Agent, 10 s timeout."""
+    """Production fetcher — polite User-Agent, fast timeout, bounded retry."""
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-ctgov-discover/1.0",
+            "User-Agent": user_agent("ctgov-discover"),
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
         raw = resp.read()
     return raw.decode("utf-8")
 

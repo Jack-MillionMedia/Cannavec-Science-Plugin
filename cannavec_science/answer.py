@@ -40,7 +40,9 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from cannavec_science.evidence import (
+    CitationMissingError,
     Claim,
+    ClaimType,
     EvidenceLevel,
     Source,
     SourceTier,
@@ -93,6 +95,14 @@ class Citation:
     # provenance tag so the render layer can append ``[preprint,
     # not peer-reviewed]``.
     preprint_provenance: str | None = None
+    # Per-citation provenance timestamps. ``fetched_at`` records when
+    # the upstream source was last pulled (e.g. PubMed esummary fetch);
+    # ``retraction_checked_at`` records when the retraction registry
+    # was last consulted for this identifier. Both default to ``None``
+    # so existing constructors are unchanged; the render layer emits a
+    # ``[checked YYYY-MM-DD]`` suffix only when populated.
+    fetched_at: str | None = None
+    retraction_checked_at: str | None = None
 
     def __post_init__(self) -> None:
         if not (self.pmid or self.doi or self.url):
@@ -179,10 +189,27 @@ class Answer:
     generated_at: str = ""
     notes: tuple[str, ...] = ()
     strict_wording: bool = True
+    # Opt-in defence-in-depth on Constitution §I. When True,
+    # :meth:`add_claim` raises :class:`CitationMissingError` for any
+    # non-EDUCATIONAL claim that arrives with an empty ``sources`` tuple
+    # (rather than silently grading it UNSUPPORTED). Defaults to False
+    # to preserve back-compat with the 1,501 tests pinned against the
+    # current behaviour; flip to True at the call site for stricter runs.
+    strict_citation_mandate: bool = False
     sections: list[tuple[str, str]] = field(default_factory=list)
     trace: list[tuple[str, int]] = field(default_factory=list)
 
     def add_claim(self, claim: Claim) -> None:
+        if (
+            self.strict_citation_mandate
+            and not claim.sources
+            and claim.claim_type != ClaimType.EDUCATIONAL
+        ):
+            raise CitationMissingError(
+                f"claim of type {claim.claim_type.value} requires at least "
+                f"one primary source (PMID / DOI / ChEMBL / NCT / UniProt) "
+                f"per Constitution §I; got none for: {claim.text[:80]!r}"
+            )
         if self.strict_wording:
             supportable = claim.best_supportable_grade()
             violations = grade_wording_consistency(claim.text, supportable)
@@ -392,8 +419,18 @@ class Answer:
                     freshness = (
                         f" [freshness: stale (verified {c.freshness_stale_since})]"
                     )
+                # Per-citation provenance timestamps (Citation.fetched_at
+                # / .retraction_checked_at). Render only when populated
+                # so the existing pinned markdown stays unchanged.
+                provenance = ""
+                if c.fetched_at:
+                    provenance += f" [fetched {c.fetched_at}]"
+                if c.retraction_checked_at:
+                    provenance += (
+                        f" [retraction-checked {c.retraction_checked_at}]"
+                    )
                 lines.append(
-                    f"- {c.label}{year}{grade_tag}{badge}{freshness} "
+                    f"- {c.label}{year}{grade_tag}{badge}{freshness}{provenance} "
                     f"— {c.resolvable_url}"
                 )
             lines.append("")
@@ -445,6 +482,16 @@ class Answer:
                     "url": c.url,
                     "year": c.year,
                     "grade": c.grade.value if c.grade else None,
+                    # Per-citation provenance timestamps. Emitted only
+                    # when populated so the existing pinned JSON shape
+                    # stays unchanged for any citation that doesn't
+                    # carry these fields.
+                    **({"fetched_at": c.fetched_at} if c.fetched_at else {}),
+                    **(
+                        {"retraction_checked_at": c.retraction_checked_at}
+                        if c.retraction_checked_at
+                        else {}
+                    ),
                 }
                 for c in self.citations
             ],

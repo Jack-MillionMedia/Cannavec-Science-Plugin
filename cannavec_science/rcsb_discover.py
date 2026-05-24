@@ -32,6 +32,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -49,7 +50,6 @@ _SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
 _ENTRY_URL = "https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
 _PUBLIC_URL = "https://www.rcsb.org/structure/{pdb_id}"
 
-_DEFAULT_TIMEOUT = 10
 _MAX_RESULTS_CEILING = 25
 
 _SUGGESTED_GRADE = "Level C (provisional, live_rcsb)"
@@ -67,15 +67,15 @@ Fetcher = Callable[..., str]
 
 
 def default_rcsb_fetcher(url: str, *, body: Optional[bytes] = None) -> str:
-    """Production fetcher — GET if body is None, POST otherwise."""
+    """Production fetcher — GET if body is None, POST otherwise; bounded retry."""
     headers = {
-        "User-Agent": "cannavec-rcsb-discover/1.0",
+        "User-Agent": user_agent("rcsb-discover"),
         "Accept": "application/json",
     }
     if body is not None:
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=body, headers=headers)
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
         return resp.read().decode("utf-8")
 
 

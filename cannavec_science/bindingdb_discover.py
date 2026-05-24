@@ -29,6 +29,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -60,7 +61,6 @@ _PUBLIC_LIGAND_URL = (
     "?monomerid={monomer_id}"
 )
 
-_DEFAULT_TIMEOUT = 12
 _MAX_RESULTS_CEILING = 50
 
 _SUGGESTED_GRADE = "Level C (provisional, live_bindingdb)"
@@ -91,11 +91,11 @@ def default_bindingdb_fetcher(url: str) -> str:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-bindingdb-discover/1.0",
+            "User-Agent": user_agent("bindingdb-discover"),
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         return resp.read().decode("utf-8")
 
 

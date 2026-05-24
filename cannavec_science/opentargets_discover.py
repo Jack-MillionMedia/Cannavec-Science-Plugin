@@ -27,6 +27,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -42,7 +43,6 @@ __all__ = [
 
 _GQL_URL = "https://api.platform.opentargets.org/api/v4/graphql"
 
-_DEFAULT_TIMEOUT = 12
 _MAX_RESULTS_CEILING = 25
 
 _SUGGESTED_GRADE = "Level C (provisional, live_opentargets)"
@@ -118,14 +118,14 @@ Fetcher = Callable[..., str]
 def default_opentargets_fetcher(
     url: str, *, body: Optional[bytes] = None,
 ) -> str:
-    """Production fetcher — POST GraphQL body, JSON."""
+    """Production fetcher — POST GraphQL body, JSON, bounded retry."""
     headers = {
-        "User-Agent": "cannavec-opentargets-discover/1.0",
+        "User-Agent": user_agent("opentargets-discover"),
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
     req = urllib.request.Request(url, data=body, headers=headers)
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         return resp.read().decode("utf-8")
 
 
