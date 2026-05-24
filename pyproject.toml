@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cannavec-science"
-version = "0.4.0"
-description = "Elite-tier cannabis-science primitives for the working researcher (Cannavec Science Claude Code plugin v0.4 industry-expert-depth release). Adds a curated analytical-chemistry registry (≥ 8 rows: decarboxylation kinetics, HPLC vs GC-MS method validation, chemovar Type I-V classification, vapor pyrolysis byproducts) and a cultivation-science registry (≥ 6 rows: UV-B / light spectrum, trichome biology, THCA-/CBDA-synthase genetics, botanical taxonomy) on top of the v0.3 backbone. Fixes Answer.notes rendering so 0-claim classifications surface honestly; adds a sibling banned-pattern for the abstract framing of indica/sativa-as-pharmacology (while leaving research-grade botanical taxonomy untouched). Eleven science registries with freshness watch, GRADE evidence-grading with deterministic citation-network-driven downgrades and topical-relevance grade aggregation, 16 banned-pattern detectors, safety preflight, seven phytochemistry rigor checks (incl. entourage-overclaim detector), span-aware named-cannabinoid resolution, cannabinoid-scoped registry detectors, eCBome registry threaded into compose_answer, identifier verification across all five Constitution §I shapes (PMID, DOI, NCT, ChEMBL, UniProt), registry inventory subcommand, retraction enforcement at composition time, live discovery across eleven primary-source databases, researcher-workflow scaffolders (PICO, sample-size power, GRADE evidence-profile, IRB protocol skeleton), regulatory-feasibility advisory, BibTeX / RIS / CSL-JSON bibliography export."
+version = "0.5.0"
+description = "Elite-tier cannabis-science primitives for the working researcher (Cannavec Science Claude Code plugin v0.5 industry-expert-clinical-depth release). Adds five curated registries on top of the v0.4 backbone: clinical pharmacokinetics (≥ 8 rows — THC inhaled / oral PK per Huestis 2005 + Wall 1983, CBD food effect per Birnbaum 2019 Epidiolex label, 11-OH-Δ⁹-THC active metabolite, nabiximols oromucosal per Karschner 2011, distribution / protein binding, urine detection window per Huestis 1996), cannabis use disorder & withdrawal (≥ 6 rows — DSM-5 CUD framework per Hasin 2013, CUDIT-R per Adamson 2010, Cannabis Withdrawal Scale per Allsop 2011, NESARC-III prevalence per Hasin 2015, heritability per Verweij 2010, adolescent-onset telescoping per Chen 2009 / Hall & Degenhardt 2009), cannabinoid hyperemesis syndrome (≥ 4 rows — Sorensen 2017 SR, Allen 2004 original case series, Venkatesan 2019 Rome IV framework, Dezieck 2017 capsaicin acute-phase treatment, Kim 2018 post-legalization ED epidemiology), eCBome enzyme-inhibitor pharmacology (≥ 5 rows — PF-04457845 cannabis-withdrawal Phase 2a per D'Souza 2019, PF-04457845 OA-pain Phase 2 per Huggins 2012, BIA 10-2474 Rennes disaster per Kerbrat 2016 WITH explicit off-target-serine-hydrolase disambiguation per van Esbroeck 2017, MAGL inhibitor ABX-1431 per Cisar 2018, dual FAAH/MAGL JZL195 per Long 2009), and cannabinoid biosynthesis pathway (≥ 5 rows — OLS + OAC polyketide entry per Taura 2009 + Gagne 2012, CBGAS prenyltransferase per Page 2011, THCA synthase per Sirikantaramas 2004, CBDA synthase per Taura 1996, yeast heterologous expression per Luo 2019 Nature). Adds Europe PMC as a twelfth primary-source live-discovery lane (complement to PubMed; indexes PubMed + PMC full-text + European non-MEDLINE-indexed journals). Five commands; sixteen curated science registries with freshness watch; seven phytochemistry rigor detectors with (detector, span) deduplication; 16 banned-pattern detectors; safety preflight; span-aware named-cannabinoid resolution; topical-relevance grade aggregation; cannabis-noun → cannabinoid-set expansion; identifier verification across all five Constitution §I shapes (PMID, DOI, NCT, ChEMBL, UniProt); registry inventory subcommand; honest 0-claim classification with rendered hints; retraction enforcement at composition time; live discovery across twelve primary-source databases (PubMed, ChEMBL, ClinicalTrials.gov, PubChem, PharmGKB, RCSB PDB, Open Targets, GWAS Catalog, BindingDB, bioRxiv, medRxiv, Europe PMC) with deterministic cross-source synthesis and citation-network analysis; researcher-workflow scaffolders (PICO, power calculation, GRADE evidence-profile, IRB protocol skeleton); regulatory-feasibility advisory (US / EU / Canada / UK); BibTeX/RIS/CSL-JSON bibliography export with inline GRADE annotation. Researcher audience only. Stdlib-only Python ≥ 3.9."
 authors = [{ name = "Jack-MillionMedia" }]
 license = { text = "MIT" }
 readme = "README.md"
@@ -14,12 +14,22 @@ keywords = [
     "cannabis", "evidence-grading", "GRADE", "phytochemistry",
     "pharmacology", "research", "claude-code-plugin",
     "pubmed", "chembl", "clinicaltrials",
-    "biorxiv", "medrxiv", "preprint",
+    "biorxiv", "medrxiv", "preprint", "europepmc",
     "endocannabinoidome", "ecbome", "regulatory-feasibility",
     "power-calculation", "pico", "irb-protocol", "citation-network",
     "analytical-chemistry", "decarboxylation-kinetics", "hplc",
     "chemovar", "cultivation-science", "synthase-genetics",
     "trichome-biology", "botanical-taxonomy",
+    # v0.5 — clinical-pharmacology depth.
+    "pharmacokinetics", "ADME", "first-pass-effect",
+    "cannabis-use-disorder", "CUD", "CUDIT-R",
+    "cannabis-withdrawal-syndrome", "DSM-5",
+    "cannabinoid-hyperemesis-syndrome", "CHS",
+    "FAAH-inhibitor", "MAGL-inhibitor",
+    "PF-04457845", "BIA-10-2474", "ABX-1431",
+    "cannabinoid-biosynthesis", "olivetolic-acid",
+    "THCA-synthase", "CBDA-synthase",
+    "heterologous-expression",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

@@ -86,6 +86,12 @@ def all_registry_groups() -> tuple[str, ...]:
         "ecbome",
         "analytical_chemistry",
         "cultivation_science",
+        # Spec 005 — clinical-pharmacology depth additions.
+        "pharmacokinetics",
+        "use_disorder",
+        "hyperemesis_syndrome",
+        "ecbome_inhibitors",
+        "biosynthesis",
     )
 
 
@@ -255,6 +261,77 @@ def _build_cultivation_science() -> RegistryGroup:
     )
 
 
+def _build_pharmacokinetics() -> RegistryGroup:
+    from cannavec_science.pharmacokinetics import (
+        all_pharmacokinetics_rows,
+    )
+    rows = all_pharmacokinetics_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="pharmacokinetics",
+        label="Clinical pharmacokinetics (v0.5)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_use_disorder() -> RegistryGroup:
+    from cannavec_science.use_disorder import all_use_disorder_rows
+    rows = all_use_disorder_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="use_disorder",
+        label="Cannabis use disorder & withdrawal (v0.5)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_hyperemesis_syndrome() -> RegistryGroup:
+    from cannavec_science.hyperemesis_syndrome import (
+        all_hyperemesis_syndrome_rows,
+    )
+    rows = all_hyperemesis_syndrome_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="hyperemesis_syndrome",
+        label="Cannabinoid hyperemesis syndrome (v0.5)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_ecbome_inhibitors() -> RegistryGroup:
+    from cannavec_science.ecbome_inhibitors import (
+        all_ecbome_inhibitor_rows,
+    )
+    rows = all_ecbome_inhibitor_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="ecbome_inhibitors",
+        label="eCBome inhibitor pharmacology (v0.5)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
+def _build_biosynthesis() -> RegistryGroup:
+    from cannavec_science.biosynthesis import all_biosynthesis_rows
+    rows = all_biosynthesis_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="biosynthesis",
+        label="Cannabinoid biosynthesis pathway (v0.5)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
 _BUILDERS = {
     "major_cannabinoids": _build_major_cannabinoids,
     "minor_cannabinoids": _build_minor_cannabinoids,
@@ -267,6 +344,12 @@ _BUILDERS = {
     "ecbome": _build_ecbome,
     "analytical_chemistry": _build_analytical_chemistry,
     "cultivation_science": _build_cultivation_science,
+    # Spec 005 — clinical-pharmacology depth additions.
+    "pharmacokinetics": _build_pharmacokinetics,
+    "use_disorder": _build_use_disorder,
+    "hyperemesis_syndrome": _build_hyperemesis_syndrome,
+    "ecbome_inhibitors": _build_ecbome_inhibitors,
+    "biosynthesis": _build_biosynthesis,
 }
 
 

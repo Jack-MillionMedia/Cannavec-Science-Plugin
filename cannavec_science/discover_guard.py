@@ -60,6 +60,10 @@ class Provenance(str, Enum):
     # Spec 002 US1 — preprint lanes. Level D cap per FR-202.
     LIVE_BIORXIV = "live_biorxiv"
     LIVE_MEDRXIV = "live_medrxiv"
+    # Spec 005 US6 — Europe PMC complement to PubMed (indexes PubMed +
+    # PMC full-text + European non-MEDLINE-indexed journals). Twelfth
+    # live primary-source lane.
+    LIVE_EUROPEPMC = "live_europepmc"
     # Spec 003 — adverse-event signal feeds (US5).
     LIVE_FAERS = "live_faers"
     LIVE_MAUDE = "live_maude"

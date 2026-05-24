@@ -95,6 +95,8 @@ _SOURCE_KEYS = (
     # medrxiv are the per-server lanes.
     "biorxiv",
     "medrxiv",
+    # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
+    "europepmc",
 )
 
 
@@ -467,6 +469,8 @@ _SOURCE_DISPLAY = {
     "bindingdb": "BindingDB",
     "biorxiv": "bioRxiv",
     "medrxiv": "medRxiv",
+    # Spec 005 US6 — Europe PMC.
+    "europepmc": "Europe PMC",
 }
 
 

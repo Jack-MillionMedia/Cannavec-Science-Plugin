@@ -449,23 +449,73 @@ topic. Total inventory across all registries grows from 145 (v0.3) to
 
 ## When the demo goes well — close with this
 
-> "This is one audience surface, one composer, one CLI, ~26,500 lines
-> of stdlib Python, 1,220+ unit tests, and 133 offline canonical eval
-> prompts across eight buckets (curated, rigor-positive, rigor-negative,
+> "This is one audience surface, one composer, one CLI, ~29,000 lines
+> of stdlib Python, 1,360+ unit tests, and 149 offline canonical eval
+> prompts across nine buckets (curated, rigor-positive, rigor-negative,
 > refusal, cross-cutting, routing-and-surfacing, analytical-cultivation,
-> live). v0.4 took the v0.3 routing-and-surfacing build through a
-> second-pass industry-expert review and (a) closed every new P1/P2/P3
-> finding the second pass turned up, AND (b) shipped the analytical-
-> chemistry + cultivation-science depth the first pass had scoped as
-> the v0.4 horizon — all inside the existing constitutional gates,
-> with no audience broadening. The larger parent plugin has fourteen
-> more audiences, a KB flywheel, signed artifacts, multi-jurisdiction
-> compliance, and the rest. We built v0.4 to prove that researcher-
-> grade rigor + honest routing + analytical depth + cultivation-science
-> coverage + live frontier discovery can ship at elite-tier quality
-> before showing you everything else. Where would you like to go next
-> — clinician audience, lab QC, compliance, or somewhere else?"
+> clinical-pharmacology-depth, live). v0.5 took the v0.4 build through
+> a third-pass industry-expert review and shipped five new curated
+> registries (pharmacokinetics, cannabis use disorder + withdrawal,
+> cannabinoid hyperemesis syndrome, eCBome enzyme-inhibitor
+> pharmacology, cannabinoid biosynthesis pathway) plus a twelfth
+> primary-source live-discovery lane (Europe PMC) — all inside the
+> existing constitutional gates, with no audience broadening. The
+> larger parent plugin has fourteen more audiences, a KB flywheel,
+> signed artifacts, multi-jurisdiction compliance, and the rest. We
+> built v0.5 to prove that researcher-grade rigor + honest routing +
+> analytical depth + cultivation-science coverage + clinical-
+> pharmacology depth + live frontier discovery can ship at elite-tier
+> quality before showing you everything else. Where would you like to
+> go next — clinician audience, lab QC, compliance, or somewhere else?"
 
 That question reframes the conversation from "is this real?" to
 "where do you want to deploy this?" — which is the conversation a
 working elite-tier build earns.
+
+## v0.5 — Industry-Expert Clinical Depth Demo Block (8 minutes)
+
+For a v0.5-focused demo, open with the v0.4 "Decarboxylation kinetics
+of THCA at 110°C" smoke (~30 sec) to anchor what already exists, then
+run the five v0.5 deep cuts:
+
+```bash
+# Clinical PK — single largest v0.4 silence, now closed.
+python3 -m cannavec_science answer "THC inhaled vs oral pharmacokinetics Tmax Cmax"
+python3 -m cannavec_science answer "CBD epidiolex food effect AUC fivefold high fat meal"
+python3 -m cannavec_science answer "11-hydroxy-THC active metabolite oral dronabinol"
+
+# CUD / CWS — addiction-medicine credibility.
+python3 -m cannavec_science answer "cannabis use disorder DSM-5 criteria"
+python3 -m cannavec_science answer "cannabis withdrawal syndrome scale Allsop 2011"
+
+# CHS — clinical toxicology / GI credibility, with off-target caveat.
+python3 -m cannavec_science answer "cannabinoid hyperemesis syndrome diagnostic criteria"
+python3 -m cannavec_science answer "capsaicin cream cannabinoid hyperemesis"
+
+# eCBome drug development translation — including the BIA 10-2474
+# off-target-vs-on-target disambiguation, the most pedagogically
+# important row.
+python3 -m cannavec_science answer "PF-04457845 FAAH inhibitor cannabis withdrawal NEJM"
+python3 -m cannavec_science answer "BIA 10-2474 Rennes Phase 1 disaster"
+
+# Biosynthesis — synbio credibility.
+python3 -m cannavec_science answer "olivetolic acid synthase polyketide pathway"
+python3 -m cannavec_science answer "Luo 2019 yeast cannabinoid heterologous expression"
+
+# Europe PMC — twelfth live lane.
+python3 -m cannavec_science discover "nabiximols European approval" \
+    --include-europepmc
+
+# Registry inventory now lists 16 groups including the v0.5 five.
+python3 -m cannavec_science registries | head -30
+python3 -m cannavec_science registries --registry pharmacokinetics
+python3 -m cannavec_science registries --registry ecbome_inhibitors
+```
+
+The BIA 10-2474 demo is the single most important moment: the row
+LEADS with "the toxicity is attributed to OFF-TARGET serine-hydrolase
+inhibition, NOT to on-target FAAH biology" and cites van Esbroeck 2017
+(PMID 28912346, the activity-based protein profiling paper) alongside
+Kerbrat 2016. A researcher who walks away with that single
+disambiguation has more pharmacological grounding than 90% of the
+press coverage of the Rennes disaster.
