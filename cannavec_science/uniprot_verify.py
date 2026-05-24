@@ -29,6 +29,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
+from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+
 
 __all__ = [
     "UniProtRecord",
@@ -52,7 +54,6 @@ _UNIPROT_RE = re.compile(
 
 _UNIPROT_ENTRY_URL = "https://rest.uniprot.org/uniprotkb/{acc}.json"
 _UNIPROT_PUBLIC_URL = "https://www.uniprot.org/uniprotkb/{acc}/entry"
-_DEFAULT_TIMEOUT = 10
 
 
 def is_uniprot_accession(value: str) -> bool:
@@ -70,11 +71,11 @@ def default_uniprot_fetcher(url: str) -> str:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-uniprot-verify/1.0",
+            "User-Agent": user_agent("uniprot-verify"),
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
         return resp.read().decode("utf-8")
 
 

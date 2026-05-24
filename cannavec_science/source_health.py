@@ -29,6 +29,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_SLOW, user_agent
+
 
 __all__ = [
     "HealthStatus",
@@ -46,7 +48,9 @@ __all__ = [
 
 _GREEN_LATENCY_S = 5.0
 _YELLOW_LATENCY_S = 15.0
-_DEFAULT_TIMEOUT = 15  # seconds — matches the YELLOW/RED boundary
+# The probe deliberately does NOT use retry_urlopen — its job is to
+# observe transient failures, not paper over them.
+_DEFAULT_TIMEOUT = TIMEOUT_SLOW
 
 _DEFAULT_STATE_PATH = (
     Path(os.environ.get("CANNAVEC_STATE_DIR", "state")) / "source_health.json"
@@ -131,7 +135,7 @@ def default_probe(url: str) -> float:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-source-health/1.0",
+            "User-Agent": user_agent("source-health"),
             "Accept": "application/json",
         },
     )

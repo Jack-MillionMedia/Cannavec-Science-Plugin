@@ -6,9 +6,130 @@ The v0.6 build extends the v0.5 industry-expert-clinical-depth backbone
 across four research domains every working cannabis-research scientist
 asks about, adds a reporting-rigor module, and adds a thirteenth
 primary-source live-discovery lane. All shipping inside Constitution
-§IV (researcher-only). 1,501 unit tests green at HEAD; 188 eval prompts
+§IV (researcher-only). 1,539 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
+
+## Read this first
+
+### What this plugin refuses to do (Constitution §IV)
+
+Cannavec Science serves **research scientists** (academic, clinical-trial,
+industry-research). The following audiences and surfaces are explicitly
+out-of-scope and will not ship without a constitutional amendment:
+
+- **Cultivators / growers** — no agronomy advice, IPM, nutrient regimens, or
+  lighting recommendations beyond the science-cited row in `cultivation_science`.
+- **Lab QC / certificate-of-analysis** — no COA parsers, no ISO 17025 templates,
+  no method-validation worksheets.
+- **Compliance / regulatory operations** — no GMP, GACP, USDA, FDA, DEA, EFSA, or
+  state-license workflows.
+- **Retail / dispensary / consumer** — no product recommendations, dosing
+  pamphlets, or strain finders.
+- **Hemp-industry material science** — no fiber, grain, or industrial-hemp
+  surfaces.
+- **Patient-direct medical advice, jurisdictional law, or policy briefs** —
+  general-information only; clinical decisions remain with licensed clinicians.
+
+If you need any of these, the parent Cannavec plugin or a dedicated industry
+tool is the right home.
+
+### How to verify any claim
+
+Every citation Cannavec Science emits is a primary-source identifier you can
+re-check yourself. Worked example:
+
+```bash
+$ python3 -m cannavec_science verify 28538134
+## Identifier verification — PMID 28538134
+- **First author:** Devinsky
+- **Year:** 2017
+- **Journal:** The New England journal of medicine
+- **Title:** Trial of Cannabidiol for Drug-Resistant Seizures in the Dravet Syndrome.
+- **Retraction status:** clean
+- **Verdict:** PASS
+```
+
+`verify` accepts all five Constitution §I identifier shapes — **PMID, DOI, NCT,
+ChEMBL, UniProt** — and surfaces a `FAIL` verdict (non-zero exit) when the
+upstream returns nothing or the local retraction registry flags the identifier.
+
+### Rigor philosophy
+
+Cannavec Science enforces three deterministic rule sets on every composed
+answer and on any text submitted to `/rigor`:
+
+1. **Seven phytochemistry detectors** catch the cannabis-domain traps
+   non-specialists fall into: bare "THC" without the Δ⁹ / Δ⁸ / THCA isomer
+   prefix, receptor names without their UniProt accession (CB1 = P21554,
+   CB2 = P34972, TRPV1 = Q8NER1, PPARγ = P37231), doses without route,
+   THCA-vs-Δ⁹-THC conflation, matrix-unit confusion (10 µg/mL of what?),
+   missing decarb context, and entourage-effect overclaims without one of
+   four named primary sources (Russo 2011, Finlay 2020, Santiago 2019,
+   LaVigne 2021).
+2. **Six EQUATOR reporting-guideline triggers** — when prompt text mentions
+   an RCT, SR, observational study, intervention trial, or systematic review,
+   the rigor pass attaches the appropriate CONSORT-2010 / PRISMA-2020 /
+   STROBE / ROB-2 / ROBINS-I / AMSTAR-2 expectation.
+3. **Sixteen banned-pattern detectors** with a 30-character negation guard:
+   indica/sativa as pharmacology, cure claims, ECS as "master regulator",
+   "natural = safe", full-spectrum superiority claims without RCT anchoring,
+   anecdotes as evidence, and so on.
+
+A clean rigor report means: every claim cites a primary source, no claim's
+verb exceeds its evidence grade, no banned pattern fired, and every detected
+study-design class has the right reporting guideline attached.
+
+### Network etiquette
+
+Every live discoverer sends a polite `User-Agent` of the form
+`cannavec-<lane>/<version>` (e.g. `cannavec-pubmed-verify/0.6`,
+`cannavec-chembl-discover/0.6`). Sysadmins watching NCBI / Crossref / EBI /
+EuropePMC traffic see exactly which lane is calling.
+
+For Crossref's polite-pool, set `CANNAVEC_CROSSREF_MAILTO` to an email
+address you control:
+
+```bash
+export CANNAVEC_CROSSREF_MAILTO="research@your-org.example"
+```
+
+If the env var is unset the fetcher sends no mailto — polite-anonymous beats
+impolitely-fake. The same address is forwarded to OpenAlex (which grants
+higher per-IP rate limits to identified clients).
+
+All 13 lanes use bounded retry + exponential backoff on transient HTTP 429
+/ 502 / 503 / 504 and on `URLError`, honouring `Retry-After` (capped at 30
+seconds) so a misbehaving upstream cannot stall the fan-out. Operators who
+want internal diagnostics can set `CANNAVEC_LOG_LEVEL=DEBUG`; the structured
+logger writes to stderr and never pollutes the JSON / Markdown output stream.
+
+### Determinism guarantee
+
+There is no LLM in the inference path. Every claim's GRADE is computed by
+`evidence.py:apply_grade_modifiers`. Every refusal is computed by
+`safety.py` and `banned_patterns.py`. Every rigor violation is a regex match
+in `rigor_checks.py` or `reporting_rigor.py`. Two identical inputs produce
+byte-identical outputs — modulo the `generated_at` timestamp — so a
+peer-reviewer can re-run any answer and get exactly the same brief.
+
+### Power-user CLI
+
+The five slash commands wrap the underlying CLI; advanced operational
+subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
+
+| Subcommand | Purpose |
+|---|---|
+| `bibliography <answer.json>` | Re-render a saved Answer's citations into BibTeX, RIS, or CSL-JSON. |
+| `registries [--registry <name>] [--format json]` | Inventory the 20 curated registries — row counts, freshness dates. |
+| `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
+| `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
+| `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
+
+`discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
+etiquette) to fan out across the 13 lanes concurrently. Result ordering
+stays alphabetical-by-source regardless of completion order so identical
+runs produce identical JSON.
 
 ### What v0.6 ships
 

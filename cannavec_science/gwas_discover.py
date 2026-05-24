@@ -32,6 +32,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -53,7 +54,6 @@ _STUDY_DETAIL_URL = _GWAS_BASE + "/studies/{accession}"
 
 _PUBLIC_URL = "https://www.ebi.ac.uk/gwas/studies/{accession}"
 
-_DEFAULT_TIMEOUT = 12
 _MAX_RESULTS_CEILING = 25
 
 
@@ -68,11 +68,11 @@ def default_gwas_fetcher(url: str) -> str:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-gwas-discover/1.0",
+            "User-Agent": user_agent("gwas-discover"),
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         return resp.read().decode("utf-8")
 
 

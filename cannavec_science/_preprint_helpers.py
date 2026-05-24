@@ -20,6 +20,8 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
+
 
 __all__ = [
     "PreprintRow",
@@ -35,8 +37,6 @@ __all__ = [
 
 # Level D cap per FR-202: preprints are not peer-reviewed.
 PREPRINT_GRADE_CEILING: str = "Level D (provisional, preprint)"
-
-_DEFAULT_TIMEOUT = 12
 
 
 # ── DOI helpers ──────────────────────────────────────────────────────
@@ -91,11 +91,11 @@ def default_preprint_fetcher(url: str) -> str:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-preprint-discover/0.2",
+            "User-Agent": user_agent("preprint-discover"),
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         raw = resp.read()
     return raw.decode("utf-8")
 

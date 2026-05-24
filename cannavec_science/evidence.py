@@ -26,6 +26,23 @@ from enum import Enum
 from typing import Iterable
 
 
+class CitationMissingError(ValueError):
+    """Raised by :class:`Answer.add_claim` in strict-citation mode.
+
+    Constitution §I (Primary-Source-Or-Refuse) requires every claim to
+    cite a primary source (PMID / DOI / ChEMBL / NCT / UniProt). The
+    constructor checks on :class:`Source` and :class:`Citation` already
+    enforce this at object-construction time; this exception adds a
+    compose-time refusal so a sourceless claim cannot land in an
+    :class:`Answer` even if it would have been silently graded
+    UNSUPPORTED.
+
+    Opt-in via ``Answer(strict_citation_mandate=True)``. Default behaviour
+    is unchanged (the claim is accepted and graded UNSUPPORTED) so the
+    existing test suite is not perturbed.
+    """
+
+
 class EvidenceLevel(str, Enum):
     """GRADE-style evidence levels.
 

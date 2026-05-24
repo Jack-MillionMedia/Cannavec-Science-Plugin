@@ -50,6 +50,7 @@ import urllib.request
 from dataclasses import dataclass, asdict
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -74,10 +75,11 @@ _EUROPEPMC_SEARCH_URL = (
 
 _MAX_RESULTS_CEILING = 50
 _SINCE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_USER_AGENT = (
-    "cannavec-europepmc-discover/0.5 "
-    "(+https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin)"
-)
+def _europepmc_user_agent() -> str:
+    return (
+        f"{user_agent('europepmc-discover')} "
+        "(+https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin)"
+    )
 
 
 # ── Exception ─────────────────────────────────────────────────────────
@@ -101,7 +103,7 @@ Fetcher = Callable[[str], str]
 
 
 def default_europepmc_fetcher(url: str) -> str:
-    """Production fetcher — polite User-Agent, 12s timeout.
+    """Production fetcher — polite User-Agent, slow timeout, bounded retry.
 
     Tests inject a fixture fetcher; this is the production path that
     is only invoked when the operator explicitly opts into the
@@ -109,9 +111,12 @@ def default_europepmc_fetcher(url: str) -> str:
     """
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
+        headers={
+            "User-Agent": _europepmc_user_agent(),
+            "Accept": "application/json",
+        },
     )
-    with urllib.request.urlopen(req, timeout=12) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
 

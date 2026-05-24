@@ -1,0 +1,159 @@
+"""Centralised HTTP discipline: timeouts, polite headers, retry + backoff.
+
+Stdlib only (``urllib`` + ``time``). Every discoverer and verifier routes
+through this module so the project has a single tunable for HTTP
+behaviour. Behaviour preserved by default — discoverers that previously
+called ``urllib.request.urlopen(req, timeout=N)`` now call
+:func:`retry_urlopen` with the same timeout; transient 429 / 502 / 503 /
+504 / URLError responses trigger bounded exponential backoff before
+re-raising.
+
+Public surface
+--------------
+
+- :data:`TIMEOUT_FAST` / :data:`TIMEOUT_SLOW` — single source of truth
+  for the previously duplicated ``_DEFAULT_TIMEOUT`` constants.
+- :func:`user_agent` — polite ``cannavec-<component>/<version>`` UA.
+- :func:`crossref_contact` — read operator mailto from
+  ``CANNAVEC_CROSSREF_MAILTO`` (returns ``None`` if unset; we send no
+  mailto rather than a fake one).
+- :func:`retry_urlopen` — drop-in replacement for
+  ``urllib.request.urlopen`` that retries on transient failures.
+- :class:`RetryableHTTPError` — marker subclass surfaced when retries
+  are exhausted, so callers can distinguish "the upstream stayed broken
+  through N attempts" from "the upstream returned a hard 4xx".
+"""
+
+from __future__ import annotations
+
+import os
+import time
+import urllib.error
+import urllib.request
+
+__all__ = [
+    "TIMEOUT_FAST",
+    "TIMEOUT_SLOW",
+    "user_agent",
+    "crossref_contact",
+    "retry_urlopen",
+    "RetryableHTTPError",
+]
+
+
+# Two tunable defaults. Discoverers pick :data:`TIMEOUT_SLOW` when the
+# upstream is paginated or known to be flaky (CT.gov, OpenAlex, Europe
+# PMC, GWAS Catalog, BindingDB). Everything else uses :data:`TIMEOUT_FAST`.
+TIMEOUT_FAST = 10  # seconds
+TIMEOUT_SLOW = 15  # seconds
+
+# Retry on transient HTTP responses only. 4xx (other than 429) is a
+# caller-side problem and must propagate immediately.
+_RETRYABLE_STATUSES: frozenset[int] = frozenset({429, 502, 503, 504})
+
+# Hard ceiling on any single backoff sleep — protects against a hostile
+# or buggy upstream sending Retry-After: 86400.
+_MAX_BACKOFF_SECONDS = 8.0
+_MAX_RETRY_AFTER_SECONDS = 30.0
+
+
+def user_agent(component: str) -> str:
+    """Polite ``User-Agent`` string for a given component.
+
+    ``component`` is the short lane name (e.g. ``"chembl-discover"``,
+    ``"pubmed-verify"``). The returned string follows the format
+    ``cannavec-<component>/<version>``; if the version cannot be
+    resolved (e.g. import cycle at build time) it falls back to
+    ``"unknown"`` rather than raising.
+    """
+    try:
+        import cannavec  # noqa: WPS433 — local import to dodge cycles
+        version = getattr(cannavec, "__version__", "unknown")
+    except Exception:  # noqa: BLE001 — never let a UA failure block IO
+        version = "unknown"
+    return f"cannavec-{component}/{version}"
+
+
+def crossref_contact() -> str | None:
+    """Operator mailto for Crossref's polite-pool calls.
+
+    Returns the value of ``CANNAVEC_CROSSREF_MAILTO`` or ``None``.
+    Better polite-anonymous than impolitely-fake — the previous
+    placeholder (``noreply@example.invalid``) violated Crossref's
+    etiquette guide.
+    """
+    mail = os.environ.get("CANNAVEC_CROSSREF_MAILTO", "").strip()
+    return mail or None
+
+
+class RetryableHTTPError(urllib.error.HTTPError):
+    """Raised when bounded retry exhausts without success."""
+
+
+def retry_urlopen(
+    req: urllib.request.Request,
+    *,
+    timeout: float,
+    max_attempts: int = 3,
+    base_backoff: float = 0.5,
+    sleep=None,
+):
+    """Open ``req`` with bounded retry+backoff on transient failures.
+
+    Returns the open ``HTTPResponse``. The caller is responsible for the
+    response lifecycle — use it inside a ``with`` block or call
+    ``.close()`` explicitly.
+
+    Retries on HTTP 429 / 502 / 503 / 504 and on
+    :class:`urllib.error.URLError` (DNS failure, connection refused,
+    TCP reset, read timeout). Non-transient HTTP errors (404, 401, 403,
+    500, ...) propagate unchanged. The ``Retry-After`` header is
+    honoured on 429 responses, capped at
+    :data:`_MAX_RETRY_AFTER_SECONDS` to defeat a misbehaving upstream.
+    Between retries the function sleeps
+    ``min(base_backoff * 2**attempt, 8.0)`` seconds.
+
+    Tests inject ``sleep`` to skip the real ``time.sleep`` call. The
+    function never sleeps before the first attempt.
+    """
+    _sleep = sleep or time.sleep
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            if exc.code not in _RETRYABLE_STATUSES:
+                raise
+            if attempt == max_attempts - 1:
+                raise RetryableHTTPError(
+                    url=getattr(exc, "url", req.full_url),
+                    code=exc.code,
+                    msg=f"transient HTTP {exc.code} after {max_attempts} attempts",
+                    hdrs=exc.headers,
+                    fp=None,
+                ) from exc
+            delay = (
+                _retry_after_delay(exc)
+                or min(base_backoff * (2 ** attempt), _MAX_BACKOFF_SECONDS)
+            )
+            _sleep(delay)
+        except urllib.error.URLError as exc:
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                raise
+            _sleep(min(base_backoff * (2 ** attempt), _MAX_BACKOFF_SECONDS))
+    # The loop above always returns or raises before this point.
+    assert last_exc is not None  # pragma: no cover — defensive
+    raise last_exc  # pragma: no cover
+
+
+def _retry_after_delay(exc: urllib.error.HTTPError) -> float | None:
+    """Best-effort ``Retry-After`` parser; ``None`` if header is absent/odd."""
+    header = exc.headers.get("Retry-After") if exc.headers else None
+    if not header:
+        return None
+    raw = header.strip()
+    if raw.isdigit():
+        return min(float(raw), _MAX_RETRY_AFTER_SECONDS)
+    return None

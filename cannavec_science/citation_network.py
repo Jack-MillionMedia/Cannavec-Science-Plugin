@@ -27,6 +27,8 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
+
 
 __all__ = [
     "CitationNetworkBlock",
@@ -56,7 +58,6 @@ _EFETCH_ABSTRACTS_URL = (
     "?db=pubmed&rettype=abstract&retmode=xml&tool=cannavec&id={ids}"
 )
 
-_DEFAULT_TIMEOUT = 15
 _MAX_FORWARD_CITES = 50  # cap per Constitution §X — NCBI politeness
 
 
@@ -202,15 +203,15 @@ CitationFetcher = Callable[[str], str]
 
 
 def default_citation_fetcher(url: str) -> str:
-    """Production fetcher — polite User-Agent, 15s timeout."""
+    """Production fetcher — polite User-Agent, slow timeout, bounded retry."""
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "cannavec-citation-network/0.2",
+            "User-Agent": user_agent("citation-network"),
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
         raw = resp.read()
     return raw.decode("utf-8")
 

@@ -31,6 +31,7 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
+from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -65,7 +66,6 @@ _COMPOUND_REPORT_URL = (
 )
 
 _MAX_RESULTS_CEILING = 50
-_DEFAULT_TIMEOUT = 10  # seconds
 
 # Suggested-grade heuristic — ChEMBL rows are mechanistic / pre-clinical.
 # Their evidence weight for a CLINICAL claim is C at best. Without
@@ -93,16 +93,20 @@ Fetcher = Callable[[str], str]
 
 
 def default_chembl_fetcher(url: str) -> str:
-    """Production fetcher — polite User-Agent, 10 s timeout.
+    """Production fetcher — polite User-Agent, fast timeout, bounded retry.
 
-    Tests inject a stub fetcher; in production we hit the EBI host
-    directly with stdlib urllib.
+    Tests inject a stub fetcher; in production we hit the EBI host via
+    :func:`retry_urlopen` so transient 429 / 503 responses are backed off
+    before surfacing to the caller.
     """
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": "cannavec-chembl-discover/1.0", "Accept": "application/json"},
+        headers={
+            "User-Agent": user_agent("chembl-discover"),
+            "Accept": "application/json",
+        },
     )
-    with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
         raw = resp.read()
     return raw.decode("utf-8")
 

@@ -22,8 +22,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Sequence
+
+from cannavec_science._log import get_logger
+
+
+_log = get_logger("cli")
 
 
 def _cmd_answer(args: argparse.Namespace) -> int:
@@ -130,18 +136,35 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         sources.add("openalex")
     out_payload: dict = {"query": args.query, "sources": {}}
 
-    for source_key in sorted(sources):
+    sorted_sources = sorted(sources)
+    parallel = max(1, int(getattr(args, "parallel", 1) or 1))
+
+    def _run_one(source_key: str):
         runner = _DISCOVERER_REGISTRY.get(source_key)
         if runner is None:
-            out_payload["sources"][source_key] = {
-                "error": f"unknown source: {source_key!r}",
-            }
-            continue
+            return source_key, {"error": f"unknown source: {source_key!r}"}
         try:
             rows = runner(args)
-            out_payload["sources"][source_key] = [r.to_dict() for r in rows]
-        except Exception as exc:
-            out_payload["sources"][source_key] = {"error": str(exc)}
+            return source_key, [r.to_dict() for r in rows]
+        except Exception as exc:  # noqa: BLE001 — surface to JSON, don't crash fan-out
+            _log.warning("discover lane %s failed: %s", source_key, exc)
+            return source_key, {"error": str(exc)}
+
+    if parallel <= 1 or len(sorted_sources) <= 1:
+        for source_key in sorted_sources:
+            key, payload = _run_one(source_key)
+            out_payload["sources"][key] = payload
+    else:
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            futures = {pool.submit(_run_one, s): s for s in sorted_sources}
+            results: dict = {}
+            for fut in as_completed(futures):
+                key, payload = fut.result()
+                results[key] = payload
+            # Preserve canonical (alphabetical) ordering in the output so
+            # JSON / Markdown are deterministic regardless of completion order.
+            for source_key in sorted_sources:
+                out_payload["sources"][source_key] = results[source_key]
 
     # Build synthesis block keyed by the synthesis _SOURCE_KEYS — the
     # same short keys the CLI uses, so cross-source clustering picks up
@@ -764,10 +787,19 @@ def _cmd_bibliography(args: argparse.Namespace) -> int:
         )
         for c in payload.get("citations", [])
     ]
-    entries = [
-        _entry_from_citation(c, payload.get("evidence_summary", {}).get("highest_grade"))
-        for c in citations
-    ]
+    # _entry_from_citation accepts ``answer`` only as a keyword argument
+    # (its evidence-level lookup uses Answer.claims). Re-rendering from a
+    # saved Answer JSON does not reconstruct the Claim graph, so pass
+    # ``answer=None`` and surface the per-citation grade (already
+    # captured in the saved JSON) on the entry's evidence_level field.
+    entries: list = []
+    for c in citations:
+        entry = _entry_from_citation(c, answer=None)
+        if c.grade is not None:
+            entry = entry.__class__(  # frozen dataclass — copy with override
+                **{**entry.__dict__, "evidence_level": c.grade.value}
+            )
+        entries.append(entry)
     body = render(entries, args.format)
     if args.out:
         Path(args.out).write_text(body, encoding="utf-8")
@@ -997,6 +1029,17 @@ def _build_parser() -> argparse.ArgumentParser:
             "Spec 006 US6 — opt-in addition of the OpenAlex lane "
             "(open scholarly citation graph; PubMed + preprints + "
             "conference proceedings + open citation network)."
+        ),
+    )
+    d.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help=(
+            "Thread-pool size for concurrent per-source fan-out "
+            "(default 1, serial; recommended <=4 for NCBI etiquette). "
+            "Result ordering is deterministic regardless of completion "
+            "order, so identical --parallel runs produce identical output."
         ),
     )
     d.add_argument("--json", action="store_true")
