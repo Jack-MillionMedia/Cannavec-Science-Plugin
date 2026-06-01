@@ -247,6 +247,72 @@ class RatioMeasureDisplayTests(unittest.TestCase):
         self.assertEqual(res.null_value_display, 0.0)
 
 
+class PredictionIntervalTests(unittest.TestCase):
+    """Hand-verified k=3 example with high heterogeneity.
+
+    Three studies yi = 0.0, 0.4, 0.8, each vi = 0.04:
+      fixed = 0.4; Q = 8 (df=2) → I²=75%; C=50 → τ²=0.12
+      random = 0.4, Var(μ̂)=1/18.75=0.053333
+      PI = 0.4 ± t_{1,0.975}·√(0.12+0.053333)
+         = 0.4 ± 12.706205·0.416333 = (−4.8901, 5.6901)
+      CI = 0.4 ± 1.959964·0.230940 = (−0.0526, 0.8526)
+    """
+
+    def setUp(self):
+        self.res = ma.meta_analyze([
+            ma.EffectSize(study_id="S1", yi=0.0, vi=0.04, pmid="1"),
+            ma.EffectSize(study_id="S2", yi=0.4, vi=0.04, pmid="2"),
+            ma.EffectSize(study_id="S3", yi=0.8, vi=0.04, pmid="3"),
+        ])
+
+    def test_prediction_interval_reference(self):
+        self.assertIsNotNone(self.res.prediction_interval)
+        lo, hi = self.res.prediction_interval
+        self.assertAlmostEqual(lo, -4.8901, places=3)
+        self.assertAlmostEqual(hi, 5.6901, places=3)
+
+    def test_pi_wider_than_ci_under_heterogeneity(self):
+        pi_lo, pi_hi = self.res.prediction_interval
+        ci_lo, ci_hi = self.res.random_ci
+        self.assertGreater(pi_hi - pi_lo, ci_hi - ci_lo)
+
+    def test_pi_none_below_three_studies(self):
+        res = ma.meta_analyze([
+            ma.EffectSize(study_id="A", yi=0.1, vi=0.01, pmid="1"),
+            ma.EffectSize(study_id="B", yi=0.5, vi=0.04, pmid="2"),
+        ])
+        self.assertIsNone(res.prediction_interval)
+        self.assertIsNone(res.prediction_interval_display)
+
+    def test_ratio_measure_pi_displayed_exponentiated(self):
+        res = ma.meta_analyze([
+            ma.binary_effect("T1", events_t=10, n_t=100, events_c=20, n_c=100,
+                             measure="OR", pmid="1"),
+            ma.binary_effect("T2", events_t=30, n_t=100, events_c=20, n_c=100,
+                             measure="OR", pmid="2"),
+            ma.binary_effect("T3", events_t=12, n_t=100, events_c=22, n_c=100,
+                             measure="OR", pmid="3"),
+        ])
+        lo, hi = res.prediction_interval
+        dlo, dhi = res.prediction_interval_display
+        self.assertAlmostEqual(dlo, math.exp(lo), places=9)
+        self.assertAlmostEqual(dhi, math.exp(hi), places=9)
+
+    def test_t_critical_known_values(self):
+        self.assertAlmostEqual(ma._t_critical(0.95, 1), 12.706205, places=3)
+        self.assertAlmostEqual(ma._t_critical(0.95, 5), 2.570582, places=4)
+        self.assertAlmostEqual(ma._t_critical(0.95, 10), 2.228139, places=4)
+
+    def test_markdown_shows_prediction_interval(self):
+        md = ma.render_markdown(self.res)
+        self.assertIn("prediction interval", md.lower())
+
+    def test_to_dict_carries_prediction_interval(self):
+        d = self.res.to_dict()
+        self.assertIsNotNone(d["random"]["prediction_interval"])
+        self.assertEqual(len(d["random"]["prediction_interval"]), 2)
+
+
 class GradeBridgeTests(unittest.TestCase):
     """The whole point: a quantitative inconsistency finding must flow into
     the existing GRADE machinery and actually move the certainty grade."""

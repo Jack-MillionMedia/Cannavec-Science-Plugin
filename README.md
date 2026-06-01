@@ -9,10 +9,11 @@ primary-source live-discovery lane. All shipping inside Constitution
 §IV (v2.0.0 — research-grade for every audience, evidence standard invariant). It also adds a deterministic **quantitative
 evidence-synthesis** primitive (specs 011–012): the `meta` subcommand pools
 effect sizes into fixed/random-effects estimates with heterogeneity (Q, I²,
-τ²), a GRADE inconsistency verdict, and `--diagnostics` robustness checks —
-Egger's small-study-effects test (→ GRADE publication bias) and a
-leave-one-out sensitivity analysis — all feeding the grade machinery.
-1,625 unit tests green at HEAD; 188 eval prompts
+τ²), a random-effects **prediction interval**, a GRADE inconsistency verdict,
+and `--diagnostics` robustness checks — Egger's small-study-effects test
+(→ GRADE publication bias) and a leave-one-out sensitivity analysis — all
+feeding the grade machinery.
+1,632 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -171,6 +172,14 @@ $ python3 -m cannavec_science meta cbd_seizures.json --measure OR
 **Heterogeneity:** Q = 0.118 (df = 2, p = 0.9429), I² = 0%, τ² = 0.000
 **GRADE inconsistency:** not serious — I² = 0% indicates low heterogeneity (< 40%).
 ```
+
+For k ≥ 3 the random-effects line also carries a **95% prediction interval**
+(Higgins–Thompson–Spiegelhalter 2009; IntHout 2016) — the range a *new*
+study's true effect would plausibly fall in. When heterogeneity is high it is
+far wider than the confidence interval, which is exactly the point: a pooled
+CI of `[−0.05, 0.85]` at I² = 75% hides a prediction interval of
+`[−4.89, 5.69]`. The t-quantile comes from a stdlib bisection on the Student's-t
+survival function — no SciPy.
 
 The headline output is a **GRADE inconsistency verdict** derived from I² on
 the Cochrane thresholds (`< 40%` → not serious; `40–75%` → serious, one

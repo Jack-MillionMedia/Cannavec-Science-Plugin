@@ -303,6 +303,9 @@ class MetaAnalysisResult:
 
     point_estimates_consistent_direction: bool = True
     all_cis_overlap_pooled: bool = True
+    # 95% prediction interval for a new study's true effect (spec 013);
+    # None when k < 3 (undefined).
+    prediction_interval: tuple[float, float] | None = None
 
     # ── display helpers (ratio measures shown exponentiated) ──
 
@@ -325,6 +328,13 @@ class MetaAnalysisResult:
     @property
     def random_ci_display(self) -> tuple[float, float]:
         lo, hi = self.random_ci
+        return (self._disp(lo), self._disp(hi))
+
+    @property
+    def prediction_interval_display(self) -> tuple[float, float] | None:
+        if self.prediction_interval is None:
+            return None
+        lo, hi = self.prediction_interval
         return (self._disp(lo), self._disp(hi))
 
     @property
@@ -351,6 +361,14 @@ class MetaAnalysisResult:
                 "estimate_display": self.random_estimate_display,
                 "ci_display": list(self.random_ci_display),
                 "p_value": self.random_p,
+                "prediction_interval": (
+                    list(self.prediction_interval)
+                    if self.prediction_interval is not None else None
+                ),
+                "prediction_interval_display": (
+                    list(self.prediction_interval_display)
+                    if self.prediction_interval_display is not None else None
+                ),
             },
             "heterogeneity": {
                 "q": self.q,
@@ -496,6 +514,15 @@ def meta_analyze(
     random_ci = (random - z * random_se, random + z * random_se)
     random_p = _two_sided_p(random / random_se) if random_se > 0 else 0.0
 
+    # 95% prediction interval for a new study's true effect (spec 013).
+    # Higgins, Thompson & Spiegelhalter 2009 / IntHout 2016: mu ±
+    # t_{k-2} * sqrt(tau^2 + Var(mu)). Undefined for k < 3.
+    prediction_interval: tuple[float, float] | None = None
+    if k >= 3:
+        t_pi = _t_critical(confidence, k - 2)
+        pi_half = t_pi * math.sqrt(tau_squared + random_var)
+        prediction_interval = (random - pi_half, random + pi_half)
+
     verdict, serious, steps, rationale = grade_inconsistency(i_squared, k)
 
     consistent_dir = (
@@ -528,6 +555,7 @@ def meta_analyze(
         rationale=rationale,
         point_estimates_consistent_direction=consistent_dir,
         all_cis_overlap_pooled=all_overlap,
+        prediction_interval=prediction_interval,
     )
 
 
@@ -573,6 +601,13 @@ def render_markdown(result: MetaAnalysisResult) -> str:
     lines.append("")
     lines.append(f"**Random effects (DerSimonian–Laird):** {fmt(re)} "
                  f"[{fmt(rl)}, {fmt(rh)}]  (p = {result.random_p:.4f})")
+    pid = result.prediction_interval_display
+    if pid is not None:
+        lines.append("")
+        lines.append(
+            f"**95% prediction interval:** [{fmt(pid[0])}, {fmt(pid[1])}]  "
+            f"_(plausible true effect of a new study; widens the CI by τ²)_"
+        )
     lines.append("")
     lines.append(
         f"**Heterogeneity:** Q = {fmt(result.q)} "
@@ -934,6 +969,30 @@ def _gamma_cf(a: float, x: float) -> float:
         if abs(delta - 1.0) < 1e-15:
             break
     return math.exp(-x + a * math.log(x) - gln) * h
+
+
+def _t_critical(confidence: float, df: int) -> float:
+    """Two-sided Student's-t critical value for ``confidence`` and ``df``.
+
+    Found by deterministic bisection on the monotone-decreasing survival
+    function :func:`_t_sf_two_sided` — no SciPy. Falls back to the normal
+    critical value for very large ``df``.
+    """
+    if not (0.0 < confidence < 1.0):
+        raise MetaAnalysisError(f"confidence must be in (0, 1), got {confidence!r}")
+    if df <= 0:
+        return _z_critical(confidence)
+    target = 1.0 - confidence            # two-sided tail mass
+    lo, hi = 0.0, 1.0e6
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if _t_sf_two_sided(mid, df) > target:
+            lo = mid                      # tail too big → need larger t
+        else:
+            hi = mid
+        if hi - lo < 1e-12:
+            break
+    return 0.5 * (lo + hi)
 
 
 def _t_sf_two_sided(t: float, df: int) -> float:
