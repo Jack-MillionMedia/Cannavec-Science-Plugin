@@ -114,10 +114,34 @@ Per-source provenance tags and a cross-source synthesis verdict
 marked `live_*` and NEVER auto-promote to the curated tier; preprint
 rows carry a hard Level D cap regardless of grade hints (FR-202).
 
+## When quantitative synthesis is needed
+
+When the question rests on **one outcome reported by two or more comparable
+trials**, pool them deterministically rather than describing the forest in
+prose:
+
+```bash
+python3 -m cannavec_science meta <studies.json> --diagnostics
+```
+
+This returns a fixed- and DerSimonian–Laird random-effects estimate, a **95%
+prediction interval**, heterogeneity (Cochran's Q, I², τ²), a **GRADE
+inconsistency verdict**, Egger's small-study-effects test (→ GRADE
+publication bias), and a leave-one-out sensitivity table (specs 011–013).
+Build the effect-size JSON from each trial's reported 2×2 table (`--measure
+OR|RR`) or arm summaries (`--measure MD|SMD`); **every study row must carry a
+primary-source identifier** (PMID / DOI / NCT / ChEMBL / UniProt / URL) or the
+run refuses (§I). The inconsistency / publication-bias verdicts downgrade the
+GRADE certainty through the same backbone ladder `--grade-profile` uses — the
+numbers are computed, never asserted (§VII). Do **not** pool non-commensurable
+outcomes: that is a rigor violation, not a synthesis.
+
 ## What this brief cannot do
 
 - Substitute for ethics-board consultation on a study design.
-- Substitute for a statistician on sample-size / analysis planning.
+- Decide *whether* pooling is appropriate — `meta` computes the statistics
+  deterministically, but the judgement that trials are commensurable enough
+  to pool is the researcher's (and a statistician's) to make.
 - Be the trial protocol itself.
 - Answer about cannabis legality, regulatory compliance, or
   jurisdiction-specific questions (out of MVP scope; see the larger
