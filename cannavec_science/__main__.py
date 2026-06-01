@@ -1023,6 +1023,10 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         render_egger,
         render_leave_one_out,
         render_markdown,
+        render_subgroups,
+        render_trim_fill,
+        subgroup_analysis,
+        trim_and_fill,
     )
 
     try:
@@ -1033,7 +1037,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
 
     measure = (getattr(args, "measure", None) or spec.get("measure") or "generic")
     confidence = float(getattr(args, "confidence", 0.95) or 0.95)
-    id_keys = ("pmid", "doi", "nct", "chembl", "uniprot", "url")
+    # §I identifiers + the optional subgroup moderator label (spec 014).
+    id_keys = ("pmid", "doi", "nct", "chembl", "uniprot", "url", "subgroup")
 
     effects = []
     try:
@@ -1070,22 +1075,29 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         print(f"[error] {exc}", file=sys.stderr)
         return 2
 
-    # Optional robustness diagnostics (spec 012): Egger's test + leave-one-out.
-    egger = None
-    loo = None
+    # Optional robustness diagnostics: Egger + leave-one-out (spec 012),
+    # trim-and-fill + subgroup analysis (spec 014).
+    measure_arg = None if str(measure).lower() == "generic" else measure
+    egger = loo = trimfill = subgroups = None
     if getattr(args, "diagnostics", False):
         try:
-            loo = leave_one_out(
-                effects,
-                measure=(None if str(measure).lower() == "generic" else measure),
-                confidence=confidence,
-            )
+            loo = leave_one_out(effects, measure=measure_arg, confidence=confidence)
         except MetaAnalysisError:
             loo = None
         try:
             egger = egger_test(effects)
         except MetaAnalysisError:
             egger = None
+        try:
+            trimfill = trim_and_fill(effects, measure=measure_arg, confidence=confidence)
+        except MetaAnalysisError:
+            trimfill = None
+        if any(e.subgroup for e in effects):
+            try:
+                subgroups = subgroup_analysis(
+                    effects, measure=measure_arg, confidence=confidence)
+            except MetaAnalysisError:
+                subgroups = None
 
     if getattr(args, "json", False):
         payload = result.to_dict()
@@ -1098,6 +1110,12 @@ def _cmd_meta(args: argparse.Namespace) -> int:
                 [r.to_dict() for r in loo] if loo is not None
                 else {"note": "leave-one-out requires at least 2 studies"}
             )
+            payload["trim_and_fill"] = (
+                trimfill.to_dict() if trimfill is not None
+                else {"note": "trim-and-fill requires at least 3 studies"}
+            )
+            if subgroups is not None:
+                payload["subgroup_analysis"] = subgroups.to_dict()
         print(json.dumps(payload, indent=2, default=str))
     else:
         print(render_markdown(result))
@@ -1107,6 +1125,12 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         if loo is not None:
             print("")
             print(render_leave_one_out(loo, log_scale=result.log_scale))
+        if trimfill is not None:
+            print("")
+            print(render_trim_fill(trimfill))
+        if subgroups is not None:
+            print("")
+            print(render_subgroups(subgroups))
     return 0
 
 

@@ -11,9 +11,10 @@ evidence-synthesis** primitive (specs 011–012): the `meta` subcommand pools
 effect sizes into fixed/random-effects estimates with heterogeneity (Q, I²,
 τ²), a random-effects **prediction interval**, a GRADE inconsistency verdict,
 and `--diagnostics` robustness checks — Egger's small-study-effects test
-(→ GRADE publication bias) and a leave-one-out sensitivity analysis — all
+(→ GRADE publication bias), a leave-one-out sensitivity analysis, **subgroup
+analysis** (Cochrane Q_between), and **Duval–Tweedie trim-and-fill** — all
 feeding the grade machinery.
-1,632 unit tests green at HEAD; 188 eval prompts
+1,658 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -138,7 +139,7 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
-| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|generic] [--diagnostics] [--json]` | Pool per-study effect sizes (specs 011–012) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²) and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test and a leave-one-out sensitivity analysis. Every study must carry a primary-source identifier (§I) or the run refuses with a non-zero exit. |
+| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|generic] [--diagnostics] [--json]` | Pool per-study effect sizes (specs 011–014) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment. Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
 etiquette) to fan out across the 13 lanes concurrently. Result ordering
@@ -207,6 +208,18 @@ positive test with `3 ≤ k < 10` is *reported but does not trigger a downgrade*
 grade *cumulatively*, through the same `evidence._downgrade` ladder the GRADE
 adapter uses. The Student's-t and incomplete-beta numerics are stdlib `math`
 only — no SciPy.
+
+**Explain it and adjust it (spec 014).** `--diagnostics` also runs the two
+methods a senior reviewer reaches for next. **Subgroup analysis** partitions
+the trials by a `subgroup` moderator (dose band, route, indication) and runs
+Cochrane's *test for subgroup differences* (Q_between) — a significant result
+means the moderator explains part of the heterogeneity (e.g. high-dose OR 0.21
+vs low-dose OR 0.66, Q_between p = 0.006). **Trim-and-fill** (Duval & Tweedie
+2000, L0) estimates how many studies the funnel asymmetry implies are missing,
+imputes their mirror images, and reports a **bias-adjusted estimate** — the
+imputed studies are explicitly hypothetical, carry no identifier, and are
+never presented as cited evidence (§I). Both reuse the spec 011 pooling core
+and stay byte-for-byte deterministic.
 
 ### What v0.6 ships
 

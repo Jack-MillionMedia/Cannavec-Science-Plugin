@@ -53,6 +53,14 @@ __all__ = [
     "leave_one_out",
     "render_egger",
     "render_leave_one_out",
+    "SubgroupRow",
+    "SubgroupResult",
+    "subgroup_analysis",
+    "render_subgroups",
+    "ImputedStudy",
+    "TrimFillResult",
+    "trim_and_fill",
+    "render_trim_fill",
 ]
 
 
@@ -103,6 +111,7 @@ class EffectSize:
     n: int | None = None          # total sample, for reporting only
     measure: str = "generic"
     corrected: bool = False        # continuity correction applied?
+    subgroup: str | None = None    # moderator label (spec 014)
 
     def __post_init__(self) -> None:
         if not self.identifier:
@@ -160,16 +169,14 @@ class EffectSize:
             "n": self.n,
             "measure": self.measure,
             "corrected": self.corrected,
+            "subgroup": self.subgroup,
         }
 
 
 def _collect_ids(ids: dict) -> dict:
-    """Filter a kwargs blob down to the recognised §I identifier fields."""
-    return {
-        k: ids[k]
-        for k in ("pmid", "doi", "nct", "chembl", "uniprot", "url")
-        if ids.get(k)
-    }
+    """Filter a kwargs blob down to the §I identifier fields + subgroup."""
+    keep = ("pmid", "doi", "nct", "chembl", "uniprot", "url", "subgroup")
+    return {k: ids[k] for k in keep if ids.get(k)}
 
 
 def binary_effect(
@@ -854,7 +861,452 @@ def render_leave_one_out(
     return "\n".join(lines)
 
 
+# ── Subgroup analysis (spec 014) ────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class SubgroupRow:
+    """One subgroup's pooled summary."""
+
+    label: str
+    k: int
+    estimate: float
+    estimate_display: float
+    ci: tuple[float, float]
+    ci_display: tuple[float, float]
+    i_squared: float
+    tau_squared: float
+    weight_percent: float
+
+    def to_dict(self) -> dict:
+        return {
+            "label": self.label,
+            "k": self.k,
+            "estimate": self.estimate,
+            "estimate_display": self.estimate_display,
+            "ci": list(self.ci),
+            "ci_display": list(self.ci_display),
+            "i_squared": self.i_squared,
+            "tau_squared": self.tau_squared,
+            "weight_percent": self.weight_percent,
+        }
+
+
+@dataclass(frozen=True)
+class SubgroupResult:
+    """Cochrane "test for subgroup differences" (Q_between)."""
+
+    model: str
+    measure: str
+    log_scale: bool
+    subgroups: tuple[SubgroupRow, ...]
+    overall_estimate: float
+    overall_estimate_display: float
+    q_between: float
+    q_between_df: int
+    q_between_p: float
+    i_squared_between: float
+    significant: bool
+    confidence: float
+    rationale: str
+
+    def to_dict(self) -> dict:
+        return {
+            "model": self.model,
+            "measure": self.measure,
+            "log_scale": self.log_scale,
+            "overall_estimate": self.overall_estimate,
+            "overall_estimate_display": self.overall_estimate_display,
+            "q_between": self.q_between,
+            "q_between_df": self.q_between_df,
+            "q_between_p": self.q_between_p,
+            "i_squared_between": self.i_squared_between,
+            "significant": self.significant,
+            "rationale": self.rationale,
+            "subgroups": [s.to_dict() for s in self.subgroups],
+        }
+
+
+def subgroup_analysis(
+    effects: Sequence[EffectSize] | Iterable[EffectSize],
+    *,
+    model: str = "random",
+    measure: str | None = None,
+    confidence: float = 0.95,
+) -> SubgroupResult:
+    """Partition ``effects`` by their ``subgroup`` label and test for
+    differences between the subgroup-pooled estimates (Q_between).
+
+    ``model`` is ``"fixed"`` or ``"random"`` (each subgroup pooled with its
+    own DerSimonian–Laird τ² when random). Requires every study to carry a
+    ``subgroup`` label and at least two distinct subgroups.
+    """
+    if model not in ("fixed", "random"):
+        raise MetaAnalysisError(f"model must be 'fixed' or 'random', got {model!r}")
+    studies = tuple(effects)
+    if not studies:
+        raise MetaAnalysisError("subgroup_analysis requires at least one study")
+    for s in studies:
+        if not s.identifier:
+            raise MetaAnalysisError(
+                f"effect size {s.study_id!r} has no primary-source identifier (§I)"
+            )
+        if not s.subgroup:
+            raise MetaAnalysisError(
+                f"effect size {s.study_id!r} has no subgroup label"
+            )
+    if measure is None:
+        seen = {s.measure for s in studies}
+        measure = seen.pop() if len(seen) == 1 else "generic"
+    log_scale = measure in _LOG_SCALE_MEASURES
+
+    # Deterministic subgroup order: sorted by label.
+    labels = sorted({s.subgroup for s in studies})
+    if len(labels) < 2:
+        raise MetaAnalysisError(
+            "subgroup_analysis requires at least two distinct subgroups"
+        )
+
+    z = _z_critical(confidence)
+
+    # Pool each subgroup; capture estimate + variance under the chosen model.
+    group_est: dict[str, float] = {}
+    group_var: dict[str, float] = {}
+    rows_tmp: list[tuple[str, MetaAnalysisResult]] = []
+    for label in labels:
+        members = [s for s in studies if s.subgroup == label]
+        res = meta_analyze(members, measure=measure, confidence=confidence)
+        if model == "fixed":
+            est = res.fixed_estimate
+            lo, hi = res.fixed_ci
+        else:
+            est = res.random_estimate
+            lo, hi = res.random_ci
+        var = ((hi - lo) / (2.0 * z)) ** 2
+        group_est[label] = est
+        group_var[label] = var
+        rows_tmp.append((label, res))
+
+    # Between-groups test: treat subgroup summaries as the units.
+    w = {g: 1.0 / v if v > 0 else float("inf") for g, v in group_var.items()}
+    sum_w = math.fsum(w[g] for g in labels)
+    overall = math.fsum(w[g] * group_est[g] for g in labels) / sum_w
+    q_between = math.fsum(w[g] * (group_est[g] - overall) ** 2 for g in labels)
+    df = len(labels) - 1
+    q_p = _chi2_sf(q_between, df)
+    i2_between = max(0.0, (q_between - df) / q_between) * 100.0 if q_between > 0 else 0.0
+    significant = q_p < 0.05
+
+    rows: list[SubgroupRow] = []
+    for label, res in rows_tmp:
+        est = group_est[label]
+        var = group_var[label]
+        se = math.sqrt(var)
+        ci = (est - z * se, est + z * se)
+        disp = (lambda x: math.exp(x)) if log_scale else (lambda x: x)
+        rows.append(SubgroupRow(
+            label=label,
+            k=res.k,
+            estimate=est,
+            estimate_display=disp(est),
+            ci=ci,
+            ci_display=(disp(ci[0]), disp(ci[1])),
+            i_squared=res.i_squared,
+            tau_squared=res.tau_squared,
+            weight_percent=100.0 * w[label] / sum_w,
+        ))
+
+    rationale = (
+        f"Q_between = {q_between:.3f} (df = {df}, p = {q_p:.4f}); "
+        + ("the subgroups differ significantly (p < 0.05) — the moderator "
+           "explains part of the heterogeneity."
+           if significant else
+           "no significant subgroup difference (p ≥ 0.05) — the moderator "
+           "does not explain the heterogeneity.")
+    )
+    overall_disp = math.exp(overall) if log_scale else overall
+    return SubgroupResult(
+        model=model, measure=measure, log_scale=log_scale,
+        subgroups=tuple(rows), overall_estimate=overall,
+        overall_estimate_display=overall_disp, q_between=q_between,
+        q_between_df=df, q_between_p=q_p, i_squared_between=i2_between,
+        significant=significant, confidence=confidence, rationale=rationale,
+    )
+
+
+def render_subgroups(result: SubgroupResult) -> str:
+    """Markdown for a subgroup analysis."""
+    fmt = (lambda x: f"{x:.3f}")
+    lines = [
+        f"### Subgroup analysis ({result.model} effects)",
+        "",
+        "| Subgroup | k | Estimate | 95% CI | I² | Weight |",
+        "|---|---|---|---|---|---|",
+    ]
+    for r in result.subgroups:
+        lines.append(
+            f"| {r.label} | {r.k} | {fmt(r.estimate_display)} | "
+            f"[{fmt(r.ci_display[0])}, {fmt(r.ci_display[1])}] | "
+            f"{r.i_squared:.0f}% | {r.weight_percent:.1f}% |"
+        )
+    lines.append("")
+    lines.append(
+        f"**Test for subgroup differences:** Q = {fmt(result.q_between)} "
+        f"(df = {result.q_between_df}, p = {result.q_between_p:.4f}), "
+        f"I²_between = {result.i_squared_between:.0f}%"
+    )
+    lines.append("")
+    lines.append(f"_{result.rationale}_")
+    return "\n".join(lines)
+
+
+# ── Trim-and-fill (Duval & Tweedie 2000) ────────────────────────────
+
+
+@dataclass(frozen=True)
+class ImputedStudy:
+    """A hypothetical study imputed by trim-and-fill — NOT a cited source."""
+
+    effect: float
+    effect_display: float
+    variance: float
+    note: str = "imputed (trim-and-fill; hypothetical, not a primary source)"
+
+    def to_dict(self) -> dict:
+        return {
+            "effect": self.effect,
+            "effect_display": self.effect_display,
+            "variance": self.variance,
+            "note": self.note,
+        }
+
+
+@dataclass(frozen=True)
+class TrimFillResult:
+    """Publication-bias-adjusted estimate via Duval & Tweedie trim-and-fill."""
+
+    model: str
+    measure: str
+    log_scale: bool
+    k_observed: int
+    k_imputed: int
+    impute_side: str
+    observed_estimate: float
+    observed_estimate_display: float
+    adjusted_estimate: float
+    adjusted_estimate_display: float
+    adjusted_ci: tuple[float, float]
+    adjusted_ci_display: tuple[float, float]
+    imputed_studies: tuple[ImputedStudy, ...]
+    confidence: float
+    rationale: str
+
+    def to_dict(self) -> dict:
+        return {
+            "model": self.model,
+            "measure": self.measure,
+            "log_scale": self.log_scale,
+            "k_observed": self.k_observed,
+            "k_imputed": self.k_imputed,
+            "impute_side": self.impute_side,
+            "observed_estimate": self.observed_estimate,
+            "observed_estimate_display": self.observed_estimate_display,
+            "adjusted_estimate": self.adjusted_estimate,
+            "adjusted_estimate_display": self.adjusted_estimate_display,
+            "adjusted_ci": list(self.adjusted_ci),
+            "adjusted_ci_display": list(self.adjusted_ci_display),
+            "imputed_studies": [s.to_dict() for s in self.imputed_studies],
+            "rationale": self.rationale,
+        }
+
+
+def trim_and_fill(
+    effects: Sequence[EffectSize] | Iterable[EffectSize],
+    *,
+    model: str = "random",
+    measure: str | None = None,
+    confidence: float = 0.95,
+    side: str = "auto",
+    max_iter: int = 100,
+) -> TrimFillResult:
+    """Duval & Tweedie (2000) trim-and-fill with the L0 estimator.
+
+    Estimates the number of studies suppressed by publication bias, imputes
+    their mirror images, and re-pools for a bias-adjusted estimate. The
+    imputed studies are hypothetical and carry no §I identifier — they are a
+    sensitivity device, never cited evidence.
+    """
+    if model not in ("fixed", "random"):
+        raise MetaAnalysisError(f"model must be 'fixed' or 'random', got {model!r}")
+    if side not in ("auto", "left", "right"):
+        raise MetaAnalysisError(f"side must be 'auto', 'left' or 'right', got {side!r}")
+    studies = tuple(effects)
+    n = len(studies)
+    if n < 3:
+        raise MetaAnalysisError("trim-and-fill requires at least 3 studies")
+    for s in studies:
+        if not s.identifier:
+            raise MetaAnalysisError(
+                f"effect size {s.study_id!r} has no primary-source identifier (§I)"
+            )
+    if measure is None:
+        seen = {s.measure for s in studies}
+        measure = seen.pop() if len(seen) == 1 else "generic"
+    log_scale = measure in _LOG_SCALE_MEASURES
+
+    ys = [s.yi for s in studies]
+    vs = [s.vi for s in studies]
+    z = _z_critical(confidence)
+    observed_est, _obs_var = _pool_estimate(ys, vs, model)
+
+    # Choose the over-represented side. Work in a sign-flipped frame so the
+    # over-represented side is always the right (impute on the left there).
+    if side == "auto":
+        devs0 = [y - observed_est for y in ys]
+        ranks0 = _rankdata([abs(d) for d in devs0])
+        sr = math.fsum(
+            (1.0 if d > 0 else (-1.0 if d < 0 else 0.0)) * r
+            for d, r in zip(devs0, ranks0)
+        )
+        flip = sr < 0
+    else:
+        flip = (side == "right")
+
+    work = [-y for y in ys] if flip else list(ys)
+    order = sorted(range(n), key=lambda i: work[i])   # ascending by work effect
+
+    k0 = 0
+    for _ in range(max_iter):
+        keep = order[: n - k0]
+        center = _pool_estimate([work[i] for i in keep], [vs[i] for i in keep], model)[0]
+        devs = [w - center for w in work]
+        ranks = _rankdata([abs(d) for d in devs])
+        tn = math.fsum(r for d, r in zip(devs, ranks) if d > 0)
+        l0 = (4.0 * tn - n * (n + 1)) / (2.0 * n - 1.0)
+        new_k0 = max(0, int(math.floor(l0 + 0.5)))
+        if new_k0 >= n:
+            new_k0 = n - 1
+        if new_k0 == k0:
+            break
+        k0 = new_k0
+
+    keep = order[: n - k0]
+    final_center = _pool_estimate(
+        [work[i] for i in keep], [vs[i] for i in keep], model
+    )[0]
+
+    largest = order[n - k0:] if k0 > 0 else []
+    imputed_work = [(2.0 * final_center - work[i], vs[i]) for i in largest]
+
+    aug_y = work + [iy for iy, _ in imputed_work]
+    aug_v = vs + [iv for _, iv in imputed_work]
+    adj_work, adj_var = _pool_estimate(aug_y, aug_v, model)
+    adjusted = -adj_work if flip else adj_work
+    adj_se = math.sqrt(adj_var)
+    adjusted_ci = (adjusted - z * adj_se, adjusted + z * adj_se)
+
+    disp = (lambda x: math.exp(x)) if log_scale else (lambda x: x)
+    imputed_studies = tuple(
+        ImputedStudy(
+            effect=(-iy if flip else iy),
+            effect_display=disp(-iy if flip else iy),
+            variance=iv,
+        )
+        for iy, iv in imputed_work
+    )
+    impute_side = "right" if flip else "left"
+
+    if k0 == 0:
+        rationale = (
+            "Trim-and-fill imputed 0 studies — the funnel is symmetric; the "
+            "estimate is unchanged by adjustment for small-study effects."
+        )
+    else:
+        rationale = (
+            f"Trim-and-fill imputed {k0} hypothetical "
+            f"{'study' if k0 == 1 else 'studies'} on the {impute_side} to "
+            f"symmetrise the funnel; the bias-adjusted estimate moves from "
+            f"{disp(observed_est):.3f} to {disp(adjusted):.3f}. Imputed "
+            "studies are a sensitivity device, not cited evidence."
+        )
+
+    return TrimFillResult(
+        model=model, measure=measure, log_scale=log_scale,
+        k_observed=n, k_imputed=k0, impute_side=impute_side,
+        observed_estimate=observed_est,
+        observed_estimate_display=disp(observed_est),
+        adjusted_estimate=adjusted,
+        adjusted_estimate_display=disp(adjusted),
+        adjusted_ci=adjusted_ci,
+        adjusted_ci_display=(disp(adjusted_ci[0]), disp(adjusted_ci[1])),
+        imputed_studies=imputed_studies,
+        confidence=confidence, rationale=rationale,
+    )
+
+
+def render_trim_fill(result: TrimFillResult) -> str:
+    """Markdown for a trim-and-fill adjustment."""
+    fmt = (lambda x: f"{x:.3f}")
+    lines = [
+        f"### Trim-and-fill ({result.model} effects)",
+        "",
+        f"- **Observed estimate:** {fmt(result.observed_estimate_display)} "
+        f"({result.k_observed} studies)",
+        f"- **Imputed (suppressed) studies:** {result.k_imputed} "
+        f"on the {result.impute_side}",
+        f"- **Bias-adjusted estimate:** {fmt(result.adjusted_estimate_display)} "
+        f"[{fmt(result.adjusted_ci_display[0])}, "
+        f"{fmt(result.adjusted_ci_display[1])}]",
+        "",
+        f"_{result.rationale}_",
+    ]
+    return "\n".join(lines)
+
+
 # ── stdlib numerics (no NumPy / SciPy — Constitution §X) ─────────────
+
+
+def _pool_estimate(
+    ys: Sequence[float], vs: Sequence[float], model: str
+) -> tuple[float, float]:
+    """Pool effects → (estimate, variance) under a fixed or DL-random model.
+
+    Lightweight numeric core shared by trim-and-fill and subgroup analysis;
+    operates on raw (yi, vi) without constructing :class:`EffectSize` objects
+    (the imputed studies have no §I identifier by design).
+    """
+    weights = [1.0 / v for v in vs]
+    sum_w = math.fsum(weights)
+    fixed = math.fsum(w * y for w, y in zip(weights, ys)) / sum_w
+    if model == "fixed" or len(ys) < 2:
+        return fixed, 1.0 / sum_w
+    k = len(ys)
+    q = math.fsum(w * (y - fixed) ** 2 for w, y in zip(weights, ys))
+    df = k - 1
+    sum_w2 = math.fsum(w * w for w in weights)
+    c_const = sum_w - sum_w2 / sum_w
+    tau2 = max(0.0, (q - df) / c_const) if c_const > 0 else 0.0
+    re_w = [1.0 / (v + tau2) for v in vs]
+    sum_rw = math.fsum(re_w)
+    est = math.fsum(w * y for w, y in zip(re_w, ys)) / sum_rw
+    return est, 1.0 / sum_rw
+
+
+def _rankdata(values: Sequence[float]) -> list[float]:
+    """Average (fractional) ranks, 1-based — ties share their mean rank."""
+    n = len(values)
+    order = sorted(range(n), key=lambda i: values[i])
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        avg = (i + 1 + j + 1) / 2.0
+        for t in range(i, j + 1):
+            ranks[order[t]] = avg
+        i = j + 1
+    return ranks
 
 
 def _z_critical(confidence: float) -> float:

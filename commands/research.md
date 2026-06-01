@@ -127,11 +127,14 @@ python3 -m cannavec_science meta <studies.json> --diagnostics
 This returns a fixed- and DerSimonian–Laird random-effects estimate, a **95%
 prediction interval**, heterogeneity (Cochran's Q, I², τ²), a **GRADE
 inconsistency verdict**, Egger's small-study-effects test (→ GRADE
-publication bias), and a leave-one-out sensitivity table (specs 011–013).
-Build the effect-size JSON from each trial's reported 2×2 table (`--measure
-OR|RR`) or arm summaries (`--measure MD|SMD`); **every study row must carry a
-primary-source identifier** (PMID / DOI / NCT / ChEMBL / UniProt / URL) or the
-run refuses (§I). The inconsistency / publication-bias verdicts downgrade the
+publication bias), a leave-one-out sensitivity table, **subgroup analysis**
+(Cochrane Q_between, when studies carry a `subgroup` label), and
+**trim-and-fill** bias adjustment (specs 011–014). Build the effect-size JSON
+from each trial's reported 2×2 table (`--measure OR|RR`) or arm summaries
+(`--measure MD|SMD`); **every study row must carry a primary-source
+identifier** (PMID / DOI / NCT / ChEMBL / UniProt / URL) or the run refuses
+(§I). Trim-and-fill's imputed studies are hypothetical — a sensitivity
+device, never cited as evidence. The inconsistency / publication-bias verdicts downgrade the
 GRADE certainty through the same backbone ladder `--grade-profile` uses — the
 numbers are computed, never asserted (§VII). Do **not** pool non-commensurable
 outcomes: that is a rigor violation, not a synthesis.

@@ -111,10 +111,14 @@ can see the plan, then execute it stage by stage:
 
    Relay verbatim the fixed- and random-effects estimate, the **95%
    prediction interval**, I² / τ², the **GRADE inconsistency verdict**,
-   Egger's small-study-effects test, and the leave-one-out sensitivity
-   table (specs 011–013). The inconsistency and publication-bias verdicts
-   fold into the brief's GRADE profile — they downgrade certainty through
-   the same backbone ladder, never by your prose. You assemble the
+   Egger's small-study-effects test, the leave-one-out sensitivity table,
+   and — when the trials carry a `subgroup` moderator or the funnel is
+   asymmetric — the **subgroup-difference test (Q_between)** and the
+   **trim-and-fill** bias-adjusted estimate (specs 011–014). The
+   inconsistency and publication-bias verdicts fold into the brief's GRADE
+   profile — they downgrade certainty through the same backbone ladder,
+   never by your prose. Trim-and-fill's imputed studies are a sensitivity
+   device — flag them as hypothetical, never cite them. You assemble the
    effect-size JSON from the trials' reported 2×2 tables or arm summaries;
    you do **not** invent numbers, and every study row must carry a
    primary-source identifier (§I) or `meta` refuses it. Skip this stage when
