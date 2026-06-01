@@ -1027,6 +1027,27 @@ def _cmd_source_health(args: argparse.Namespace) -> int:
     return 1 if any_down else 0
 
 
+def _cmd_fragility(args: argparse.Namespace) -> int:
+    """Fragility Index of a single 2×2 trial (spec 022)."""
+    from cannavec_science.fragility import (
+        FragilityError, fragility_index, render_fragility,
+    )
+    try:
+        result = fragility_index(
+            args.events_t, args.n_t, args.events_c, args.n_c,
+            alpha=getattr(args, "alpha", 0.05),
+        )
+    except FragilityError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(render_fragility(result))
+    # A non-significant result is a clean, expected outcome — exit 0.
+    return 0
+
+
 def _cmd_meta(args: argparse.Namespace) -> int:
     """Pool per-study effect sizes into a meta-analysis (spec 011).
 
@@ -1573,6 +1594,30 @@ def _build_parser() -> argparse.ArgumentParser:
     m.add_argument("--json", action="store_true",
                    help="Emit structured JSON instead of Markdown.")
     m.set_defaults(func=_cmd_meta)
+
+    # fragility (spec 022 — single-trial robustness)
+    fg = sub.add_parser(
+        "fragility",
+        help=(
+            "Fragility Index of one 2×2 trial: the minimum number of "
+            "non-event→event flips in the fewer-event arm that turns a "
+            "significant result (two-sided Fisher's exact) non-significant. "
+            "Deterministic, stdlib-only."
+        ),
+    )
+    fg.add_argument("--events-t", type=int, required=True,
+                    help="Events in the treatment arm.")
+    fg.add_argument("--n-t", type=int, required=True,
+                    help="Treatment arm size.")
+    fg.add_argument("--events-c", type=int, required=True,
+                    help="Events in the control arm.")
+    fg.add_argument("--n-c", type=int, required=True,
+                    help="Control arm size.")
+    fg.add_argument("--alpha", type=float, default=0.05,
+                    help="Significance threshold (default 0.05).")
+    fg.add_argument("--json", action="store_true",
+                    help="Emit structured JSON instead of Markdown.")
+    fg.set_defaults(func=_cmd_fragility)
 
     # freshness-report
     fr2 = sub.add_parser(

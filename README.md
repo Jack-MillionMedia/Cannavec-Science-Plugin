@@ -23,7 +23,7 @@ Freeman-Tukey double-arcsine transform (spec 019), defined even at 0 % / 100 %;
 (spec 021) — the modern-recommended random-effects CI that, with the prediction
 interval and the OIS, forms a three-part refusal to overstate precision when
 studies are few.
-1,787 unit tests green at HEAD; 188 eval prompts
+1,805 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -148,6 +148,7 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
+| `fragility --events-t A --n-t N --events-c C --n-c M [--alpha] [--json]` | **Fragility Index** of one 2×2 trial (spec 022): the minimum number of non-event→event flips in the fewer-event arm that turns a significant result (two-sided Fisher's exact) non-significant. Exposes a "significant" finding that hangs on one or two patients. Stdlib-only; a non-significant result is surfaced honestly. |
 | `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|prop\|generic] [--diagnostics] [--certainty] [--moderator-key K] [--json]` | Pool per-study effect sizes (specs 011–020) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment; `--certainty` adds the GRADE ⊕ rating (with the spec 018 Optimal-Information-Size imprecision criterion); `--measure prop` pools **single-arm rates** (Freeman–Tukey double-arcsine, spec 019 — incidence/prevalence, valid at 0 %/100 %); `--moderator-key K [--knha]` runs a **meta-regression** on a continuous moderator (spec 020 — slope, R², residual heterogeneity); `--knha` also adds a modified **Hartung–Knapp–Sidik–Jonkman** interval (spec 021 — the modern-recommended random-effects CI, never narrower than DL). Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
