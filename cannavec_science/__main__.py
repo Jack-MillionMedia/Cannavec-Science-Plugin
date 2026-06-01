@@ -14,7 +14,11 @@ Subcommands:
 - ``source-health`` — probe per-source liveness.
 - ``meta <studies.json>`` — pool per-study effect sizes into a
   fixed/random-effects meta-analysis with heterogeneity (Q, I², τ²) and
-  a GRADE inconsistency verdict (spec 011).
+  a GRADE inconsistency verdict (spec 011); ``--diagnostics`` adds Egger /
+  leave-one-out / subgroup / trim-and-fill (specs 012-014) and
+  ``--baseline-risk`` adds the GRADE Summary-of-Findings absolute effect +
+  NNT (spec 015) and ``--certainty`` adds the GRADE ⊕ certainty rating that
+  completes the SoF table (spec 016).
 
 Every subcommand returns a non-zero exit code on refusal / error.
 Stdlib only.
@@ -91,6 +95,26 @@ def _cmd_answer(args: argparse.Namespace) -> int:
         advisory = assess_feasibility(compound, args.regulatory_feasibility)
         scaffolder_blocks.append(render_regfeas(advisory))
         scaffolders_dict["regulatory_feasibility"] = advisory.to_dict()
+
+    # Summary-of-Findings weave (spec 017) — pool §I-anchored studies per
+    # outcome and carry certainty + relative + absolute + NNT into the brief.
+    if getattr(args, "sof", None) and not a.is_refusal:
+        from cannavec_science.sof import (
+            SoFError, build_sof, render_markdown as render_sof,
+        )
+        try:
+            sof_spec = json.loads(Path(args.sof).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"[error] cannot read SoF sidecar {args.sof!r}: {exc}",
+                  file=sys.stderr)
+            return 2
+        try:
+            sof_obj = build_sof(sof_spec)
+        except SoFError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
+        scaffolder_blocks.append(render_sof(sof_obj))
+        scaffolders_dict["summary_of_findings"] = sof_obj.to_dict()
 
     if getattr(args, "augment_live", False):
         _augment_with_live(a, args)
@@ -1013,10 +1037,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
     identifier (§I); a study without one refuses with a non-zero exit.
     """
     from cannavec_science.meta_analysis import (
-        EffectSize,
         MetaAnalysisError,
-        binary_effect,
-        continuous_effect,
+        effects_from_records,
         egger_test,
         leave_one_out,
         meta_analyze,
@@ -1037,32 +1059,9 @@ def _cmd_meta(args: argparse.Namespace) -> int:
 
     measure = (getattr(args, "measure", None) or spec.get("measure") or "generic")
     confidence = float(getattr(args, "confidence", 0.95) or 0.95)
-    # §I identifiers + the optional subgroup moderator label (spec 014).
-    id_keys = ("pmid", "doi", "nct", "chembl", "uniprot", "url", "subgroup")
 
-    effects = []
     try:
-        for idx, st in enumerate(spec.get("studies", [])):
-            sid = st.get("study_id") or st.get("id") or f"study {idx + 1}"
-            ids = {k: st[k] for k in id_keys if st.get(k)}
-            m = measure.upper() if isinstance(measure, str) else "GENERIC"
-            if m in ("OR", "RR"):
-                es = binary_effect(
-                    sid, events_t=st["events_t"], n_t=st["n_t"],
-                    events_c=st["events_c"], n_c=st["n_c"], measure=m, **ids,
-                )
-            elif m in ("MD", "SMD"):
-                es = continuous_effect(
-                    sid, mean_t=st["mean_t"], sd_t=st["sd_t"], n_t=st["n_t"],
-                    mean_c=st["mean_c"], sd_c=st["sd_c"], n_c=st["n_c"],
-                    measure=m, **ids,
-                )
-            else:
-                es = EffectSize(
-                    study_id=sid, yi=float(st["yi"]), vi=float(st["vi"]),
-                    n=st.get("n"), **ids,
-                )
-            effects.append(es)
+        effects = effects_from_records(spec.get("studies", []), measure=measure)
         result = meta_analyze(
             effects,
             measure=(None if str(measure).lower() == "generic" else measure),
@@ -1099,6 +1098,59 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             except MetaAnalysisError:
                 subgroups = None
 
+    # Absolute effects & NNT (spec 015). CLI --baseline-risk overrides any
+    # spec {"baseline": {...}} block. Ratio measures only — a continuous
+    # mean difference has no risk difference and refuses with a non-zero exit.
+    abs_effect = None
+    spec_baseline = spec.get("baseline") if isinstance(spec.get("baseline"), dict) else {}
+    baseline_risk = getattr(args, "baseline_risk", None)
+    if baseline_risk is None and spec_baseline.get("risk") is not None:
+        baseline_risk = float(spec_baseline["risk"])
+    if baseline_risk is not None:
+        from cannavec_science.absolute_effects import (
+            AbsoluteEffectError,
+            RiskProvenance,
+            absolute_from_meta,
+            render_markdown as render_absolute,
+        )
+        prov = RiskProvenance(
+            label=(getattr(args, "baseline_source", None) or spec_baseline.get("label")
+                   or "assumed baseline risk (unsourced)"),
+            pmid=(getattr(args, "baseline_pmid", None) or spec_baseline.get("pmid")),
+            doi=spec_baseline.get("doi"),
+            nct=spec_baseline.get("nct"),
+            url=spec_baseline.get("url"),
+        )
+        outcome = (getattr(args, "outcome", None) or spec_baseline.get("outcome")
+                   or spec.get("outcome") or "the outcome")
+        desirable = bool(getattr(args, "outcome_desirable", False)
+                         or spec_baseline.get("outcome_desirable", False))
+        try:
+            abs_effect = absolute_from_meta(
+                result, acr=baseline_risk, outcome=outcome,
+                outcome_desirable=desirable, acr_provenance=prov,
+                model=getattr(args, "absolute_model", "random"),
+            )
+        except AbsoluteEffectError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
+
+    # GRADE certainty rating (spec 016) — completes the SoF table. Uses the
+    # --diagnostics Egger result for the publication-bias domain when present.
+    certainty = None
+    if getattr(args, "certainty", False):
+        from cannavec_science.grade_profile import (
+            certainty_from_meta,
+            render_certainty,
+        )
+        certainty = certainty_from_meta(
+            result,
+            evidence_base=getattr(args, "evidence_base", "rct"),
+            risk_of_bias=getattr(args, "risk_of_bias", "not-serious"),
+            indirectness=getattr(args, "indirectness", "not-serious"),
+            egger=egger,
+        )
+
     if getattr(args, "json", False):
         payload = result.to_dict()
         if getattr(args, "diagnostics", False):
@@ -1116,6 +1168,10 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             )
             if subgroups is not None:
                 payload["subgroup_analysis"] = subgroups.to_dict()
+        if certainty is not None:
+            payload["certainty"] = certainty.to_dict()
+        if abs_effect is not None:
+            payload["absolute_effect"] = abs_effect.to_dict()
         print(json.dumps(payload, indent=2, default=str))
     else:
         print(render_markdown(result))
@@ -1131,6 +1187,12 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         if subgroups is not None:
             print("")
             print(render_subgroups(subgroups))
+        if certainty is not None:
+            print("")
+            print(render_certainty(certainty))
+        if abs_effect is not None:
+            print("")
+            print(render_absolute(abs_effect))
     return 0
 
 
@@ -1168,6 +1230,11 @@ def _build_parser() -> argparse.ArgumentParser:
                    choices=["us", "eu", "ca", "uk"],
                    default=None,
                    help="Emit a regulatory-feasibility advisory.")
+    a.add_argument("--sof", default=None, metavar="FILE",
+                   help=("Weave a GRADE Summary-of-Findings section into the "
+                         "brief from a JSON sidecar of pooled outcomes "
+                         "(certainty + relative + absolute effect + NNT). See "
+                         "cannavec_science.sof for the sidecar shape (spec 017)."))
     # Weave in the live frontier (Constitution §IX). Off by default so the
     # brief stays offline + deterministic; when set, fan out to live lanes
     # and append a clearly-tagged, provisional, never-promoted section.
@@ -1363,6 +1430,42 @@ def _build_parser() -> argparse.ArgumentParser:
                    help=("Append robustness diagnostics (spec 012): Egger's "
                          "small-study-effects test and a leave-one-out "
                          "sensitivity analysis."))
+    # Absolute effects & NNT (spec 015) — ratio measures only.
+    m.add_argument("--baseline-risk", type=float, default=None,
+                   help=("Assumed comparator (control) risk in (0,1). When set "
+                         "for an OR/RR pool, append the GRADE Summary-of-"
+                         "Findings absolute effect + NNT. May also be given in "
+                         'the spec under {"baseline": {"risk": ...}}.'))
+    m.add_argument("--outcome", default=None,
+                   help="Outcome label for the absolute-effect block.")
+    m.add_argument("--outcome-desirable", action="store_true",
+                   help=("Treat the outcome as desirable (response/remission) "
+                         "so a risk increase is a benefit. Default: undesirable "
+                         "(event/relapse), so a risk reduction is the benefit."))
+    m.add_argument("--baseline-source", default=None,
+                   help="Provenance label for the assumed comparator risk (§I).")
+    m.add_argument("--baseline-pmid", default=None,
+                   help="Anchor the assumed comparator risk to a PMID (§I).")
+    m.add_argument("--absolute-model", choices=["random", "fixed"],
+                   default="random",
+                   help="Pooled estimate used for the absolute effect.")
+    # GRADE certainty rating (spec 016) — completes the SoF table.
+    m.add_argument("--certainty", action="store_true",
+                   help=("Rate the certainty of the pooled evidence (GRADE "
+                         "⊕ rating). Inconsistency, imprecision and (with "
+                         "--diagnostics) publication bias are computed; risk "
+                         "of bias and indirectness are reviewer inputs."))
+    m.add_argument("--evidence-base", choices=["rct", "observational"],
+                   default="rct",
+                   help="Starting certainty: RCT body → High, observational → Low.")
+    m.add_argument("--risk-of-bias",
+                   choices=["not-serious", "serious", "very-serious"],
+                   default="not-serious",
+                   help="Reviewer-assessed GRADE risk-of-bias domain.")
+    m.add_argument("--indirectness",
+                   choices=["not-serious", "serious", "very-serious"],
+                   default="not-serious",
+                   help="Reviewer-assessed GRADE indirectness domain.")
     m.add_argument("--json", action="store_true",
                    help="Emit structured JSON instead of Markdown.")
     m.set_defaults(func=_cmd_meta)
