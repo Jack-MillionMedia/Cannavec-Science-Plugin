@@ -83,6 +83,61 @@ class ImprecisionTests(unittest.TestCase):
         self.assertEqual(imp.assessment, "not serious")
 
 
+def _small_smd():
+    """SMD ≈ 0.58 from 84 participants: CI excludes 0 but below OIS 96."""
+    return ma.meta_analyze([
+        ma.continuous_effect("S1", mean_t=0.60, sd_t=1.0, n_t=14,
+                             mean_c=0.0, sd_c=1.0, n_c=14, measure="SMD", pmid="1"),
+        ma.continuous_effect("S2", mean_t=0.62, sd_t=1.0, n_t=15,
+                             mean_c=0.0, sd_c=1.0, n_c=15, measure="SMD", pmid="2"),
+        ma.continuous_effect("S3", mean_t=0.58, sd_t=1.0, n_t=13,
+                             mean_c=0.0, sd_c=1.0, n_c=13, measure="SMD", pmid="3"),
+    ], measure="SMD")
+
+
+class OisImprecisionTests(unittest.TestCase):
+    """The second GRADE imprecision criterion — Optimal Information Size (spec 018)."""
+
+    def test_below_ois_downgrades_even_when_ci_excludes_null(self):
+        # The case the CI-only check missed: tight CI, but underpowered pool.
+        res = _small_smd()
+        lo, hi = res.random_ci_display
+        self.assertFalse(lo <= 0.0 <= hi)               # CI excludes the null
+        mc = gp.certainty_from_meta(res)                # SMD needs no baseline
+        imp = {d.name: d for d in mc.domains}["Imprecision"]
+        self.assertEqual(imp.steps, 1)
+        self.assertIn("optimal information size", imp.assessment)
+        self.assertIn("below", imp.basis)
+        # An RCT body of SMD evidence drops High → Moderate purely on the OIS.
+        self.assertEqual(mc.level, EvidenceLevel.B.value)
+        self.assertEqual(mc.grade_word, "Moderate")
+
+    def test_meeting_ois_keeps_high_with_baseline(self):
+        # Strong RR pool (N=605, OIS≈202): a passed baseline must NOT regress it.
+        mc = gp.certainty_from_meta(_strong_consistent(), baseline_risk=0.40)
+        imp = {d.name: d for d in mc.domains}["Imprecision"]
+        self.assertEqual(imp.steps, 0)
+        self.assertEqual(imp.assessment, "not serious")
+        self.assertIn("meets", imp.basis)
+        self.assertEqual(mc.grade_word, "High")
+
+    def test_crosses_null_and_below_ois_is_very_serious(self):
+        # Near-null RR pool + baseline: CI crosses 1 AND N ≪ OIS → −2.
+        mc = gp.certainty_from_meta(_near_null(), baseline_risk=0.40)
+        imp = {d.name: d for d in mc.domains}["Imprecision"]
+        self.assertEqual(imp.steps, 2)
+        self.assertIn("very serious", imp.assessment)
+        # A → C (Low): two imprecision steps.
+        self.assertEqual(mc.level, EvidenceLevel.C.value)
+        self.assertEqual(mc.grade_word, "Low")
+
+    def test_binary_without_baseline_reports_ois_not_assessed(self):
+        mc = gp.certainty_from_meta(_strong_consistent())
+        imp = {d.name: d for d in mc.domains}["Imprecision"]
+        self.assertEqual(imp.steps, 0)
+        self.assertIn("OIS not assessed", imp.basis)
+
+
 class InconsistencyTests(unittest.TestCase):
     def test_high_i2_downgrades_two_levels(self):
         res = _high_i2_same_sign()
@@ -217,6 +272,28 @@ class CliCertaintyTests(unittest.TestCase):
         self.assertIn("GRADE certainty of evidence", out)
         self.assertIn("Anticipated absolute effects", out)
         self.assertIn("NNT", out)
+
+    def test_certainty_table_surfaces_ois(self):
+        # --baseline-risk sizes both the absolute effect and the OIS (spec 018).
+        with TemporaryDirectory() as tmp:
+            code, out = self._run([
+                "meta", self._spec(tmp), "--measure", "RR",
+                "--certainty", "--baseline-risk", "0.40",
+            ])
+        self.assertEqual(code, 0)
+        self.assertIn("OIS", out)
+        self.assertIn("meets", out)        # strong RR pool meets its OIS
+
+    def test_certainty_json_imprecision_basis_has_ois(self):
+        with TemporaryDirectory() as tmp:
+            code, out = self._run([
+                "meta", self._spec(tmp), "--measure", "RR",
+                "--certainty", "--baseline-risk", "0.40", "--json",
+            ])
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        imp = {d["name"]: d for d in payload["certainty"]["domains"]}["Imprecision"]
+        self.assertIn("OIS", imp["basis"])
 
 
 if __name__ == "__main__":

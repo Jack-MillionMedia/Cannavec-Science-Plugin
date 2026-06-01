@@ -1149,6 +1149,10 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             risk_of_bias=getattr(args, "risk_of_bias", "not-serious"),
             indirectness=getattr(args, "indirectness", "not-serious"),
             egger=egger,
+            # One control rate, two GRADE uses: absolute effect + OIS
+            # imprecision (spec 018).
+            baseline_risk=baseline_risk,
+            pooling_sd=getattr(args, "pooling_sd", None),
         )
 
     if getattr(args, "json", False):
@@ -1458,6 +1462,11 @@ def _build_parser() -> argparse.ArgumentParser:
     m.add_argument("--evidence-base", choices=["rct", "observational"],
                    default="rct",
                    help="Starting certainty: RCT body → High, observational → Low.")
+    m.add_argument("--pooling-sd", type=float, default=None,
+                   help=("Pooling SD for an MD pool, used only to size the "
+                         "GRADE Optimal Information Size imprecision criterion "
+                         "(spec 018). RR/OR pools use --baseline-risk; an SMD "
+                         "pool needs neither."))
     m.add_argument("--risk-of-bias",
                    choices=["not-serious", "serious", "very-serious"],
                    default="not-serious",

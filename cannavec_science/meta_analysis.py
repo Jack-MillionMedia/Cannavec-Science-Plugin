@@ -62,6 +62,9 @@ __all__ = [
     "TrimFillResult",
     "trim_and_fill",
     "render_trim_fill",
+    "OISResult",
+    "optimal_information_size",
+    "render_ois",
 ]
 
 
@@ -1297,6 +1300,190 @@ def render_trim_fill(result: TrimFillResult) -> str:
         "",
         f"_{result.rationale}_",
     ]
+    return "\n".join(lines)
+
+
+# ── Optimal Information Size — GRADE imprecision (spec 018) ───────────
+
+
+@dataclass(frozen=True)
+class OISResult:
+    """GRADE Optimal Information Size verdict for a pooled estimate.
+
+    The OIS is the total enrolment a *single* adequately powered trial would
+    need to detect the pooled effect (Guyatt 2011, *GRADE guidelines 6 —
+    imprecision*, J Clin Epidemiol 64:1283, PMID 21839614). A review whose
+    total enrolment falls short of the OIS is imprecise **even when its CI
+    excludes the null** — the criterion ``certainty_from_meta`` adds on top of
+    the CI-crosses-null check. Powered at the trial convention (80 % power,
+    α = 0.05 two-sided) the GRADE OIS assumes, not the meta CI's confidence.
+    """
+
+    assessable: bool
+    measure: str
+    total_n: int | None        # summed pooled enrolment (None if any n missing)
+    ois: int | None            # both-arm optimal information size
+    ratio: float | None        # total_n / ois
+    below_ois: bool            # total_n < ois (always False when not assessable)
+    power: float
+    alpha: float
+    method: str                # power formula used, or "not_assessed"
+    rationale: str
+
+    def to_dict(self) -> dict:
+        return {
+            "assessable": self.assessable,
+            "measure": self.measure,
+            "total_n": self.total_n,
+            "ois": self.ois,
+            "ratio": self.ratio,
+            "below_ois": self.below_ois,
+            "power": self.power,
+            "alpha": self.alpha,
+            "method": self.method,
+            "rationale": self.rationale,
+        }
+
+
+def _ois_not_assessed(
+    measure: str, power: float, alpha: float, total_n: int | None, reason: str
+) -> OISResult:
+    return OISResult(
+        assessable=False, measure=measure, total_n=total_n, ois=None,
+        ratio=None, below_ois=False, power=power, alpha=alpha,
+        method="not_assessed", rationale=reason,
+    )
+
+
+def optimal_information_size(
+    result: MetaAnalysisResult,
+    *,
+    baseline_risk: float | None = None,
+    pooling_sd: float | None = None,
+    power: float = 0.80,
+    alpha: float = 0.05,
+) -> OISResult:
+    """Compute the GRADE Optimal Information Size verdict for ``result``.
+
+    Composes the :mod:`cannavec_science.power_calc` single-trial sample-size
+    formulas over the pooled (random-effects) effect and the total pooled
+    enrolment. Dispatches on the pooled measure:
+
+    - ``RR`` / ``OR`` — need ``baseline_risk`` (the assumed control event rate).
+    - ``SMD`` — the pooled SMD is Cohen's *d*; no extra input.
+    - ``MD`` — needs ``pooling_sd`` to standardize the effect.
+
+    Honestly returns ``assessable=False`` (imprecision then rests on the CI
+    criterion alone) when a study lacks ``n``, a binary measure lacks a
+    baseline risk, the measure is ``generic``, or the pooled effect maps to a
+    null contrast (the OIS is unbounded). Deterministic; stdlib-only (§X).
+    """
+    from cannavec_science import power_calc as pc
+
+    measure = (result.measure or "generic").upper()
+
+    # Total information = pooled enrolment; every study must report its n.
+    ns = [es.n for es in result.studies]
+    if any(n is None for n in ns):
+        return _ois_not_assessed(
+            measure, power, alpha, None,
+            "per-study sample sizes missing — the OIS needs every study's n",
+        )
+    total_n = int(sum(int(n) for n in ns))
+
+    est = result.random_estimate_display  # display scale (RR/OR/MD/SMD)
+
+    if measure in ("RR", "OR") and baseline_risk is None:
+        return _ois_not_assessed(
+            measure, power, alpha, total_n,
+            f"binary {measure} outcome — pass a control event rate "
+            "(baseline_risk) to size the OIS",
+        )
+
+    if measure == "RR":
+        p1 = float(baseline_risk)
+        calc = pc.calc_proportion_two_arm(
+            outcome="OIS", p1=p1, p2=est * p1, alpha=alpha, power=power,
+        )
+        detail = f"to detect RR {_fmt_eff(est)} at a {_fmt_eff(p1)} control risk"
+    elif measure == "OR":
+        calc = pc.calc_odds_ratio_two_arm(
+            outcome="OIS", odds_ratio=est, baseline_p=float(baseline_risk),
+            alpha=alpha, power=power,
+        )
+        detail = f"to detect OR {_fmt_eff(est)} at a {_fmt_eff(float(baseline_risk))} control risk"
+    elif measure == "SMD":
+        calc = pc.calc_continuous_two_arm(
+            outcome="OIS", mean_diff=est, sd=1.0, alpha=alpha, power=power,
+        )
+        detail = f"to detect SMD {_fmt_eff(est)}"
+    elif measure == "MD":
+        if pooling_sd is None or float(pooling_sd) <= 0:
+            return _ois_not_assessed(
+                measure, power, alpha, total_n,
+                "MD outcome — pass a pooling SD (pooling_sd) to standardize "
+                "the effect for the OIS",
+            )
+        calc = pc.calc_continuous_two_arm(
+            outcome="OIS", mean_diff=est, sd=float(pooling_sd),
+            alpha=alpha, power=power,
+        )
+        detail = f"to detect MD {_fmt_eff(est)} (SD {_fmt_eff(float(pooling_sd))})"
+    else:
+        return _ois_not_assessed(
+            measure, power, alpha, total_n,
+            "the OIS is undefined for a generic precomputed effect — supply a "
+            "binary (RR/OR) or continuous (MD/SMD) measure",
+        )
+
+    if calc.method_not_supported or not calc.n_total:
+        return _ois_not_assessed(
+            measure, power, alpha, total_n,
+            "the pooled effect maps to a null contrast — the OIS is unbounded; "
+            "imprecision rests on the CI criterion",
+        )
+
+    ois = int(calc.n_total)
+    ratio = total_n / ois if ois else None
+    below = total_n < ois
+    verdict = "below" if below else "meets"
+    rationale = (
+        f"{total_n} pooled participants vs an optimal information size of "
+        f"{ois} (one trial powered at {int(round(power * 100))}% / "
+        f"α={alpha:g} two-sided {detail}) → {verdict} OIS."
+    )
+    return OISResult(
+        assessable=True, measure=measure, total_n=total_n, ois=ois,
+        ratio=ratio, below_ois=below, power=power, alpha=alpha,
+        method=calc.method, rationale=rationale,
+    )
+
+
+def _fmt_eff(x: float) -> str:
+    """Compact fixed-point formatting for effect/ rate values in rationales."""
+    s = f"{x:.2f}"
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return s
+
+
+def render_ois(result: OISResult) -> str:
+    """Markdown for an Optimal Information Size verdict."""
+    lines = ["### Optimal Information Size — GRADE imprecision", ""]
+    if not result.assessable:
+        lines.append(f"- **OIS:** not assessed — {result.rationale}")
+        return "\n".join(lines)
+    verdict = "below the OIS" if result.below_ois else "meets the OIS"
+    lines.extend([
+        f"- **Pooled enrolment:** {result.total_n}",
+        f"- **Optimal information size:** {result.ois} "
+        f"(80% power, α={result.alpha:g})",
+        f"- **Verdict:** {verdict} "
+        f"(ratio {result.ratio:.2f})" if result.ratio is not None else
+        f"- **Verdict:** {verdict}",
+        "",
+        f"_{result.rationale}_",
+    ])
     return "\n".join(lines)
 
 

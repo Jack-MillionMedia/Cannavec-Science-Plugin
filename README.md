@@ -13,8 +13,10 @@ effect sizes into fixed/random-effects estimates with heterogeneity (Q, I²,
 and `--diagnostics` robustness checks — Egger's small-study-effects test
 (→ GRADE publication bias), a leave-one-out sensitivity analysis, **subgroup
 analysis** (Cochrane Q_between), and **Duval–Tweedie trim-and-fill** — all
-feeding the grade machinery.
-1,658 unit tests green at HEAD; 188 eval prompts
+feeding the grade machinery, and `--certainty` rates the pooled body on the
+GRADE ⊕-scale with **both** imprecision criteria (CI-vs-null **and** the
+Optimal Information Size, spec 018).
+1,739 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -261,13 +263,20 @@ A Summary-of-Findings table reports an effect *and how much to trust it*. Add
 ⊕-scale, routing the five downgrade domains through the **same**
 `evidence._downgrade` ladder the evidence-profile table uses. It is honest
 about which domains it can and cannot compute: **inconsistency** (the I²
-verdict), **imprecision** (the pooled 95% CI crossing the null — the same
-crossing that makes the NNT span ∞), and **publication bias** (Egger, under
-`--diagnostics`, with the `k ≥ 10` honesty) are *computed*; **risk of bias**
-and **indirectness** are taken as reviewer inputs (`--risk-of-bias`,
-`--indirectness`) and tagged as such, never fabricated (§II). The starting
-grade is the body design (`--evidence-base rct|observational` → High / Low).
-Together with `--baseline-risk` this is the full GRADEpro deliverable:
+verdict), **imprecision** (**both** GRADE criteria, spec 018 — the pooled 95% CI
+crossing the null *and* the **Optimal Information Size**: a pool whose total
+enrolment falls short of a single adequately powered trial is downgraded even
+when its CI looks tight, the confidence-laundering a CI-only check misses), and
+**publication bias** (Egger, under `--diagnostics`, with the `k ≥ 10` honesty)
+are *computed*; **risk of bias** and **indirectness** are taken as reviewer
+inputs (`--risk-of-bias`, `--indirectness`) and tagged as such, never fabricated
+(§II). The OIS is sized from the pooled effect and the assumed control rate
+(`--baseline-risk` for RR/OR; an SMD pool needs nothing; `--pooling-sd` for MD)
+by composing the same Cohen-1988 / Fleiss-1981 calculators the `--power-calc`
+scaffolder uses — so one control rate drives both the absolute effect and the
+imprecision verdict. The starting grade is the body design (`--evidence-base
+rct|observational` → High / Low). Together with `--baseline-risk` this is the
+full GRADEpro deliverable:
 
 ```
 ### GRADE certainty of evidence
@@ -278,7 +287,7 @@ Together with `--baseline-risk` this is the full GRADEpro deliverable:
 | Risk of bias     | serious     | −1 | reviewer-assessed             |
 | Inconsistency    | not serious | —  | computed (I²=0%)              |
 | Indirectness     | not serious | —  | reviewer-assessed             |
-| Imprecision      | not serious | —  | computed (pooled 95% CI vs null) |
+| Imprecision      | not serious | —  | computed (pooled 95% CI vs null; OIS 605/202 (meets)) |
 | Publication bias | not assessed| —  | not assessed (run --diagnostics) |
 ```
 

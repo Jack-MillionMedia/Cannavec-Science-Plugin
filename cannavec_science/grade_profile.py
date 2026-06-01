@@ -460,17 +460,30 @@ def certainty_from_meta(
     risk_of_bias: str = "not serious",
     indirectness: str = "not serious",
     egger=None,
+    baseline_risk: float | None = None,
+    pooling_sd: float | None = None,
+    ois_power: float = 0.80,
+    ois_alpha: float = 0.05,
 ) -> MetaCertainty:
     """Rate the certainty of a :class:`MetaAnalysisResult`'s pooled estimate.
 
     Computed domains: **inconsistency** (spec 011 I² verdict), **imprecision**
-    (the pooled 95% CI crossing the null), and **publication bias** (Egger,
-    when supplied, with the spec 012 ``k ≥ 10`` honesty). Reviewer inputs:
-    **risk of bias** and **indirectness** (``not serious`` / ``serious`` /
-    ``very serious``). The starting grade is the body design — a randomised
-    body starts High (Level A), an observational body Low (Level C), per §VII.
+    (both GRADE criteria — the pooled 95% CI crossing the null *and* the spec
+    018 Optimal Information Size), and **publication bias** (Egger, when
+    supplied, with the spec 012 ``k ≥ 10`` honesty). Reviewer inputs: **risk of
+    bias** and **indirectness** (``not serious`` / ``serious`` / ``very
+    serious``). The starting grade is the body design — a randomised body starts
+    High (Level A), an observational body Low (Level C), per §VII.
+
+    The OIS criterion (spec 018) downgrades a pool whose total enrolment is
+    below a single adequately powered trial *even when the CI excludes the
+    null*. It needs the assumed control event rate (``baseline_risk``, for
+    RR/OR) or a ``pooling_sd`` (for MD); an SMD pool needs neither, and any
+    unparameterised binary call reports the OIS as *not assessed* and rests
+    imprecision on the CI criterion alone.
     """
     from cannavec_science.evidence import EvidenceLevel, _downgrade
+    from cannavec_science.meta_analysis import optimal_information_size
 
     base = (
         EvidenceLevel.A
@@ -486,7 +499,37 @@ def certainty_from_meta(
 
     lo, hi = result.random_ci_display
     null = result.null_value_display
-    imprecise = lo <= null <= hi
+    crosses_null = lo <= null <= hi
+
+    # GRADE imprecision second criterion (spec 018): the Optimal Information
+    # Size. A pool below a single adequately powered trial is imprecise even
+    # when its CI excludes the null.
+    ois = optimal_information_size(
+        result, baseline_risk=baseline_risk, pooling_sd=pooling_sd,
+        power=ois_power, alpha=ois_alpha,
+    )
+    below_ois = bool(ois.assessable and ois.below_ois)
+
+    imp_steps = (1 if crosses_null else 0) + (1 if below_ois else 0)  # ≤ 2
+    if imp_steps == 0:
+        imp_assessment = "not serious"
+    elif imp_steps == 2:
+        imp_assessment = (
+            "very serious — 95% CI crosses the null and the pool is below the "
+            "optimal information size"
+        )
+    elif crosses_null:
+        imp_assessment = "serious — 95% CI crosses the null"
+    else:
+        imp_assessment = "serious — pooled enrolment is below the optimal information size"
+    if ois.assessable:
+        ois_clause = (
+            f"OIS {ois.total_n}/{ois.ois} "
+            f"({'below' if ois.below_ois else 'meets'})"
+        )
+    else:
+        ois_clause = "OIS not assessed"
+    imp_basis = f"computed (pooled 95% CI vs null; {ois_clause})"
 
     if egger is not None:
         from cannavec_science.meta_analysis import grade_publication_bias
@@ -504,12 +547,7 @@ def certainty_from_meta(
                         f"computed (I²={result.i_squared:.0f}%)"),
         CertaintyDomain("Indirectness", ind, _SERIOUSNESS_STEPS[ind],
                         "reviewer-assessed"),
-        CertaintyDomain(
-            "Imprecision",
-            "serious — 95% CI crosses the null" if imprecise else "not serious",
-            1 if imprecise else 0,
-            "computed (pooled 95% CI vs null)",
-        ),
+        CertaintyDomain("Imprecision", imp_assessment, imp_steps, imp_basis),
         CertaintyDomain("Publication bias", pb_label, pb_steps, pb_basis),
     )
 

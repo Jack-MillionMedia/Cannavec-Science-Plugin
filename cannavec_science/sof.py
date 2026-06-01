@@ -143,16 +143,32 @@ def build_sof(spec: dict) -> SummaryOfFindings:
             except MetaAnalysisError:
                 egger = None
 
+        # The same baseline that sizes the absolute-effect column also sizes
+        # the OIS imprecision criterion (spec 018) for a binary outcome.
+        baseline = o.get("baseline") if isinstance(o.get("baseline"), dict) else {}
+        b_risk = None
+        if baseline.get("risk") is not None:
+            try:
+                b_risk = float(baseline["risk"])
+            except (TypeError, ValueError):
+                b_risk = None
+        pooling_sd = baseline.get("pooling_sd")
+        try:
+            pooling_sd = float(pooling_sd) if pooling_sd is not None else None
+        except (TypeError, ValueError):
+            pooling_sd = None
+
         certainty = certainty_from_meta(
             result,
             evidence_base=o.get("evidence_base", "rct"),
             risk_of_bias=o.get("risk_of_bias", "not serious"),
             indirectness=o.get("indirectness", "not serious"),
             egger=egger,
+            baseline_risk=b_risk,
+            pooling_sd=pooling_sd,
         )
 
         absolute = None
-        baseline = o.get("baseline") if isinstance(o.get("baseline"), dict) else {}
         if baseline.get("risk") is not None and result.measure in ("OR", "RR"):
             prov = RiskProvenance(
                 label=baseline.get("label", "assumed baseline risk (unsourced)"),

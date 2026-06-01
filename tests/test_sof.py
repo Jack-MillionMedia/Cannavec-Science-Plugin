@@ -102,6 +102,24 @@ class BuildSofTests(unittest.TestCase):
         self.assertEqual(rob.steps, 1)
         self.assertEqual(row.certainty.grade_word, "Moderate")
 
+    def test_baseline_drives_ois_imprecision(self):
+        # A small, near-null RR outcome whose baseline sizes the OIS: the SoF
+        # certainty must reflect the spec 018 OIS criterion, not just the CI.
+        o = _rr_outcome(
+            outcome="rare adverse event",
+            studies=[
+                {"study_id": "A", "events_t": 11, "n_t": 50,
+                 "events_c": 12, "n_c": 50, "pmid": "1"},
+                {"study_id": "B", "events_t": 10, "n_t": 48,
+                 "events_c": 11, "n_c": 49, "pmid": "2"},
+            ],
+            baseline={"risk": 0.24, "label": "pooled control arms"},
+        )
+        row = sof.build_sof({"outcomes": [o]}).rows[0]
+        imp = {d.name: d for d in row.certainty.domains}["Imprecision"]
+        self.assertGreaterEqual(imp.steps, 1)
+        self.assertIn("optimal information size", imp.assessment)
+
 
 class RefusalTests(unittest.TestCase):
     def test_study_without_identifier_refuses(self):
