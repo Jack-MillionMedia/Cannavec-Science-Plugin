@@ -548,6 +548,18 @@ python3 -m cannavec_science registries --registry biosynthesis                  
 | `/cannavec-science:verify <PMID\|DOI>` | Single-identifier spot-check with retraction status. v0.2 auto-fetches forward-citation network + field-pushback signal. |
 | `/cannavec-science:rigor <text>` | Run the seven phytochemistry rigor detectors (incl. v0.2 entourage-overclaim) + banned-pattern detector on arbitrary text. |
 
+## The research agents
+
+Three subagents wrap the deterministic backbone. None of them grades,
+refuses, or cites in prose — every verdict is computed by
+`cannavec_science/` and relayed verbatim.
+
+| Agent | Role |
+|---|---|
+| `cannabis-research-lead` | Front-door orchestrator (a.k.a. CANNA-RESEARCH-AGENT). Decomposes a research objective into a deterministic execution blueprint — route → `answer` → `discover` → `rigor`/review → `verify` → bibliography — and relays the backbone's verdicts. Carries an explicit honesty disclaimer: the "research team" is sequenced subcommands plus two delegate subagents, **not** an autonomous swarm (Constitution §II). Emits a human-review "curation candidates" seam for KB growth; it never auto-promotes live rows (Constitution §IX). |
+| `cannabis-source-hunter` | Live primary-literature discovery across the 13 lanes. Wraps `discover`; never auto-promotes `live_*` rows (Constitution §IX). |
+| `cannabis-research-reviewer` | Final review pass — the Verity Test + the deterministic `rigor` pass + GRADE wording consistency. Returns PASS / REVISE. |
+
 ## The deterministic backbone
 
 ```
