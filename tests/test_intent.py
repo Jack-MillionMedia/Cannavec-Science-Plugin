@@ -88,6 +88,32 @@ class TestIntentClassification(unittest.TestCase):
         result = classify_intent("What dose of CBD is used in trials?")
         self.assertEqual(result, Intent.DOSING)
 
+    def test_evidence_for_in_is_efficacy(self) -> None:
+        # The canonical research phrasing "<X> evidence in/for <condition>".
+        self.assertEqual(
+            classify_intent("CBD evidence in Dravet syndrome"),
+            Intent.EFFICACY,
+        )
+        self.assertEqual(
+            classify_intent("What is the evidence for THCV in appetite?"),
+            Intent.EFFICACY,
+        )
+
+    def test_evidence_phrasing_does_not_steal_literature_review(self) -> None:
+        # "state of the evidence" / "review the evidence" stay LITERATURE_REVIEW
+        # — the efficacy trigger is anchored to "evidence for/in/base".
+        self.assertEqual(
+            classify_intent("Review the literature on CBD and epilepsy"),
+            Intent.LITERATURE_REVIEW,
+        )
+
+    def test_plural_receptors_is_mechanism(self) -> None:
+        # "receptors" (plural) must match the mechanism pattern too.
+        self.assertEqual(
+            classify_intent("How does CBD act on its receptors?"),
+            Intent.MECHANISM,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

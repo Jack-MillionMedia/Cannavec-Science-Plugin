@@ -1752,6 +1752,7 @@ def format_for_researcher(
     heading_level: int = 1,
     include_regulatory: bool = False,
     include_commercial: bool = False,
+    sections: "frozenset[str] | None" = None,
 ) -> str:
     """Render a Markdown research monograph for a single cannabinoid.
 
@@ -1775,8 +1776,20 @@ def format_for_researcher(
         science and are omitted from the brief by default. They remain in the
         typed record (:meth:`MinorCannabinoid.to_dict`) and can be opted back
         in with ``include_regulatory`` / ``include_commercial``.
+
+    Relevance discipline (answer the question, not the entity):
+      * ``sections`` selects which sub-sections render, by key —
+        ``chemistry``, ``receptor``, ``clinical``, ``preclinical``, ``pk``,
+        ``safety``, ``uncertainties``, ``misconceptions``, ``citations``.
+        ``None`` (default) renders the full science monograph; the Answer
+        composer narrows it per detected question intent so a mechanism
+        question is not buried under efficacy tables, and vice-versa.
     """
     sub = "#" * (heading_level + 1)
+
+    def _want(key: str) -> bool:
+        return sections is None or key in sections
+
     out: list[str] = []
     if title:
         out.append(f"{'#' * heading_level} {entry.name} — {entry.long_name}")
@@ -1794,79 +1807,86 @@ def format_for_researcher(
             ident_line += f" — also: {', '.join(extra_aliases)}"
         out.append(ident_line)
         out.append("")
-    out.append(f"{sub} Chemistry")
-    out.append(entry.chemistry_note)
-    out.append("")
-    out.append(
-        f"{sub} Receptor pharmacology (grade: {_format_grade(entry.pharmacology_grade)})"
-    )
-    for r in entry.receptor_activity:
-        ident = []
-        if r.uniprot:
-            ident.append(f"UniProt {r.uniprot}")
-        if r.gene_symbol:
-            ident.append(f"HGNC {r.gene_symbol}")
-        ident_str = f" ({'; '.join(ident)})" if ident else ""
-        out.append(f"- **{r.target}**{ident_str} — {r.activity}. {r.affinity_note} Assay: {r.assay}.")
-        cite_str = "; ".join(_short_cite(c) for c in r.citations)
-        if cite_str:
-            out.append(f"  - Source: {cite_str}")
-        # v2.7 in-vitro → clinic translation discipline (P2.13). When
-        # the registry has populated the translation fields, surface
-        # them so the user reads the in-vitro Ki vs in-vivo exposure
-        # gap explicitly. This is the discipline the entourage-
-        # effect literature systematically skips.
-        if r.typical_clinical_exposure:
-            out.append(
-                f"  - Typical clinical exposure: "
-                f"{r.typical_clinical_exposure}"
-            )
-        if r.predicted_receptor_occupancy_at_typical_dose:
-            out.append(
-                f"  - Predicted receptor occupancy at typical dose: "
-                f"{r.predicted_receptor_occupancy_at_typical_dose}"
-            )
-        if r.translation_caveat:
-            out.append(
-                f"  - **Translation caveat:** {r.translation_caveat}"
-            )
-    out.append("")
-    out.append(
-        f"{sub} Human clinical evidence (grade: {_format_grade(entry.clinical_grade)})"
-    )
-    if not entry.clinical_evidence:
-        out.append("- No clinical-evidence rows in the registry.")
-    for c in entry.clinical_evidence:
-        # ``n`` is a patient count and is a meaningless ``0`` for a systematic
-        # review / meta-analysis row — omit it rather than print "n=0".
-        n_str = f"n={c.n}, " if c.n else ""
-        out.append(f"- **{c.indication}** — {c.design}, {n_str}{c.dose_route}.")
-        out.append(f"  - **Outcome:** {c.outcome}")
-        out.append(f"  - **Grade:** {_format_grade(c.grade)}")
-        cite_str = "; ".join(_short_cite(c2) for c2 in c.citations)
-        if cite_str:
-            out.append(f"  - Source: {cite_str}")
-        for caveat in c.caveats:
-            out.append(f"  - *Caveat:* {caveat}")
-    out.append("")
-    out.append(f"{sub} Preclinical evidence (with bridging-to-clinic caveats)")
-    if not entry.preclinical_evidence:
-        out.append("- No preclinical rows in the registry.")
-    for p in entry.preclinical_evidence:
-        out.append(f"- **{p.indication_or_model}** — {p.species_or_assay}, {p.dose_or_concentration}.")
-        out.append(f"  - **Outcome:** {p.outcome}")
-        out.append(f"  - **Bridging to clinic:** {p.bridging_to_clinic}")
-        out.append(f"  - **Grade:** {_format_grade(p.grade)}")
-        cite_str = "; ".join(_short_cite(c2) for c2 in p.citations)
-        if cite_str:
-            out.append(f"  - Source: {cite_str}")
-    out.append("")
-    out.append(f"{sub} Pharmacokinetics")
-    out.append(entry.pharmacokinetics_note)
-    out.append("")
-    out.append(f"{sub} Safety")
-    out.append(entry.safety_note)
-    out.append("")
+    if _want("chemistry"):
+        out.append(f"{sub} Chemistry")
+        out.append(entry.chemistry_note)
+        out.append("")
+    if _want("receptor"):
+        out.append(
+            f"{sub} Receptor pharmacology (grade: {_format_grade(entry.pharmacology_grade)})"
+        )
+        for r in entry.receptor_activity:
+            ident = []
+            if r.uniprot:
+                ident.append(f"UniProt {r.uniprot}")
+            if r.gene_symbol:
+                ident.append(f"HGNC {r.gene_symbol}")
+            ident_str = f" ({'; '.join(ident)})" if ident else ""
+            out.append(f"- **{r.target}**{ident_str} — {r.activity}. {r.affinity_note} Assay: {r.assay}.")
+            cite_str = "; ".join(_short_cite(c) for c in r.citations)
+            if cite_str:
+                out.append(f"  - Source: {cite_str}")
+            # v2.7 in-vitro → clinic translation discipline (P2.13). When
+            # the registry has populated the translation fields, surface
+            # them so the user reads the in-vitro Ki vs in-vivo exposure
+            # gap explicitly. This is the discipline the entourage-
+            # effect literature systematically skips.
+            if r.typical_clinical_exposure:
+                out.append(
+                    f"  - Typical clinical exposure: "
+                    f"{r.typical_clinical_exposure}"
+                )
+            if r.predicted_receptor_occupancy_at_typical_dose:
+                out.append(
+                    f"  - Predicted receptor occupancy at typical dose: "
+                    f"{r.predicted_receptor_occupancy_at_typical_dose}"
+                )
+            if r.translation_caveat:
+                out.append(
+                    f"  - **Translation caveat:** {r.translation_caveat}"
+                )
+        out.append("")
+    if _want("clinical"):
+        out.append(
+            f"{sub} Human clinical evidence (grade: {_format_grade(entry.clinical_grade)})"
+        )
+        if not entry.clinical_evidence:
+            out.append("- No clinical-evidence rows in the registry.")
+        for c in entry.clinical_evidence:
+            # ``n`` is a patient count and is a meaningless ``0`` for a
+            # systematic review / meta-analysis row — omit it rather than
+            # print "n=0".
+            n_str = f"n={c.n}, " if c.n else ""
+            out.append(f"- **{c.indication}** — {c.design}, {n_str}{c.dose_route}.")
+            out.append(f"  - **Outcome:** {c.outcome}")
+            out.append(f"  - **Grade:** {_format_grade(c.grade)}")
+            cite_str = "; ".join(_short_cite(c2) for c2 in c.citations)
+            if cite_str:
+                out.append(f"  - Source: {cite_str}")
+            for caveat in c.caveats:
+                out.append(f"  - *Caveat:* {caveat}")
+        out.append("")
+    if _want("preclinical"):
+        out.append(f"{sub} Preclinical evidence (with bridging-to-clinic caveats)")
+        if not entry.preclinical_evidence:
+            out.append("- No preclinical rows in the registry.")
+        for p in entry.preclinical_evidence:
+            out.append(f"- **{p.indication_or_model}** — {p.species_or_assay}, {p.dose_or_concentration}.")
+            out.append(f"  - **Outcome:** {p.outcome}")
+            out.append(f"  - **Bridging to clinic:** {p.bridging_to_clinic}")
+            out.append(f"  - **Grade:** {_format_grade(p.grade)}")
+            cite_str = "; ".join(_short_cite(c2) for c2 in p.citations)
+            if cite_str:
+                out.append(f"  - Source: {cite_str}")
+        out.append("")
+    if _want("pk"):
+        out.append(f"{sub} Pharmacokinetics")
+        out.append(entry.pharmacokinetics_note)
+        out.append("")
+    if _want("safety"):
+        out.append(f"{sub} Safety")
+        out.append(entry.safety_note)
+        out.append("")
     # Constitution §IV: regulatory scheduling + consumer-market prose are not
     # primary-source research science and are omitted from the brief by
     # default (opt back in for a non-science surface via the flags).
@@ -1878,17 +1898,17 @@ def format_for_researcher(
         out.append(f"{sub} Commercial reality")
         out.append(entry.commercial_reality)
         out.append("")
-    if entry.key_uncertainties:
+    if entry.key_uncertainties and _want("uncertainties"):
         out.append(f"{sub} Key uncertainties")
         for u in entry.key_uncertainties:
             out.append(f"- {u}")
         out.append("")
-    if entry.common_misconceptions:
+    if entry.common_misconceptions and _want("misconceptions"):
         out.append(f"{sub} Common misconceptions (refused)")
         for m in entry.common_misconceptions:
             out.append(f"- {m}")
         out.append("")
-    if entry.citations:
+    if entry.citations and _want("citations"):
         out.append(f"{sub} Cross-cutting citations")
         for c in entry.citations:
             out.append(f"- {_short_cite(c)}")
