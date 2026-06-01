@@ -255,6 +255,36 @@ and `acr_sourced: false` in `--json`, so an illustrative baseline is never
 laundered as a measured fact (§I). The translation is `RR · ACR` for risk
 ratios and the GRADE odds→risk transform for odds ratios; pure stdlib `math`.
 
+**Rate the certainty — the SoF table's first column (`--certainty`, spec 016).**
+A Summary-of-Findings table reports an effect *and how much to trust it*. Add
+`--certainty` and `meta` rates the pooled body of evidence on the GRADE
+⊕-scale, routing the five downgrade domains through the **same**
+`evidence._downgrade` ladder the evidence-profile table uses. It is honest
+about which domains it can and cannot compute: **inconsistency** (the I²
+verdict), **imprecision** (the pooled 95% CI crossing the null — the same
+crossing that makes the NNT span ∞), and **publication bias** (Egger, under
+`--diagnostics`, with the `k ≥ 10` honesty) are *computed*; **risk of bias**
+and **indirectness** are taken as reviewer inputs (`--risk-of-bias`,
+`--indirectness`) and tagged as such, never fabricated (§II). The starting
+grade is the body design (`--evidence-base rct|observational` → High / Low).
+Together with `--baseline-risk` this is the full GRADEpro deliverable:
+
+```
+### GRADE certainty of evidence
+**⊕⊕⊕⊝ Moderate** (Level B) — 1 downgrade step(s) from Level A.
+
+| Domain | Assessment | Downgrade | Basis |
+|---|---|---|---|
+| Risk of bias     | serious     | −1 | reviewer-assessed             |
+| Inconsistency    | not serious | —  | computed (I²=0%)              |
+| Indirectness     | not serious | —  | reviewer-assessed             |
+| Imprecision      | not serious | —  | computed (pooled 95% CI vs null) |
+| Publication bias | not assessed| —  | not assessed (run --diagnostics) |
+```
+
+certainty → relative effect → assumed/corresponding risk → NNT, one command,
+no LLM in the path.
+
 ### What v0.6 ships
 
 1. **Pain medicine registry (≥ 7 curated rows)** — NASEM 2017

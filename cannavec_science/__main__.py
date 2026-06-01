@@ -17,7 +17,8 @@ Subcommands:
   a GRADE inconsistency verdict (spec 011); ``--diagnostics`` adds Egger /
   leave-one-out / subgroup / trim-and-fill (specs 012-014) and
   ``--baseline-risk`` adds the GRADE Summary-of-Findings absolute effect +
-  NNT (spec 015).
+  NNT (spec 015) and ``--certainty`` adds the GRADE ⊕ certainty rating that
+  completes the SoF table (spec 016).
 
 Every subcommand returns a non-zero exit code on refusal / error.
 Stdlib only.
@@ -1139,6 +1140,22 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             print(f"[error] {exc}", file=sys.stderr)
             return 2
 
+    # GRADE certainty rating (spec 016) — completes the SoF table. Uses the
+    # --diagnostics Egger result for the publication-bias domain when present.
+    certainty = None
+    if getattr(args, "certainty", False):
+        from cannavec_science.grade_profile import (
+            certainty_from_meta,
+            render_certainty,
+        )
+        certainty = certainty_from_meta(
+            result,
+            evidence_base=getattr(args, "evidence_base", "rct"),
+            risk_of_bias=getattr(args, "risk_of_bias", "not-serious"),
+            indirectness=getattr(args, "indirectness", "not-serious"),
+            egger=egger,
+        )
+
     if getattr(args, "json", False):
         payload = result.to_dict()
         if getattr(args, "diagnostics", False):
@@ -1156,6 +1173,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             )
             if subgroups is not None:
                 payload["subgroup_analysis"] = subgroups.to_dict()
+        if certainty is not None:
+            payload["certainty"] = certainty.to_dict()
         if abs_effect is not None:
             payload["absolute_effect"] = abs_effect.to_dict()
         print(json.dumps(payload, indent=2, default=str))
@@ -1173,6 +1192,9 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         if subgroups is not None:
             print("")
             print(render_subgroups(subgroups))
+        if certainty is not None:
+            print("")
+            print(render_certainty(certainty))
         if abs_effect is not None:
             print("")
             print(render_absolute(abs_effect))
@@ -1427,6 +1449,23 @@ def _build_parser() -> argparse.ArgumentParser:
     m.add_argument("--absolute-model", choices=["random", "fixed"],
                    default="random",
                    help="Pooled estimate used for the absolute effect.")
+    # GRADE certainty rating (spec 016) — completes the SoF table.
+    m.add_argument("--certainty", action="store_true",
+                   help=("Rate the certainty of the pooled evidence (GRADE "
+                         "⊕ rating). Inconsistency, imprecision and (with "
+                         "--diagnostics) publication bias are computed; risk "
+                         "of bias and indirectness are reviewer inputs."))
+    m.add_argument("--evidence-base", choices=["rct", "observational"],
+                   default="rct",
+                   help="Starting certainty: RCT body → High, observational → Low.")
+    m.add_argument("--risk-of-bias",
+                   choices=["not-serious", "serious", "very-serious"],
+                   default="not-serious",
+                   help="Reviewer-assessed GRADE risk-of-bias domain.")
+    m.add_argument("--indirectness",
+                   choices=["not-serious", "serious", "very-serious"],
+                   default="not-serious",
+                   help="Reviewer-assessed GRADE indirectness domain.")
     m.add_argument("--json", action="store_true",
                    help="Emit structured JSON instead of Markdown.")
     m.set_defaults(func=_cmd_meta)

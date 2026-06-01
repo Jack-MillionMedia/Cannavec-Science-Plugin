@@ -27,6 +27,10 @@ __all__ = [
     "build_profile",
     "render_markdown",
     "render_csv",
+    "CertaintyDomain",
+    "MetaCertainty",
+    "certainty_from_meta",
+    "render_certainty",
 ]
 
 
@@ -375,3 +379,187 @@ def render_csv(profile: GradeProfile) -> str:
             r.effect_estimate, r.certainty, r.n_pmids,
         ])
     return buf.getvalue()
+
+
+# ── GRADE certainty rating for a meta-analysis pool (spec 016) ───────
+#
+# Completes the Summary-of-Findings deliverable: spec 015 gives the absolute
+# effect + NNT columns; this gives the certainty column. It composes the five
+# GRADE downgrade domains through the *same* ``evidence._downgrade`` ladder the
+# evidence-profile table and ``apply_grade_modifiers`` use — three domains are
+# computed from the pooled body of evidence, two are honest reviewer inputs.
+
+# The A↔High / B↔Moderate / C↔Low / D,E↔Very Low correspondence is the inverse
+# of ``uncertainty._GRADE_FROM_STR`` — kept consistent on purpose (§II).
+_GRADE_WORD = {
+    "Level A": "High",
+    "Level B": "Moderate",
+    "Level C": "Low",
+    "Level D": "Very Low",
+    "Level E": "Very Low",
+    "Unsupported": "Unsupported",
+}
+_GRADE_GLYPH = {
+    "High": "⊕⊕⊕⊕",
+    "Moderate": "⊕⊕⊕⊝",
+    "Low": "⊕⊕⊝⊝",
+    "Very Low": "⊕⊝⊝⊝",
+    "Unsupported": "⊝⊝⊝⊝",
+}
+_SERIOUSNESS_STEPS = {"not serious": 0, "serious": 1, "very serious": 2}
+
+
+def _norm_seriousness(value: object) -> str:
+    """Normalise ``not-serious`` / ``very_serious`` / etc. to canonical text."""
+    text = str(value).strip().lower().replace("-", " ").replace("_", " ")
+    text = " ".join(text.split())
+    return text if text in _SERIOUSNESS_STEPS else "not serious"
+
+
+@dataclass(frozen=True)
+class CertaintyDomain:
+    """One GRADE certainty domain and its contribution to the rating."""
+
+    name: str
+    assessment: str
+    steps: int
+    basis: str            # "computed (...)" | "reviewer-assessed" | ...
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class MetaCertainty:
+    """A deterministic GRADE certainty rating for a pooled body of evidence."""
+
+    base_grade: str
+    level: str
+    grade_word: str
+    glyph: str
+    total_steps: int
+    domains: tuple[CertaintyDomain, ...]
+    rationale: str
+
+    def to_dict(self) -> dict:
+        return {
+            "base_grade": self.base_grade,
+            "level": self.level,
+            "grade_word": self.grade_word,
+            "glyph": self.glyph,
+            "total_steps": self.total_steps,
+            "domains": [d.to_dict() for d in self.domains],
+            "rationale": self.rationale,
+        }
+
+
+def certainty_from_meta(
+    result,
+    *,
+    evidence_base: str = "rct",
+    risk_of_bias: str = "not serious",
+    indirectness: str = "not serious",
+    egger=None,
+) -> MetaCertainty:
+    """Rate the certainty of a :class:`MetaAnalysisResult`'s pooled estimate.
+
+    Computed domains: **inconsistency** (spec 011 I² verdict), **imprecision**
+    (the pooled 95% CI crossing the null), and **publication bias** (Egger,
+    when supplied, with the spec 012 ``k ≥ 10`` honesty). Reviewer inputs:
+    **risk of bias** and **indirectness** (``not serious`` / ``serious`` /
+    ``very serious``). The starting grade is the body design — a randomised
+    body starts High (Level A), an observational body Low (Level C), per §VII.
+    """
+    from cannavec_science.evidence import EvidenceLevel, _downgrade
+
+    base = (
+        EvidenceLevel.A
+        if str(evidence_base).strip().lower() in
+        ("rct", "rcts", "randomized", "randomised", "trial", "trials")
+        else EvidenceLevel.C
+    )
+
+    rob = _norm_seriousness(risk_of_bias)
+    ind = _norm_seriousness(indirectness)
+    inc_steps = int(getattr(result, "downgrade_steps", 0) or 0)
+    inc_label = str(getattr(result, "inconsistency", "not serious"))
+
+    lo, hi = result.random_ci_display
+    null = result.null_value_display
+    imprecise = lo <= null <= hi
+
+    if egger is not None:
+        from cannavec_science.meta_analysis import grade_publication_bias
+        pb_label, pb_serious, _rationale = grade_publication_bias(egger)
+        pb_steps = 1 if pb_serious else 0
+        pb_basis = f"computed (Egger, k={getattr(egger, 'k', '?')})"
+    else:
+        pb_label, pb_steps = "not assessed", 0
+        pb_basis = "not assessed (run --diagnostics)"
+
+    domains = (
+        CertaintyDomain("Risk of bias", rob, _SERIOUSNESS_STEPS[rob],
+                        "reviewer-assessed"),
+        CertaintyDomain("Inconsistency", inc_label, inc_steps,
+                        f"computed (I²={result.i_squared:.0f}%)"),
+        CertaintyDomain("Indirectness", ind, _SERIOUSNESS_STEPS[ind],
+                        "reviewer-assessed"),
+        CertaintyDomain(
+            "Imprecision",
+            "serious — 95% CI crosses the null" if imprecise else "not serious",
+            1 if imprecise else 0,
+            "computed (pooled 95% CI vs null)",
+        ),
+        CertaintyDomain("Publication bias", pb_label, pb_steps, pb_basis),
+    )
+
+    total = sum(d.steps for d in domains)
+    level = _downgrade(base, total)
+    word = _GRADE_WORD.get(level.value, "Very Low")
+    glyph = _GRADE_GLYPH.get(word, "⊝⊝⊝⊝")
+
+    serious = [d.name.lower() for d in domains if d.steps > 0]
+    if serious:
+        why = "downgraded for " + ", ".join(serious)
+    else:
+        why = "no serious limitations across the five GRADE domains"
+    rationale = (
+        f"Started at {base.value} ({_GRADE_WORD[base.value]}) for a "
+        f"{'randomised-trial' if base is EvidenceLevel.A else 'observational'} "
+        f"body; {why}; final certainty {level.value} ({word})."
+    )
+
+    return MetaCertainty(
+        base_grade=base.value,
+        level=level.value,
+        grade_word=word,
+        glyph=glyph,
+        total_steps=total,
+        domains=domains,
+        rationale=rationale,
+    )
+
+
+def render_certainty(mc: MetaCertainty) -> str:
+    """Render the certainty rating as a Markdown block for the SoF deliverable."""
+    lines = [
+        "### GRADE certainty of evidence",
+        "",
+        f"**{mc.glyph} {mc.grade_word}** ({mc.level}) — "
+        f"{mc.total_steps} downgrade step(s) from {mc.base_grade}.",
+        "",
+        "| Domain | Assessment | Downgrade | Basis |",
+        "|---|---|---|---|",
+    ]
+    for d in mc.domains:
+        step = "—" if d.steps == 0 else f"−{d.steps}"
+        assessment = d.assessment.replace("|", "\\|")
+        lines.append(f"| {d.name} | {assessment} | {step} | {d.basis} |")
+    lines.append("")
+    lines.append(
+        "- _Risk of bias and indirectness are reviewer-assessed inputs, not "
+        "computed — supply `--risk-of-bias` / `--indirectness` to record your "
+        "assessment (§II)._"
+    )
+    lines.append(f"- _{mc.rationale}_")
+    return "\n".join(lines)
