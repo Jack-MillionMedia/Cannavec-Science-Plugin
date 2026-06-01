@@ -285,6 +285,18 @@ Together with `--baseline-risk` this is the full GRADEpro deliverable:
 certainty → relative effect → assumed/corresponding risk → NNT, one command,
 no LLM in the path.
 
+**Weave it into the brief (`answer --sof FILE`, spec 017).** The Summary-of-
+Findings table is most useful *inside* a research brief, beside the prose and
+the per-claim GRADE evidence profile. `answer --sof sidecar.json` pools the
+§I-anchored studies for each named outcome and appends a **Summary of
+Findings** section — one block per outcome carrying the full
+certainty → relative → absolute → NNT chain — to both the Markdown brief and
+the `--json` `scaffolders.summary_of_findings`. The sidecar is a list of
+outcomes, each with its `studies`, `measure`, optional `baseline`, and the
+reviewer-assessed GRADE domains; everything else reuses the spec 011/015/016
+backbone (no new statistics). A study without a primary-source identifier
+refuses the whole section — a brief never carries an unanchored pooled number.
+
 ### What v0.6 ships
 
 1. **Pain medicine registry (≥ 7 curated rows)** — NASEM 2017

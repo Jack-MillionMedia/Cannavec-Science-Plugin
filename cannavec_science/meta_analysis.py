@@ -43,6 +43,7 @@ __all__ = [
     "MetaAnalysisResult",
     "binary_effect",
     "continuous_effect",
+    "effects_from_records",
     "meta_analyze",
     "grade_inconsistency",
     "render_markdown",
@@ -274,6 +275,42 @@ def continuous_effect(
         study_id=study_id, yi=yi, vi=vi, n=n_t + n_c,
         measure=measure, **_collect_ids(ids),
     )
+
+
+def effects_from_records(records, *, measure: str = "generic") -> list:
+    """Build :class:`EffectSize` objects from a list of dict study records.
+
+    The shared parser behind ``meta`` (CLI) and the Summary-of-Findings
+    composer. Each record is a binary 2×2 table (``events_t/n_t/events_c/n_c``
+    for OR/RR), a continuous arm pair (``mean_t/sd_t/n_t/mean_c/sd_c/n_c`` for
+    MD/SMD), or a precomputed generic effect (``yi/vi``), plus §I identifier
+    fields and an optional ``subgroup`` label. Raises ``KeyError`` on a missing
+    required field and :class:`MetaAnalysisError` on invalid data.
+    """
+    m = (measure or "generic").upper() if isinstance(measure, str) else "GENERIC"
+    id_keys = ("pmid", "doi", "nct", "chembl", "uniprot", "url", "subgroup")
+    effects: list = []
+    for idx, st in enumerate(records):
+        sid = st.get("study_id") or st.get("id") or f"study {idx + 1}"
+        ids = {k: st[k] for k in id_keys if st.get(k)}
+        if m in ("OR", "RR"):
+            es = binary_effect(
+                sid, events_t=st["events_t"], n_t=st["n_t"],
+                events_c=st["events_c"], n_c=st["n_c"], measure=m, **ids,
+            )
+        elif m in ("MD", "SMD"):
+            es = continuous_effect(
+                sid, mean_t=st["mean_t"], sd_t=st["sd_t"], n_t=st["n_t"],
+                mean_c=st["mean_c"], sd_c=st["sd_c"], n_c=st["n_c"],
+                measure=m, **ids,
+            )
+        else:
+            es = EffectSize(
+                study_id=sid, yi=float(st["yi"]), vi=float(st["vi"]),
+                n=st.get("n"), **ids,
+            )
+        effects.append(es)
+    return effects
 
 
 # ── Pooled result ───────────────────────────────────────────────────

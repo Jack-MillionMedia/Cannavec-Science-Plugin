@@ -96,6 +96,26 @@ def _cmd_answer(args: argparse.Namespace) -> int:
         scaffolder_blocks.append(render_regfeas(advisory))
         scaffolders_dict["regulatory_feasibility"] = advisory.to_dict()
 
+    # Summary-of-Findings weave (spec 017) — pool §I-anchored studies per
+    # outcome and carry certainty + relative + absolute + NNT into the brief.
+    if getattr(args, "sof", None) and not a.is_refusal:
+        from cannavec_science.sof import (
+            SoFError, build_sof, render_markdown as render_sof,
+        )
+        try:
+            sof_spec = json.loads(Path(args.sof).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"[error] cannot read SoF sidecar {args.sof!r}: {exc}",
+                  file=sys.stderr)
+            return 2
+        try:
+            sof_obj = build_sof(sof_spec)
+        except SoFError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
+        scaffolder_blocks.append(render_sof(sof_obj))
+        scaffolders_dict["summary_of_findings"] = sof_obj.to_dict()
+
     if getattr(args, "augment_live", False):
         _augment_with_live(a, args)
 
@@ -1017,10 +1037,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
     identifier (§I); a study without one refuses with a non-zero exit.
     """
     from cannavec_science.meta_analysis import (
-        EffectSize,
         MetaAnalysisError,
-        binary_effect,
-        continuous_effect,
+        effects_from_records,
         egger_test,
         leave_one_out,
         meta_analyze,
@@ -1041,32 +1059,9 @@ def _cmd_meta(args: argparse.Namespace) -> int:
 
     measure = (getattr(args, "measure", None) or spec.get("measure") or "generic")
     confidence = float(getattr(args, "confidence", 0.95) or 0.95)
-    # §I identifiers + the optional subgroup moderator label (spec 014).
-    id_keys = ("pmid", "doi", "nct", "chembl", "uniprot", "url", "subgroup")
 
-    effects = []
     try:
-        for idx, st in enumerate(spec.get("studies", [])):
-            sid = st.get("study_id") or st.get("id") or f"study {idx + 1}"
-            ids = {k: st[k] for k in id_keys if st.get(k)}
-            m = measure.upper() if isinstance(measure, str) else "GENERIC"
-            if m in ("OR", "RR"):
-                es = binary_effect(
-                    sid, events_t=st["events_t"], n_t=st["n_t"],
-                    events_c=st["events_c"], n_c=st["n_c"], measure=m, **ids,
-                )
-            elif m in ("MD", "SMD"):
-                es = continuous_effect(
-                    sid, mean_t=st["mean_t"], sd_t=st["sd_t"], n_t=st["n_t"],
-                    mean_c=st["mean_c"], sd_c=st["sd_c"], n_c=st["n_c"],
-                    measure=m, **ids,
-                )
-            else:
-                es = EffectSize(
-                    study_id=sid, yi=float(st["yi"]), vi=float(st["vi"]),
-                    n=st.get("n"), **ids,
-                )
-            effects.append(es)
+        effects = effects_from_records(spec.get("studies", []), measure=measure)
         result = meta_analyze(
             effects,
             measure=(None if str(measure).lower() == "generic" else measure),
@@ -1235,6 +1230,11 @@ def _build_parser() -> argparse.ArgumentParser:
                    choices=["us", "eu", "ca", "uk"],
                    default=None,
                    help="Emit a regulatory-feasibility advisory.")
+    a.add_argument("--sof", default=None, metavar="FILE",
+                   help=("Weave a GRADE Summary-of-Findings section into the "
+                         "brief from a JSON sidecar of pooled outcomes "
+                         "(certainty + relative + absolute effect + NNT). See "
+                         "cannavec_science.sof for the sidecar shape (spec 017)."))
     # Weave in the live frontier (Constitution §IX). Off by default so the
     # brief stays offline + deterministic; when set, fan out to live lanes
     # and append a clearly-tagged, provisional, never-promoted section.
