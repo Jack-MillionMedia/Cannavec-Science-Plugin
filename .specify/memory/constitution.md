@@ -6,8 +6,23 @@ deliberately narrows scope so the surface stays demonstrable and the
 deterministic backbone stays load-bearing.
 
 This constitution governs every spec, plan, task, and implementation
-under `specs/`. The MVP exists to be **trustworthy in five minutes** —
-not to cover every audience, jurisdiction, or operational workflow.
+under `specs/`. The product exists to be **trustworthy in five minutes**
+and to deliver research-grade cannabis science to everyone who uses
+Cannavec — without ever lowering the evidence bar to do so.
+
+## Primacy Of Evidence (governing clause)
+
+Credible primary-source science is the first-order commitment and it
+outranks every other goal. The capabilities added by amendment —
+broad-audience delivery (§IV), the knowledge-base growth flywheel (§IX),
+and presentable/exportable rendering (§XI) — are **strictly subordinate**
+to the evidence-and-safety principles: §I (Primary-Source Or Refuse),
+§V (Safety-Layer Sovereignty), §VI (Phytochemistry Precision),
+§VII (GRADE Honesty), and §VIII (Retraction Enforcement). When a reach-,
+growth-, or presentation-goal conflicts with any evidence-or-safety
+principle, the evidence principle wins and the feature yields. Widening
+*who* receives an answer, or *how* it is rendered, never widens *what
+counts as evidence*.
 
 ## Core Principles
 
@@ -36,15 +51,35 @@ patterns, new registry rows, new rigor detectors MUST ship with at
 least one positive and one negative test case. Tests run offline —
 network calls use injected fetcher fixtures.
 
-### IV. Researcher Audience Only (MVP Scope Lock)
+### IV. Research-Grade For Every Audience
 
-The MVP serves **one audience**: the cannabis-science researcher
-(academic, clinical-trial, industry-research scientist). Patient,
-clinician, cultivator, lab-QC, compliance, retail, hemp, microbiome,
-veterinary, and policy surfaces are explicitly out-of-scope for v0.x
-and MUST NOT be added without a constitutional amendment. The point
-of the MVP is to do one thing exceptionally well — not many things
-adequately.
+Cannavec delivers research-grade cannabis science to **any** reader who
+uses it — including non-specialist users of cannavec.ai — but the
+**evidence standard is invariant**: every answer, for every audience,
+carries the same primary-source anchoring (§I), GRADE honesty (§VII),
+phytochemistry precision (§VI), and retraction enforcement (§VIII) a peer
+reviewer would demand. Audience may change *presentation* (reading level,
+format, length); it MUST NOT change *evidence*.
+
+Two hard limits keep this science-first:
+
+1. **No individualized advice, ever.** Individualized medical, dosing,
+   interaction, or legal advice is refused for every audience by the §V
+   safety layer. Broadening the audience strengthens this gate; it never
+   relaxes it. Cannavec answers "what does the evidence say," never "what
+   should *you* take."
+2. **No non-science operational surfaces.** Cultivation/IPM advice,
+   lab-QC / certificate-of-analysis tooling, compliance / GMP / GACP
+   workflows, retail product recommendations, dosing pamphlets,
+   industrial-hemp material science, and jurisdiction-specific legal /
+   policy operations remain out-of-scope — not because of *who* asks, but
+   because they are not primary-source research science. They live in the
+   parent Cannavec plugin.
+
+The previous "researcher-only" scope lock (Constitution v1.0.0 §IV) is
+superseded by this principle as of v2.0.0; see
+`specs/010-constitution-amendment/spec.md` for the trade-off analysis and
+the new eval surface.
 
 ### V. Safety-Layer Sovereignty
 
@@ -90,13 +125,26 @@ the constitution treats prevention as P0.
 
 ### IX. Read-Time Discovery Is As Important As Write-Time Checking
 
-The MVP ships live discovery across three primary scientific sources:
-**PubMed**, **ChEMBL**, and **ClinicalTrials.gov**. Live rows carry
-per-source provenance tags (`live_pubmed`, `live_chembl`, `live_ctgov`)
-and a deterministic cross-source synthesis verdict
-(STRONG / MIXED / WEAK / NONE convergence). Live rows NEVER auto-promote
-to the curated registry tier; that path requires a future manual
-`apply` flow which is explicitly out-of-MVP-scope.
+The product ships live discovery across its primary scientific sources
+(PubMed, ChEMBL, ClinicalTrials.gov, and the widened set in the plan
+addendum). Live rows carry per-source provenance tags (`live_pubmed`,
+`live_chembl`, `live_ctgov`, …) and a deterministic cross-source
+synthesis verdict (STRONG / MIXED / WEAK / NONE convergence). Live rows
+NEVER silently become curated facts at read time.
+
+**Knowledge-base growth is human-approved (the flywheel).** Discovered
+rows MAY be promoted into the curated knowledge base, but only through a
+deterministic, auditable `apply` flow with a human curator as the last
+gate. A row is eligible to promote ONLY when it clears the **same**
+admission gate as a hand-curated row: a verifiable primary-source
+identifier (§I), a not-retracted status checked at promotion time (§VIII),
+and a clean phytochemistry-rigor pass (§VI). The curator must explicitly
+approve each promotion; every promotion records its provenance, the
+approving curator, and a timestamp, and is reversible. **Fully-automatic
+promotion (no human gate) remains out-of-scope** — the flywheel may stage
+and rank candidates deterministically, but a human confirms before a
+candidate becomes a curated fact. The knowledge base thus grows without
+ever lowering the evidence bar (see Primacy Of Evidence).
 
 ### X. Stdlib-Only Until Proven Insufficient
 
@@ -106,13 +154,30 @@ explicit fallback path. Network calls MUST use `urllib` + injected
 fetcher fixtures so the offline test suite still passes. The MVP runs
 in any Python ≥ 3.9 environment with zero `pip install` steps.
 
-### XI. Citable Output Is The Default
+This applies to the **core**: the evidence, safety, registry, discovery,
+composition, and bibliography backbone MUST remain stdlib-only and
+offline-testable. Presentable-output rendering (§XI) that genuinely needs
+a third-party engine (e.g. PDF or slide generation) MUST live in an
+**optional** layer — an opt-in extra, or the website layer that consumes
+the core's Markdown / JSON — so that `python3 -m cannavec_science` and
+`python3 -m unittest discover -s tests` still run with zero installs.
+
+### XI. Citable, Presentable Output Is The Default
 
 Every research brief MUST be exportable as a bibliography in BibTeX,
-RIS, and CSL-JSON. A researcher using Cannavec Science MUST be able to
-drop the answer's citations directly into Zotero / Mendeley / EndNote
-without re-keying. GRADE level MUST be annotated inline at the
-citation site, not only in a synthesis block.
+RIS, and CSL-JSON. A user MUST be able to drop the answer's citations
+directly into Zotero / Mendeley / EndNote without re-keying. GRADE level
+MUST be annotated inline at the citation site, not only in a synthesis
+block.
+
+Briefs MAY additionally be rendered into presentable formats of the
+user's choice (PDF, slide deck, etc.). The **canonical artifact** is the
+structured Markdown brief plus the typed `--json` `Answer`; any rendered
+format is a transform of that artifact and MUST be **citation-lossless** —
+every primary-source identifier and every inline GRADE annotation in the
+brief MUST survive into the rendered output. A presentable format that
+drops, softens, or de-anchors a citation or a GRADE label violates this
+principle and §VII. Rendering lives in the optional layer per §X.
 
 ## Honest Surface Constraints
 
@@ -155,9 +220,16 @@ the researcher-only audience scope-lock in §IV.
 
 The following remain deliberately deferred past v0.2:
 
-- Multi-audience templates (patient, clinician, cultivator, lab,
-  compliance, retail, policy, hemp, microbiome, veterinary)
-- KB flywheel / gap detection / proposal generation
+- Audience-tailored *presentation* of research-grade science is now
+  in-scope (§IV, v2.0.0). What stays out: individualized advice for any
+  audience (refused by §V) and non-science operational surfaces (patient
+  dosing pamphlets, clinician decision support, cultivator/agronomy, lab
+  QC, compliance, retail, policy, hemp material science, microbiome,
+  veterinary) — these are not primary-source research science and live in
+  the parent plugin.
+- *Fully-automatic* KB promotion, automatic gap detection, and automatic
+  proposal generation (no human gate). Human-approved KB promotion — the
+  §IX v2.0.0 flywheel — IS now in-scope.
 - Signed reproducible artifacts and verification
 - Watchlist + daily digest
 - Persistent expert profiles
@@ -171,7 +243,9 @@ The following remain deliberately deferred past v0.2:
 - Pesticides registry
 - Oncology palliation-vs-cure framing as a standalone surface
 - AlphaFold predicted structures (RCSB experimental only)
-- Curator-agent auto-mutation of registry rows on freshness-probe results
+- Curator-agent *auto*-mutation of registry rows without a human gate
+  (the human-approved §IX apply flow is in-scope; agent self-mutation
+  without a curator approving is not)
 
 These features may exist in the larger Cannavec plugin. They are
 explicitly NOT promised by this elite-tier build. Demo-time conflation
@@ -190,11 +264,27 @@ amendment that broadens audience scope MUST surface the trade-off in
 the spec's "Why this priority" section and document the new eval
 surface area.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-21 | **Last Amended**: 2026-05-21
+**Version**: 2.0.0 | **Ratified**: 2026-05-21 | **Last Amended**: 2026-06-01
 
-Codebase boundary: v0.x → v0.2 crossed via spec 002 (elite development).
-The principles above are unchanged in number and intent; the principle
-texts that explicitly deepened under v0.2 (§I, §VI, §VII, §VIII, §IX,
-§XI) keep their numbering and ordering. No constitutional amendment was
-required because the v0.x qualifier is the mechanism the constitution
-itself defines for moving items off the "Out Of Scope" list.
+### Amendment log
+
+- **v2.0.0 (2026-06-01)** — "Research-grade for every audience" amendment,
+  ratified via `specs/010-constitution-amendment/`. Adds the **Primacy Of
+  Evidence** governing clause; redefines §IV (researcher-only →
+  research-grade-for-all, evidence standard invariant, individualized
+  advice still refused by §V); extends §IX with the human-approved
+  KB-growth flywheel (deterministic + auditable promotion behind a curator
+  gate); extends §X (core stays stdlib; rendering is an optional layer);
+  and extends §XI to citation-lossless presentable output (PDF / slides).
+  No evidence-or-safety principle was weakened — all three new capabilities
+  are subordinate to §I / §V / §VI / §VII / §VIII by the Primacy clause.
+  MAJOR bump: §IV's scope redefinition is backward-incompatible with
+  surfaces that relied on the researcher-only lock; those surfaces are
+  reconciled via spec 010's task list.
+
+- **v1.0.0 (2026-05-21)** — Initial ratification. Codebase boundary
+  v0.x → v0.2 crossed via spec 002 (elite development) without an
+  amendment, using the v0.x qualifier mechanism the constitution defines
+  for moving items off the "Out Of Scope" list. The principle texts that
+  deepened under v0.2 (§I, §VI, §VII, §VIII, §IX, §XI) kept their
+  numbering and ordering.

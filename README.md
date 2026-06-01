@@ -6,17 +6,21 @@ The v0.6 build extends the v0.5 industry-expert-clinical-depth backbone
 across four research domains every working cannabis-research scientist
 asks about, adds a reporting-rigor module, and adds a thirteenth
 primary-source live-discovery lane. All shipping inside Constitution
-§IV (researcher-only). 1,539 unit tests green at HEAD; 188 eval prompts
+§IV (v2.0.0 — research-grade for every audience, evidence standard invariant). 1,539 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
 ## Read this first
 
-### What this plugin refuses to do (Constitution §IV)
+### What this plugin refuses to do (Constitution §IV, v2.0.0)
 
-Cannavec Science serves **research scientists** (academic, clinical-trial,
-industry-research). The following audiences and surfaces are explicitly
-out-of-scope and will not ship without a constitutional amendment:
+Cannavec Science delivers **research-grade cannabis science to every
+audience** — the evidence standard never drops, whoever is asking. What it
+refuses is not a *who* but a *what*: it never lowers the evidence bar, never
+gives individualized advice, and never adds non-science operational
+surfaces. The following stay out-of-scope (they live in the parent Cannavec
+plugin), not because of who asks but because they are not primary-source
+research science:
 
 - **Cultivators / growers** — no agronomy advice, IPM, nutrient regimens, or
   lighting recommendations beyond the science-cited row in `cultivation_science`.
@@ -28,8 +32,10 @@ out-of-scope and will not ship without a constitutional amendment:
   pamphlets, or strain finders.
 - **Hemp-industry material science** — no fiber, grain, or industrial-hemp
   surfaces.
-- **Patient-direct medical advice, jurisdictional law, or policy briefs** —
-  general-information only; clinical decisions remain with licensed clinicians.
+- **Individualized medical / dosing / interaction / legal advice** —
+  refused for *every* audience by the §V safety layer. Cannavec answers
+  "what does the evidence say," never "what should *you* take"; clinical
+  decisions remain with licensed clinicians.
 
 If you need any of these, the parent Cannavec plugin or a dedicated industry
 tool is the right home.
@@ -443,22 +449,29 @@ eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
 
 ## What does NOT ship (deliberately)
 
-Per the [Constitution §IV](.specify/memory/constitution.md), every
-build through v0.6 is researcher-only. The following exist in the
-parent Cannavec plugin and remain **out of scope** for this MVP:
+Per the [Constitution §IV](.specify/memory/constitution.md) (v2.0.0,
+research-grade for every audience), the following remain **out of scope** —
+either because they would lower the evidence bar, give individualized
+advice, or are non-science operational surfaces that live in the parent
+Cannavec plugin:
 
 - Patient, clinician, cultivator, lab, compliance, retail,
   public-health, operator, policy, product, hemp, microbiome,
   veterinary surfaces.
-- KB flywheel, gap detection, BM25 search, proposal generation.
+- *Fully-automatic* KB promotion, gap detection, BM25 search, proposal
+  generation. (Human-approved KB promotion — the §IX v2.0.0 flywheel — is
+  now in-scope: a curator approves each promotion and the row must clear
+  the same primary-source + retraction + rigor gate as a hand-curated row.)
 - Signed artifacts, watchlists, persistent expert profiles.
 - Per-state US regulatory feasibility (v0.2 advisory is US-federal
   only; per-state law lives in the parent plugin).
 - Per-state hemp-derived cannabinoid law, pesticide registry.
 - CourtListener / legal discovery.
 - AlphaFold predicted structures (RCSB experimental only).
-- Curator-agent auto-mutation of registry rows on freshness probe
-  results — the probe surfaces gaps; the curator updates manually.
+- Curator-agent *auto*-mutation of registry rows without a human gate —
+  the freshness probe and the discovery flywheel surface and stage
+  candidates; a human curator approves before anything becomes a curated
+  fact (§IX v2.0.0).
 
 We did not ship them so we could ship the core exceptionally well.
 
@@ -547,6 +560,18 @@ python3 -m cannavec_science registries --registry biosynthesis                  
 | `/cannavec-science:discover <query>` | Live multi-source fan-out across eleven primary sources (PubMed + ChEMBL + CT.gov + PubChem + PharmGKB + RCSB + Open Targets + GWAS + BindingDB + v0.2 bioRxiv + v0.2 medRxiv) with cross-source synthesis verdict. |
 | `/cannavec-science:verify <PMID\|DOI>` | Single-identifier spot-check with retraction status. v0.2 auto-fetches forward-citation network + field-pushback signal. |
 | `/cannavec-science:rigor <text>` | Run the seven phytochemistry rigor detectors (incl. v0.2 entourage-overclaim) + banned-pattern detector on arbitrary text. |
+
+## The research agents
+
+Three subagents wrap the deterministic backbone. None of them grades,
+refuses, or cites in prose — every verdict is computed by
+`cannavec_science/` and relayed verbatim.
+
+| Agent | Role |
+|---|---|
+| `cannabis-research-lead` | Front-door orchestrator (a.k.a. CANNA-RESEARCH-AGENT). Decomposes a research objective into a deterministic execution blueprint — route → `answer` → `discover` → `rigor`/review → `verify` → bibliography — and relays the backbone's verdicts. Carries an explicit honesty disclaimer: the "research team" is sequenced subcommands plus two delegate subagents, **not** an autonomous swarm (Constitution §II). Emits a "curation candidates" block that feeds the human-approved §IX KB-growth flow; it never promotes rows itself. |
+| `cannabis-source-hunter` | Live primary-literature discovery across the 13 lanes. Wraps `discover`; never auto-promotes `live_*` rows (Constitution §IX). |
+| `cannabis-research-reviewer` | Final review pass — the Verity Test + the deterministic `rigor` pass + GRADE wording consistency. Returns PASS / REVISE. |
 
 ## The deterministic backbone
 
