@@ -45,8 +45,8 @@ class EvidenceSynthesisSkillTests(unittest.TestCase):
 
     def test_routes_to_real_subcommands(self):
         text = self.PATH.read_text(encoding="utf-8")
-        for cmd in ("meta", "fragility", "--measure prop", "--moderator-key",
-                    "--knha", "--certainty"):
+        for cmd in ("meta", "fragility", "signal", "--measure prop",
+                    "--moderator-key", "--knha", "--certainty"):
             self.assertIn(cmd, text, f"skill should route to {cmd!r}")
 
     def test_named_subcommands_actually_run(self):

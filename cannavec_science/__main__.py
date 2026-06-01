@@ -1048,6 +1048,26 @@ def _cmd_fragility(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_signal(args: argparse.Namespace) -> int:
+    """Pharmacovigilance disproportionality / signal detection (spec 023)."""
+    from cannavec_science.disproportionality import (
+        DisproportionalityError, disproportionality, render_disproportionality,
+    )
+    try:
+        result = disproportionality(
+            args.drug_event, args.drug_other,
+            args.other_event, args.other_other,
+        )
+    except DisproportionalityError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(render_disproportionality(result))
+    return 0
+
+
 def _cmd_meta(args: argparse.Namespace) -> int:
     """Pool per-study effect sizes into a meta-analysis (spec 011).
 
@@ -1618,6 +1638,28 @@ def _build_parser() -> argparse.ArgumentParser:
     fg.add_argument("--json", action="store_true",
                     help="Emit structured JSON instead of Markdown.")
     fg.set_defaults(func=_cmd_fragility)
+
+    # signal (spec 023 — pharmacovigilance disproportionality)
+    sg = sub.add_parser(
+        "signal",
+        help=(
+            "Pharmacovigilance disproportionality for a drug-event pair: PRR + "
+            "ROR (with CIs) and the MHRA/Evans signal criterion, from a 2×2 of "
+            "spontaneous-report counts. Hypothesis-generating, not causal. "
+            "Deterministic, stdlib-only."
+        ),
+    )
+    sg.add_argument("--drug-event", type=int, required=True,
+                    help="a: reports with this drug AND this event.")
+    sg.add_argument("--drug-other", type=int, required=True,
+                    help="b: reports with this drug AND other events.")
+    sg.add_argument("--other-event", type=int, required=True,
+                    help="c: reports with other drugs AND this event.")
+    sg.add_argument("--other-other", type=int, required=True,
+                    help="d: reports with other drugs AND other events.")
+    sg.add_argument("--json", action="store_true",
+                    help="Emit structured JSON instead of Markdown.")
+    sg.set_defaults(func=_cmd_signal)
 
     # freshness-report
     fr2 = sub.add_parser(

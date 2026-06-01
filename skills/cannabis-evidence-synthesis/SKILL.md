@@ -1,6 +1,6 @@
 ---
 name: cannabis-evidence-synthesis
-description: Quantitative evidence-synthesis & robustness playbook for cannabis research. Auto-activate when pooling studies, computing or interpreting a meta-analysis, judging heterogeneity, rating GRADE certainty of a pooled body, or appraising whether a single trial's "significant" result is robust. Routes the question to the right deterministic `python3 -m cannavec_science` subcommand (meta / fragility) — every tool named here is implemented in `cannavec_science/` and unit-tested; none is LLM judgement.
+description: Quantitative evidence-synthesis & robustness playbook for cannabis research. Auto-activate when pooling studies, computing or interpreting a meta-analysis, judging heterogeneity, rating GRADE certainty of a pooled body, appraising whether a single trial's "significant" result is robust, or screening a drug-event pair for a pharmacovigilance signal. Routes the question to the right deterministic `python3 -m cannavec_science` subcommand (meta / fragility / signal) — every tool named here is implemented in `cannavec_science/` and unit-tested; none is LLM judgement.
 version: 1.0.0
 ---
 
@@ -102,6 +102,22 @@ Returns the Fragility Index (how many patient outcomes would have to flip to los
 significance) and the fragility quotient (FI / N). A small FI on a headline trial
 is a finding in itself — surface it. A non-significant input is reported as such,
 not coerced into a number.
+
+### "Is this drug–event pair a safety signal in the spontaneous reports?"
+
+A pharmacovigilance / toxicology question over a spontaneous-reporting database
+(FAERS, VigiBase, EudraVigilance). Build the 2×2 of report counts and run
+disproportionality:
+
+```bash
+python3 -m cannavec_science signal --drug-event 25 --drug-other 1000 --other-event 70 --other-other 9000
+```
+
+Returns the PRR and ROR (with CIs), a Yates χ², and the MHRA/Evans signal verdict
+(PRR ≥ 2, χ² ≥ 4, a ≥ 3). **A signal is hypothesis-generating, not causal** —
+it is not an incidence, a risk, or proof of harm, and the gates withhold the
+verdict on sparse counts (a high PRR from one or two reports is not a signal).
+Report it as a lead for investigation, never as established risk.
 
 ## Interpretation discipline
 
