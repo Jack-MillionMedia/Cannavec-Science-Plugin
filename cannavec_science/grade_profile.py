@@ -177,12 +177,46 @@ def _effect_estimate(claim: object) -> str:
     return "—"
 
 
-def build_profile(answer: object) -> GradeProfile:
+def _apply_inconsistency_downgrade(certainty: object, meta: object) -> str:
+    """Downgrade a certainty label by a meta-analysis' inconsistency steps.
+
+    Routes the quantitative inconsistency finding (spec 011) through the
+    same ``evidence._downgrade`` ladder the GRADE adapter uses, so the
+    profile's certainty column stays consistent with
+    :func:`evidence.apply_grade_modifiers`. Accepts ``certainty`` as either
+    an :class:`~cannavec_science.evidence.EvidenceLevel` or its string label.
+    """
+    label = getattr(certainty, "value", str(certainty))
+    steps = int(getattr(meta, "downgrade_steps", 0) or 0)
+    if steps <= 0:
+        return label
+    from cannavec_science.evidence import EvidenceLevel, _downgrade
+
+    level = certainty if isinstance(certainty, EvidenceLevel) else None
+    if level is None:
+        for lvl in EvidenceLevel:
+            if lvl.value == label:
+                level = lvl
+                break
+    if level is None:
+        return label
+    return _downgrade(level, steps).value
+
+
+def build_profile(answer: object, *, meta_by_outcome: dict | None = None) -> GradeProfile:
     """Build a GRADE evidence-profile table for ``answer``.
 
     One row per claim. When ``answer`` has no claims, returns a
     single-row table with the "no admissible evidence" message
     (per the spec's zero-claim edge case).
+
+    ``meta_by_outcome`` (spec 011) optionally maps an outcome label to a
+    :class:`cannavec_science.meta_analysis.MetaAnalysisResult`. When a row's
+    outcome label matches a key, the row's *inconsistency* column is taken
+    from the quantitative heterogeneity verdict (and the certainty grade is
+    downgraded accordingly) instead of the conservative ``"not serious"``
+    default. Defaults to ``None`` — existing callers and tests are
+    unaffected.
     """
     claims = tuple(getattr(answer, "claims", ()) or ())
     prompt = getattr(answer, "prompt", "") or ""
@@ -227,12 +261,24 @@ def build_profile(answer: object) -> GradeProfile:
         certainty_label = getattr(certainty, "value", str(certainty))
         designs = tuple(sorted({_study_design_of_source(s) for s in sources}))
         n_pmids = sum(1 for s in sources if getattr(s, "pmid", None))
+
+        # Inconsistency: data-driven when a quantitative meta-analysis is
+        # supplied for this outcome (spec 011); conservative default
+        # otherwise. A serious/very-serious heterogeneity finding also
+        # downgrades the certainty grade through the existing GRADE adapter.
+        outcome_label = _outcome_label(claim, idx)
+        inconsistency_label = "not serious"
+        meta = (meta_by_outcome or {}).get(outcome_label)
+        if meta is not None:
+            inconsistency_label = getattr(meta, "inconsistency", "not serious")
+            certainty_label = _apply_inconsistency_downgrade(certainty, meta)
+
         rows.append(GradeProfileRow(
-            outcome=_outcome_label(claim, idx),
+            outcome=outcome_label,
             n_studies=len(sources),
             study_designs=designs,
             risk_of_bias=rob,
-            inconsistency="not serious",
+            inconsistency=inconsistency_label,
             indirectness="not serious",
             imprecision=imprec,
             publication_bias=pubbias,

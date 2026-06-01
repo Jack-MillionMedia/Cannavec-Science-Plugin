@@ -12,6 +12,9 @@ Subcommands:
 - ``bibliography <answer.json>`` — re-render a saved answer's
   bibliography in BibTeX / RIS / CSL-JSON.
 - ``source-health`` — probe per-source liveness.
+- ``meta <studies.json>`` — pool per-study effect sizes into a
+  fixed/random-effects meta-analysis with heterogeneity (Q, I², τ²) and
+  a GRADE inconsistency verdict (spec 011).
 
 Every subcommand returns a non-zero exit code on refusal / error.
 Stdlib only.
@@ -1000,6 +1003,76 @@ def _cmd_source_health(args: argparse.Namespace) -> int:
     return 1 if any_down else 0
 
 
+def _cmd_meta(args: argparse.Namespace) -> int:
+    """Pool per-study effect sizes into a meta-analysis (spec 011).
+
+    Reads a JSON spec ``{"measure": ..., "studies": [...]}``. Each study
+    is a binary 2×2 table (``events_t/n_t/events_c/n_c``), a continuous
+    arm pair (``mean_t/sd_t/n_t/mean_c/sd_c/n_c``), or a precomputed
+    generic effect (``yi/vi``). Every study MUST carry a primary-source
+    identifier (§I); a study without one refuses with a non-zero exit.
+    """
+    from cannavec_science.meta_analysis import (
+        EffectSize,
+        MetaAnalysisError,
+        binary_effect,
+        continuous_effect,
+        meta_analyze,
+        render_markdown,
+    )
+
+    try:
+        spec = json.loads(Path(args.spec).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"[error] cannot read meta spec {args.spec!r}: {exc}", file=sys.stderr)
+        return 2
+
+    measure = (getattr(args, "measure", None) or spec.get("measure") or "generic")
+    confidence = float(getattr(args, "confidence", 0.95) or 0.95)
+    id_keys = ("pmid", "doi", "nct", "chembl", "uniprot", "url")
+
+    effects = []
+    try:
+        for idx, st in enumerate(spec.get("studies", [])):
+            sid = st.get("study_id") or st.get("id") or f"study {idx + 1}"
+            ids = {k: st[k] for k in id_keys if st.get(k)}
+            m = measure.upper() if isinstance(measure, str) else "GENERIC"
+            if m in ("OR", "RR"):
+                es = binary_effect(
+                    sid, events_t=st["events_t"], n_t=st["n_t"],
+                    events_c=st["events_c"], n_c=st["n_c"], measure=m, **ids,
+                )
+            elif m in ("MD", "SMD"):
+                es = continuous_effect(
+                    sid, mean_t=st["mean_t"], sd_t=st["sd_t"], n_t=st["n_t"],
+                    mean_c=st["mean_c"], sd_c=st["sd_c"], n_c=st["n_c"],
+                    measure=m, **ids,
+                )
+            else:
+                es = EffectSize(
+                    study_id=sid, yi=float(st["yi"]), vi=float(st["vi"]),
+                    n=st.get("n"), **ids,
+                )
+            effects.append(es)
+        result = meta_analyze(
+            effects,
+            measure=(None if str(measure).lower() == "generic" else measure),
+            confidence=confidence,
+        )
+    except KeyError as exc:
+        print(f"[error] study missing required field: {exc}", file=sys.stderr)
+        return 2
+    except MetaAnalysisError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2, default=str))
+    else:
+        print(render_markdown(result))
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m cannavec_science",
@@ -1200,6 +1273,34 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="Enable live PubMed verification (slower).")
     fr.add_argument("--json", action="store_true")
     fr.set_defaults(func=_cmd_freshness)
+
+    # meta (spec 011 — quantitative evidence synthesis)
+    m = sub.add_parser(
+        "meta",
+        help=(
+            "Pool per-study effect sizes into a fixed-effect + DerSimonian-"
+            "Laird random-effects meta-analysis with heterogeneity (Q, I², "
+            "τ²) and a GRADE inconsistency verdict. Deterministic, stdlib-only."
+        ),
+    )
+    m.add_argument(
+        "spec",
+        help=(
+            'JSON file: {"measure": "OR|RR|MD|SMD|generic", "studies": [...]}. '
+            "Each study carries a primary-source identifier (pmid/doi/nct/"
+            "chembl/uniprot/url) per §I and either a 2×2 table, continuous "
+            "arm summaries, or precomputed yi/vi."
+        ),
+    )
+    m.add_argument(
+        "--measure", default=None,
+        help="Override the spec's measure: OR | RR | MD | SMD | generic.",
+    )
+    m.add_argument("--confidence", type=float, default=0.95,
+                   help="Confidence level for CIs (default 0.95).")
+    m.add_argument("--json", action="store_true",
+                   help="Emit structured JSON instead of Markdown.")
+    m.set_defaults(func=_cmd_meta)
 
     # freshness-report
     fr2 = sub.add_parser(
