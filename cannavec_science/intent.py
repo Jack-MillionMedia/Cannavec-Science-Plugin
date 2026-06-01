@@ -53,8 +53,10 @@ _PATTERNS: tuple[tuple[Intent, re.Pattern[str]], ...] = (
         flags=re.IGNORECASE,
     )),
     (Intent.MECHANISM, re.compile(
-        r"\b(?:mechanism|how does .* work|receptor|agoni\w*|"
-        r"antagoni\w*|binding|affinity|pathway|signal\w*)\b",
+        # ``receptor\w*`` so the plural "receptors" matches too — "how does
+        # X act on its receptors" is a textbook mechanism question.
+        r"\b(?:mechanism|how does .* work|how does .* act|receptor\w*|"
+        r"agoni\w*|antagoni\w*|binding|affinity|pathway|signal\w*)\b",
         flags=re.IGNORECASE,
     )),
     (Intent.SAFETY_RISK, re.compile(
@@ -63,8 +65,13 @@ _PATTERNS: tuple[tuple[Intent, re.Pattern[str]], ...] = (
         flags=re.IGNORECASE,
     )),
     (Intent.EFFICACY, re.compile(
+        # "evidence for/in <condition>" is the canonical way a researcher
+        # asks an efficacy question ("CBD evidence in Dravet"). Anchored to
+        # for/in/base so it does not steal LITERATURE_REVIEW's "state of the
+        # evidence" / "review the evidence".
         r"\b(?:does it work|is it effective|effective for|"
-        r"efficacy|works for|help with|good for)\b",
+        r"efficacy|works for|help with|good for|"
+        r"evidence\s+(?:for|in|base))\b",
         flags=re.IGNORECASE,
     )),
     (Intent.LEGAL_STATUS, re.compile(

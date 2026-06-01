@@ -204,12 +204,12 @@ class TestDetection(unittest.TestCase):
 
 class TestRendering(unittest.TestCase):
 
-    def test_format_for_researcher_renders_full_monograph(self) -> None:
+    def test_format_for_researcher_science_default_monograph(self) -> None:
         thcv = find_minor_cannabinoid("THCV")
         assert thcv is not None
         md = format_for_researcher(thcv)
 
-        # Headers
+        # Standalone default keeps the compound title + ``##`` science sections.
         self.assertIn("# THCV — tetrahydrocannabivarin", md)
         self.assertIn("## Chemistry", md)
         self.assertIn("## Receptor pharmacology", md)
@@ -217,9 +217,12 @@ class TestRendering(unittest.TestCase):
         self.assertIn("## Preclinical evidence", md)
         self.assertIn("## Pharmacokinetics", md)
         self.assertIn("## Safety", md)
-        self.assertIn("## Regulatory status", md)
-        self.assertIn("## Commercial reality", md)
         self.assertIn("## Common misconceptions", md)
+
+        # Constitution §IV: regulatory scheduling + consumer-market prose are
+        # NOT primary-source research science — omitted from the brief default.
+        self.assertNotIn("## Regulatory status", md)
+        self.assertNotIn("## Commercial reality", md)
 
         # Receptor IDs surface
         self.assertIn("P21554", md, "CB1 UniProt missing from rendering")
@@ -228,6 +231,44 @@ class TestRendering(unittest.TestCase):
         # Trial identifiers surface
         self.assertIn("PMID 27573936", md, "Jadoon 2016 PMID missing")
         self.assertIn("PMID 26577065", md, "Englund 2016 PMID missing")
+
+    def test_regulatory_and_commercial_are_opt_in(self) -> None:
+        thcv = find_minor_cannabinoid("THCV")
+        assert thcv is not None
+        md = format_for_researcher(
+            thcv, include_regulatory=True, include_commercial=True
+        )
+        self.assertIn("## Regulatory status", md)
+        self.assertIn("## Commercial reality", md)
+
+    def test_nested_render_keeps_single_heading_tree(self) -> None:
+        """Nested under an Answer ``##`` section: title suppressed, sub-sections
+        at ``###``, no in-body H1/H2 to collide with the Answer's own tree."""
+        thcv = find_minor_cannabinoid("THCV")
+        assert thcv is not None
+        md = format_for_researcher(thcv, title=False, heading_level=2)
+
+        for line in md.splitlines():
+            self.assertFalse(
+                line.startswith("# ") or line.startswith("## "),
+                f"nested monograph must not emit H1/H2, got: {line!r}",
+            )
+        self.assertIn("### Chemistry", md)
+        self.assertIn("### Receptor pharmacology", md)
+        # The long name is not lost when the H1 title is suppressed.
+        self.assertIn("tetrahydrocannabivarin", md)
+
+    def test_meta_analysis_row_omits_meaningless_n_zero(self) -> None:
+        """An SR / meta-analysis row carries n=0 (patient count is the wrong
+        unit); the renderer must not print the misleading 'n=0'."""
+        from cannavec_science.major_cannabinoids import find_major_cannabinoid
+
+        thc = find_major_cannabinoid("THC")
+        assert thc is not None
+        md = format_for_researcher(thc)
+        self.assertNotIn("n=0", md)
+        # The SR row itself still renders — only the bogus count is dropped.
+        self.assertIn("Cochrane", md)
 
     def test_cbn_rendering_names_marketing_gap(self) -> None:
         cbn = find_minor_cannabinoid("CBN")

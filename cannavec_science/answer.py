@@ -48,6 +48,7 @@ from cannavec_science.evidence import (
     SourceTier,
     missing_disclosures,
 )
+from cannavec_science.intent import Intent, classify_intent
 from cannavec_science.safety import SafetyAction, SafetyVerdict
 from cannavec_science.uncertainty import (
     WordingViolation,
@@ -198,6 +199,10 @@ class Answer:
     strict_citation_mandate: bool = False
     sections: list[tuple[str, str]] = field(default_factory=list)
     trace: list[tuple[str, int]] = field(default_factory=list)
+    # Unverified live-discovery hits (Constitution §IX). Provenance-tagged,
+    # provisionally graded, never promoted into the curated grade — a fenced
+    # "frontier" surface that augments a thin curated answer.
+    live_findings: list[dict] = field(default_factory=list)
 
     def add_claim(self, claim: Claim) -> None:
         if (
@@ -241,6 +246,36 @@ class Answer:
 
     def add_trace(self, detector: str, hit_count: int) -> None:
         self.trace.append((detector, int(hit_count)))
+
+    def add_live_finding(
+        self,
+        *,
+        label: str,
+        identifier: str,
+        source_tag: str,
+        url: str = "",
+        provisional_grade: str = "provisional (live, unverified)",
+        year: "str | int | None" = None,
+    ) -> None:
+        """Attach one unverified live-discovery hit (Constitution §IX).
+
+        Live findings are tagged by provenance, carry only a *provisional*
+        grade, and NEVER affect the curated ``evidence_summary`` grade or
+        auto-promote into the knowledge base. De-duplicated by identifier.
+        """
+        if not (label or identifier):
+            return
+        for existing in self.live_findings:
+            if identifier and existing.get("identifier") == identifier:
+                return
+        self.live_findings.append({
+            "label": label,
+            "identifier": identifier,
+            "source_tag": source_tag,
+            "url": url,
+            "provisional_grade": provisional_grade,
+            "year": str(year) if year not in (None, "") else "",
+        })
 
     def stamp_now(self) -> None:
         self.generated_at = (
@@ -386,6 +421,26 @@ class Answer:
             lines.append(body)
             lines.append("")
 
+        if self.live_findings:
+            lines.append("## Live discovery — provisional, not curated")
+            lines.append("")
+            lines.append(
+                "_Unverified live-source hits, tagged by provenance "
+                "(Constitution §IX). They carry no curated grade, are not "
+                "retraction-checked here, and never auto-promote into the "
+                "knowledge base — verify each identifier before citing._"
+            )
+            lines.append("")
+            for f in self.live_findings:
+                yr = f" ({f['year']})" if f.get("year") else ""
+                url = f" — {f['url']}" if f.get("url") else ""
+                label = f" {f['label']}" if f.get("label") else ""
+                lines.append(
+                    f"- [{f['source_tag']}] `{f['identifier']}`{yr}{label} "
+                    f"— provisional grade: {f['provisional_grade']}{url}".rstrip()
+                )
+            lines.append("")
+
         if self.cautions:
             lines.append("## Cautions")
             lines.append("")
@@ -497,6 +552,7 @@ class Answer:
             ],
             "cautions": list(self.cautions),
             "notes": list(self.notes),
+            "live_findings": list(self.live_findings),
             "retractions_suppressed": list(self.retractions_suppressed),
             "rigor_violations": self.rigor_violations,
             "evidence_summary": (
@@ -635,6 +691,140 @@ def resolve_named_cannabinoid_set(prompt: str) -> NamedCannabinoidSet:
         minor=tuple(minor_entries),
         all_names=names,
     )
+
+
+# ── "Answer the question, not the entity" — intent → monograph sections ──
+# For question types we can detect with confidence, render only the
+# sub-sections that answer that question, so a focused query is not buried
+# under the full entity monograph. Broad / ambiguous intents (COMPARISON,
+# LITERATURE_REVIEW, PRODUCT_CLAIM_CHECK, LEGAL_STATUS, RECOMMENDATION,
+# HOW_TO_PROCEDURAL, OPEN_QUESTION — e.g. "write a monograph on X") fall back
+# to the full monograph (None) so we never hide evidence a reader wanted.
+# ``uncertainties`` + ``citations`` ride along with every focused set to keep
+# the honesty + traceability surface intact.
+_MONOGRAPH_SECTIONS_BY_INTENT: "dict[Intent, frozenset[str]]" = {
+    Intent.MECHANISM: frozenset(
+        {"chemistry", "receptor", "preclinical", "uncertainties", "citations"}
+    ),
+    Intent.DOSING: frozenset(
+        {"chemistry", "clinical", "pk", "safety", "uncertainties", "citations"}
+    ),
+    Intent.SAFETY_RISK: frozenset(
+        {"clinical", "safety", "uncertainties", "misconceptions", "citations"}
+    ),
+    Intent.INTERACTION: frozenset(
+        {"pk", "safety", "uncertainties", "citations"}
+    ),
+    Intent.DEFINITION: frozenset(
+        {"chemistry", "receptor", "uncertainties", "citations"}
+    ),
+    Intent.EFFICACY: frozenset(
+        {"clinical", "preclinical", "safety", "uncertainties",
+         "misconceptions", "citations"}
+    ),
+}
+
+
+def _monograph_sections_for(prompt: str) -> "frozenset[str] | None":
+    """Pick the monograph sub-sections that answer this prompt's intent.
+
+    ``None`` (full monograph) for broad / ambiguous intents.
+    """
+    return _MONOGRAPH_SECTIONS_BY_INTENT.get(classify_intent(prompt))
+
+
+# Factual descriptions of each evidence tier for the BLUF lead. These
+# describe the grade; they are NOT efficacy verbs, so prefixing them to an
+# already grade-validated claim cannot over-claim (Constitution §VII).
+_GRADE_FRAME: "dict[EvidenceLevel, str]" = {
+    EvidenceLevel.A: (
+        "High-certainty evidence (Level A — systematic review / "
+        "meta-analysis or ≥ 2 aligned RCTs)"
+    ),
+    EvidenceLevel.B: (
+        "Moderate-certainty evidence (Level B — single adequately-powered RCT)"
+    ),
+    EvidenceLevel.C: (
+        "Low-certainty evidence (Level C — observational / single small trial)"
+    ),
+    EvidenceLevel.D: "Preclinical evidence only (Level D)",
+    EvidenceLevel.E: "Traditional-use evidence only (Level E)",
+    EvidenceLevel.UNSUPPORTED: "No admissible primary evidence",
+}
+
+
+def _set_short_answer(a: Answer) -> None:
+    """Populate the BLUF lead: one grade-honest bottom line at the top.
+
+    Reuses the highest-grade topically-relevant claim's *already
+    grade-validated* text (never freshly-generated prose), prefixed with a
+    factual description of the evidence tier. The claim verb was checked at
+    ``add_claim`` time, so the lead cannot over-claim (§VII). No-ops on a
+    refusal, when no claim is topically relevant, or when a caller already
+    set ``short_answer``.
+    """
+    if a.is_refusal or a.short_answer:
+        return
+    relevant = getattr(a, "_topically_relevant_claims", None)
+    if not relevant:
+        relevant = tuple(a.claims)
+    if not relevant:
+        return
+    top = max(relevant, key=lambda c: c.best_supportable_grade().rank)
+    grade = top.best_supportable_grade()
+    frame = _GRADE_FRAME.get(grade, f"Level {grade.value}")
+    cites = " ".join(
+        Citation.from_source(s, grade=grade).inline for s in top.sources
+    )
+    text = top.text.rstrip()
+    if text and text[-1] not in ".!?":
+        text += "."
+    a.short_answer = f"**{frame}.** {text} {cites}".rstrip()
+
+
+# Live lanes that are not peer-reviewed cap at Level D (preprint).
+_PREPRINT_LIVE_SOURCES = frozenset({"biorxiv", "medrxiv", "preprint"})
+
+
+def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
+    """Map a live-discovery row (a lane's ``.to_dict()``) to a provisional
+    live-finding dict for :meth:`Answer.add_live_finding`.
+
+    Mirrors the identifier / title extraction the ``discover`` CLI uses, so
+    the two surfaces agree on a row's headline identifier. Returns ``None``
+    when the row carries no primary identifier (nothing citable per §I).
+    """
+    ident = (
+        row.get("pmid") or row.get("nct_id") or row.get("activity_id")
+        or row.get("cid") or row.get("pdb_id") or row.get("accession_id")
+        or row.get("ensembl_id") or row.get("monomer_id")
+        or row.get("chembl_id") or row.get("doi")
+    )
+    if not ident:
+        return None
+    title = (
+        row.get("title") or row.get("brief_title") or row.get("disease_name")
+        or row.get("compound") or ""
+    )
+    year = row.get("year") or row.get("start_year") or ""
+    ident_label = (
+        f"PMID {ident}"
+        if source_key == "pubmed" and str(ident).isdigit()
+        else str(ident)
+    )
+    grade = (
+        "Level D (preprint, not peer-reviewed)"
+        if source_key in _PREPRINT_LIVE_SOURCES
+        else "provisional (live, unverified)"
+    )
+    return {
+        "label": title,
+        "identifier": ident_label,
+        "source_tag": f"live_{source_key}",
+        "url": row.get("url") or row.get("link") or "",
+        "provisional_grade": grade,
+        "year": str(year) if year else "",
+    }
 
 
 def compose_answer(
@@ -1027,16 +1217,28 @@ def compose_answer(
             from cannavec_science.minor_cannabinoids import (
                 format_for_researcher as _fmt_minor,
             )
+            # Nested under the Answer's ``##`` section heading, which already
+            # names the compound: suppress the monograph's own title and render
+            # sub-sections at ``###`` so the brief keeps one clean heading tree.
+            # ``sections`` narrows the monograph to what the question's intent
+            # actually asks for (None = full monograph for broad queries).
+            monograph_sections = _monograph_sections_for(prompt)
             for compound in matched_major_cb_rows:
                 a.add_section(
                     f"Major cannabinoid monograph — {compound.name}",
-                    _fmt_minor(compound),
+                    _fmt_minor(
+                        compound, title=False, heading_level=2,
+                        sections=monograph_sections,
+                    ),
                 )
                 _attach_monograph_citations(a, compound)
             for compound in matched_minor_cb_rows:
                 a.add_section(
                     f"Minor cannabinoid monograph — {compound.name}",
-                    _fmt_minor(compound),
+                    _fmt_minor(
+                        compound, title=False, heading_level=2,
+                        sections=monograph_sections,
+                    ),
                 )
                 _attach_monograph_citations(a, compound)
         # Spec 003 US7 / FR-007 — eCBome entries render as a reference
@@ -1148,6 +1350,7 @@ def compose_answer(
     _classify_zero_claims(a, prompt, cannabinoid_set, banned_hits)
 
     a.refresh_evidence_summary()
+    _set_short_answer(a)
     return a
 
 

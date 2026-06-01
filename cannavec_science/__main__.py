@@ -89,6 +89,9 @@ def _cmd_answer(args: argparse.Namespace) -> int:
         scaffolder_blocks.append(render_regfeas(advisory))
         scaffolders_dict["regulatory_feasibility"] = advisory.to_dict()
 
+    if getattr(args, "augment_live", False):
+        _augment_with_live(a, args)
+
     if args.json:
         payload = a.to_dict()
         if scaffolders_dict:
@@ -114,6 +117,48 @@ def _cmd_answer(args: argparse.Namespace) -> int:
             print("\n" + body)
 
     return 1 if a.is_refusal else 0
+
+
+def _augment_with_live(a, args) -> None:
+    """Flag-gated live-evidence weave (Constitution §IX).
+
+    Re-uses the prompt as a discovery query, fans out to the requested live
+    lanes, and attaches provisional, provenance-tagged findings to the
+    Answer. Network only; a refusal or any lane failure degrades gracefully
+    — the curated brief still stands. Never promotes a live row to curated.
+    """
+    from types import SimpleNamespace
+    from cannavec_science.answer import live_finding_from_row
+    from cannavec_science.discover_guard import DiscoverRefused, preflight
+
+    if a.is_refusal:
+        return
+    try:
+        preflight(a.prompt)
+    except DiscoverRefused:
+        return
+    per_lane = max(1, int(getattr(args, "augment_max", 5) or 5))
+    q = SimpleNamespace(
+        query=a.prompt, since=getattr(args, "since", None), max=per_lane
+    )
+    sources = [
+        s.strip()
+        for s in (getattr(args, "augment_sources", None) or "pubmed,ctgov").split(",")
+        if s.strip()
+    ]
+    for src in sources:
+        runner = _DISCOVERER_REGISTRY.get(src)
+        if runner is None:
+            continue
+        try:
+            rows = runner(q)
+        except Exception as exc:  # noqa: BLE001 — degrade; curated answer stands
+            _log.warning("answer --augment-live lane %s failed: %s", src, exc)
+            continue
+        for r in rows[:per_lane]:
+            finding = live_finding_from_row(src, r.to_dict())
+            if finding:
+                a.add_live_finding(**finding)
 
 
 def _cmd_discover(args: argparse.Namespace) -> int:
@@ -989,6 +1034,17 @@ def _build_parser() -> argparse.ArgumentParser:
                    choices=["us", "eu", "ca", "uk"],
                    default=None,
                    help="Emit a regulatory-feasibility advisory.")
+    # Weave in the live frontier (Constitution §IX). Off by default so the
+    # brief stays offline + deterministic; when set, fan out to live lanes
+    # and append a clearly-tagged, provisional, never-promoted section.
+    a.add_argument("--augment-live", action="store_true",
+                   help="Append clearly-tagged live-discovery hits to the brief.")
+    a.add_argument("--augment-sources", default="pubmed,ctgov",
+                   help="Comma-separated live lanes for --augment-live.")
+    a.add_argument("--augment-max", type=int, default=5,
+                   help="Max live findings per lane for --augment-live.")
+    a.add_argument("--since", default=None,
+                   help="Earliest date (YYYY-MM-DD) for --augment-live lanes.")
     a.set_defaults(func=_cmd_answer)
 
     # discover
