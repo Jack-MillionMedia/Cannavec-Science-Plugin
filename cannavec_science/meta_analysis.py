@@ -72,6 +72,9 @@ __all__ = [
     "MetaRegressionResult",
     "meta_regression",
     "render_meta_regression",
+    "HKSJResult",
+    "hksj_interval",
+    "render_hksj",
 ]
 
 
@@ -1956,6 +1959,113 @@ def render_meta_regression(result: MetaRegressionResult) -> str:
         f"_{result.rationale}_",
     ]
     return "\n".join(lines)
+
+
+# ── Hartung-Knapp-Sidik-Jonkman interval (spec 021) ──────────────────
+
+
+@dataclass(frozen=True)
+class HKSJResult:
+    """A Hartung-Knapp-Sidik-Jonkman CI for the random-effects pooled estimate.
+
+    The classic DerSimonian-Laird z-interval is too narrow when k is small —
+    the dominant case in cannabis meta-analysis (IntHout 2014). HKSJ rescales
+    the variance by the observed weighted residual and uses a t-distribution
+    with k−1 df, widening the interval to its honest size. The **modified**
+    variant (Röver, Knapp & Friede 2015) clamps the scaling factor to ≥ 1 so
+    the interval is never narrower than the DL-t interval — the right default
+    for a tool that refuses to overstate precision (§VII).
+    """
+
+    k: int
+    confidence: float
+    estimate_display: float
+    ci_display: tuple[float, float]
+    q_factor: float          # raw HK variance-scaling factor
+    clamped: bool            # was q raised to 1.0 (modified HKSJ)?
+    modified: bool
+    t_critical: float
+    t_statistic: float
+    p_value: float
+    rationale: str
+
+    def to_dict(self) -> dict:
+        return {
+            "method": "hksj_modified" if self.modified else "hksj",
+            "k": self.k,
+            "confidence": self.confidence,
+            "estimate_display": self.estimate_display,
+            "ci_display": list(self.ci_display),
+            "q_factor": self.q_factor,
+            "clamped": self.clamped,
+            "t_critical": self.t_critical,
+            "t_statistic": self.t_statistic,
+            "p_value": self.p_value,
+            "rationale": self.rationale,
+        }
+
+
+def hksj_interval(
+    result: MetaAnalysisResult, *, modified: bool = True
+) -> HKSJResult:
+    """Hartung-Knapp-Sidik-Jonkman CI for ``result``'s random-effects estimate.
+
+    Reuses the pooled estimate and τ² already on ``result``; ``modified=True``
+    (default) clamps the variance-scaling factor to ≥ 1 so the interval is
+    never narrower than the DL-t interval. Requires k ≥ 2 (a t needs df ≥ 1).
+    """
+    k = result.k
+    if k < 2:
+        raise MetaAnalysisError("HKSJ interval needs k ≥ 2 studies")
+    mu = result.random_estimate
+    tau2 = result.tau_squared
+    w = [1.0 / (s.vi + tau2) for s in result.studies]
+    sw = math.fsum(w)
+    q_raw = (1.0 / (k - 1)) * math.fsum(
+        wi * (s.yi - mu) ** 2 for wi, s in zip(w, result.studies))
+    q_used = max(1.0, q_raw) if modified else q_raw
+    se = math.sqrt(q_used / sw)
+    t_crit = _t_critical(result.confidence, k - 1)
+    lo, hi = mu - t_crit * se, mu + t_crit * se
+    t_stat = mu / se if se > 0 else 0.0
+    p_val = _t_sf_two_sided(t_stat, k - 1)
+    clamped = modified and q_raw < 1.0
+
+    lo_d, hi_d = result._disp(lo), result._disp(hi)
+    dl_lo, dl_hi = result.random_ci_display
+    rel = "wider than" if (hi_d - lo_d) > (dl_hi - dl_lo) else "similar to"
+    note = (
+        f"HK scaling q = {q_raw:.3f}"
+        + (" (clamped to 1.0 — modified HKSJ; the studies are more consistent "
+           "than chance, so the raw HKSJ interval would understate uncertainty)"
+           if clamped else "")
+        + f"; the {int(result.confidence * 100)}% interval is {rel} the "
+        "DerSimonian-Laird z-interval, using a t-distribution with "
+        f"{k - 1} df."
+    )
+
+    return HKSJResult(
+        k=k, confidence=result.confidence,
+        estimate_display=result._disp(mu), ci_display=(lo_d, hi_d),
+        q_factor=q_raw, clamped=clamped, modified=modified,
+        t_critical=t_crit, t_statistic=t_stat, p_value=p_val,
+        rationale=note,
+    )
+
+
+def render_hksj(result: HKSJResult) -> str:
+    """Markdown for an HKSJ random-effects interval."""
+    return "\n".join([
+        "### Hartung-Knapp-Sidik-Jonkman interval",
+        "",
+        f"- **Pooled (random):** {result.estimate_display:.4g} "
+        f"({int(result.confidence * 100)}% HKSJ CI "
+        f"{result.ci_display[0]:.4g} to {result.ci_display[1]:.4g})",
+        f"- **t = {result.t_statistic:.3f}** (df {result.k - 1}), "
+        f"two-sided p = {result.p_value:.4f}",
+        "",
+        f"_{result.rationale}_",
+    ])
 
 
 # ── stdlib numerics (no NumPy / SciPy — Constitution §X) ─────────────

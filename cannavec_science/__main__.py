@@ -1053,6 +1053,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         render_proportion,
         meta_regression,
         render_meta_regression,
+        hksj_interval,
+        render_hksj,
     )
 
     try:
@@ -1136,6 +1138,16 @@ def _cmd_meta(args: argparse.Namespace) -> int:
                     effects, measure=measure_arg, confidence=confidence)
             except MetaAnalysisError:
                 subgroups = None
+
+    # Hartung-Knapp-Sidik-Jonkman interval for the pooled estimate (spec 021).
+    # --knha doubles as "use Hartung-Knapp throughout" — for the pool here and
+    # for the meta-regression slope below.
+    hksj = None
+    if getattr(args, "knha", False):
+        try:
+            hksj = hksj_interval(result)
+        except MetaAnalysisError:
+            hksj = None
 
     # Meta-regression on a continuous moderator (spec 020). Each study record
     # must carry a numeric field named by --moderator-key.
@@ -1235,6 +1247,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             payload["certainty"] = certainty.to_dict()
         if abs_effect is not None:
             payload["absolute_effect"] = abs_effect.to_dict()
+        if hksj is not None:
+            payload["hksj"] = hksj.to_dict()
         if metareg is not None:
             payload["meta_regression"] = metareg.to_dict()
         print(json.dumps(payload, indent=2, default=str))
@@ -1258,6 +1272,9 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         if abs_effect is not None:
             print("")
             print(render_absolute(abs_effect))
+        if hksj is not None:
+            print("")
+            print(render_hksj(hksj))
         if metareg is not None:
             print("")
             print(render_meta_regression(metareg))
@@ -1508,8 +1525,10 @@ def _build_parser() -> argparse.ArgumentParser:
                          "baseline severity). Reports slope, R², and residual "
                          "heterogeneity."))
     m.add_argument("--knha", action="store_true",
-                   help=("Use the Knapp-Hartung t-test for the meta-regression "
-                         "slope (recommended for few studies)."))
+                   help=("Use Hartung-Knapp throughout (recommended for few "
+                         "studies): a modified-HKSJ CI for the pooled estimate "
+                         "(spec 021) and the Knapp-Hartung t-test for the "
+                         "meta-regression slope (spec 020)."))
     # Absolute effects & NNT (spec 015) — ratio measures only.
     m.add_argument("--baseline-risk", type=float, default=None,
                    help=("Assumed comparator (control) risk in (0,1). When set "
