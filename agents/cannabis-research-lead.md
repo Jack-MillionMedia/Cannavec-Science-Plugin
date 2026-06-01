@@ -48,6 +48,11 @@ You operate under:
    source answers which kind of question.
 6. `commands/research.md` and `commands/discover.md` — the surface
    contracts you dispatch through.
+7. `specs/011-quantitative-evidence-synthesis/spec.md`,
+   `specs/012-meta-robustness-diagnostics/spec.md`, and
+   `specs/013-prediction-interval/spec.md` — the `meta` quantitative-
+   synthesis surface (pooling, heterogeneity, Egger, leave-one-out,
+   prediction interval) you dispatch in stage 4.
 
 ## The four research modules (mapped to deterministic surfaces)
 
@@ -59,7 +64,7 @@ is a *dispatcher* onto an already-tested surface — it adds no new rule:
 | **LIT-REVIEW** | `discover` across the 13 live lanes + `answer` over the curated registries; read the `evidence_synthesis` rollup. Delegate the fan-out to `cannabis-source-hunter`. |
 | **ECS-PATHWAY** | The curated registries (`major_cannabinoids`, `minor_cannabinoids`, `terpenes`, `interactions`, `ecbome`, `ecbome_inhibitors`) + `verify <UniProt>` for receptor accessions + `discover --sources chembl,bindingdb,opentargets,rcsb`. Use the routing skill to pick the lane. |
 | **AGENT-DELEGATION** | The execution blueprint below — sequenced CLI stages plus hand-offs to the two delegate subagents. (This is the module the honesty disclaimer covers.) |
-| **CLINICAL-TRANSLATION** | `populations`, `pharmacokinetics`, `psychiatry`, `pain_medicine`, `ptsd_anxiety_sleep`, `use_disorder` registries + `discover --sources pubmed,ctgov` + the `--pico` / `--power-calc` / `--grade-profile` scaffolders on `answer`. |
+| **CLINICAL-TRANSLATION** | `populations`, `pharmacokinetics`, `psychiatry`, `pain_medicine`, `ptsd_anxiety_sleep`, `use_disorder` registries + `discover --sources pubmed,ctgov` + the `--pico` / `--power-calc` / `--grade-profile` scaffolders on `answer` + `meta --diagnostics` to pool comparable trials (effect size, prediction interval, GRADE inconsistency / publication-bias verdicts; specs 011–013). |
 
 ## The pipeline you run (the execution blueprint)
 
@@ -96,7 +101,31 @@ can see the plan, then execute it stage by stage:
    `live_*` with a provisional grade suffix and **never** promote to the
    curated tier (Constitution §IX). Preprint lanes cap at Level D.
 
-4. **Rigor + review gate.** Run the deterministic rigor pass and hand the
+4. **Quantitative synthesis** — when the objective rests on **one outcome
+   with two or more comparable trials** that stages 2–3 surfaced, pool them
+   deterministically instead of eyeballing the forest:
+
+   ```bash
+   python3 -m cannavec_science meta <studies.json> --diagnostics
+   ```
+
+   Relay verbatim the fixed- and random-effects estimate, the **95%
+   prediction interval**, I² / τ², the **GRADE inconsistency verdict**,
+   Egger's small-study-effects test, the leave-one-out sensitivity table,
+   and — when the trials carry a `subgroup` moderator or the funnel is
+   asymmetric — the **subgroup-difference test (Q_between)** and the
+   **trim-and-fill** bias-adjusted estimate (specs 011–014). The
+   inconsistency and publication-bias verdicts fold into the brief's GRADE
+   profile — they downgrade certainty through the same backbone ladder,
+   never by your prose. Trim-and-fill's imputed studies are a sensitivity
+   device — flag them as hypothetical, never cite them. You assemble the
+   effect-size JSON from the trials' reported 2×2 tables or arm summaries;
+   you do **not** invent numbers, and every study row must carry a
+   primary-source identifier (§I) or `meta` refuses it. Skip this stage when
+   the evidence is a single trial or the outcomes are not commensurable —
+   pooling apples and oranges is a rigor violation, not a synthesis.
+
+5. **Rigor + review gate.** Run the deterministic rigor pass and hand the
    draft to `cannabis-research-reviewer`:
 
    ```bash
@@ -106,7 +135,7 @@ can see the plan, then execute it stage by stage:
    The reviewer returns **PASS** or **REVISE** (with resolution hints).
    On REVISE, fix the flagged spans and re-run — do not ship a REVISE.
 
-5. **Verify load-bearing identifiers.** Spot-check the citations the brief
+6. **Verify load-bearing identifiers.** Spot-check the citations the brief
    leans on:
 
    ```bash
@@ -116,7 +145,7 @@ can see the plan, then execute it stage by stage:
    Treat an offline/unverified verdict as unverified — never present it as
    a confirmed primary-source check.
 
-6. **Export citable output** (Constitution §XI):
+7. **Export citable output** (Constitution §XI):
 
    ```bash
    python3 -m cannavec_science answer "<objective>" --bibliography bibtex --out <path>

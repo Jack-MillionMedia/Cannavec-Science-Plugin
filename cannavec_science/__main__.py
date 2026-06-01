@@ -12,6 +12,9 @@ Subcommands:
 - ``bibliography <answer.json>`` — re-render a saved answer's
   bibliography in BibTeX / RIS / CSL-JSON.
 - ``source-health`` — probe per-source liveness.
+- ``meta <studies.json>`` — pool per-study effect sizes into a
+  fixed/random-effects meta-analysis with heterogeneity (Q, I², τ²) and
+  a GRADE inconsistency verdict (spec 011).
 
 Every subcommand returns a non-zero exit code on refusal / error.
 Stdlib only.
@@ -1000,6 +1003,137 @@ def _cmd_source_health(args: argparse.Namespace) -> int:
     return 1 if any_down else 0
 
 
+def _cmd_meta(args: argparse.Namespace) -> int:
+    """Pool per-study effect sizes into a meta-analysis (spec 011).
+
+    Reads a JSON spec ``{"measure": ..., "studies": [...]}``. Each study
+    is a binary 2×2 table (``events_t/n_t/events_c/n_c``), a continuous
+    arm pair (``mean_t/sd_t/n_t/mean_c/sd_c/n_c``), or a precomputed
+    generic effect (``yi/vi``). Every study MUST carry a primary-source
+    identifier (§I); a study without one refuses with a non-zero exit.
+    """
+    from cannavec_science.meta_analysis import (
+        EffectSize,
+        MetaAnalysisError,
+        binary_effect,
+        continuous_effect,
+        egger_test,
+        leave_one_out,
+        meta_analyze,
+        render_egger,
+        render_leave_one_out,
+        render_markdown,
+        render_subgroups,
+        render_trim_fill,
+        subgroup_analysis,
+        trim_and_fill,
+    )
+
+    try:
+        spec = json.loads(Path(args.spec).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"[error] cannot read meta spec {args.spec!r}: {exc}", file=sys.stderr)
+        return 2
+
+    measure = (getattr(args, "measure", None) or spec.get("measure") or "generic")
+    confidence = float(getattr(args, "confidence", 0.95) or 0.95)
+    # §I identifiers + the optional subgroup moderator label (spec 014).
+    id_keys = ("pmid", "doi", "nct", "chembl", "uniprot", "url", "subgroup")
+
+    effects = []
+    try:
+        for idx, st in enumerate(spec.get("studies", [])):
+            sid = st.get("study_id") or st.get("id") or f"study {idx + 1}"
+            ids = {k: st[k] for k in id_keys if st.get(k)}
+            m = measure.upper() if isinstance(measure, str) else "GENERIC"
+            if m in ("OR", "RR"):
+                es = binary_effect(
+                    sid, events_t=st["events_t"], n_t=st["n_t"],
+                    events_c=st["events_c"], n_c=st["n_c"], measure=m, **ids,
+                )
+            elif m in ("MD", "SMD"):
+                es = continuous_effect(
+                    sid, mean_t=st["mean_t"], sd_t=st["sd_t"], n_t=st["n_t"],
+                    mean_c=st["mean_c"], sd_c=st["sd_c"], n_c=st["n_c"],
+                    measure=m, **ids,
+                )
+            else:
+                es = EffectSize(
+                    study_id=sid, yi=float(st["yi"]), vi=float(st["vi"]),
+                    n=st.get("n"), **ids,
+                )
+            effects.append(es)
+        result = meta_analyze(
+            effects,
+            measure=(None if str(measure).lower() == "generic" else measure),
+            confidence=confidence,
+        )
+    except KeyError as exc:
+        print(f"[error] study missing required field: {exc}", file=sys.stderr)
+        return 2
+    except MetaAnalysisError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+
+    # Optional robustness diagnostics: Egger + leave-one-out (spec 012),
+    # trim-and-fill + subgroup analysis (spec 014).
+    measure_arg = None if str(measure).lower() == "generic" else measure
+    egger = loo = trimfill = subgroups = None
+    if getattr(args, "diagnostics", False):
+        try:
+            loo = leave_one_out(effects, measure=measure_arg, confidence=confidence)
+        except MetaAnalysisError:
+            loo = None
+        try:
+            egger = egger_test(effects)
+        except MetaAnalysisError:
+            egger = None
+        try:
+            trimfill = trim_and_fill(effects, measure=measure_arg, confidence=confidence)
+        except MetaAnalysisError:
+            trimfill = None
+        if any(e.subgroup for e in effects):
+            try:
+                subgroups = subgroup_analysis(
+                    effects, measure=measure_arg, confidence=confidence)
+            except MetaAnalysisError:
+                subgroups = None
+
+    if getattr(args, "json", False):
+        payload = result.to_dict()
+        if getattr(args, "diagnostics", False):
+            payload["egger"] = (
+                egger.to_dict() if egger is not None
+                else {"note": "Egger's test requires at least 3 studies"}
+            )
+            payload["leave_one_out"] = (
+                [r.to_dict() for r in loo] if loo is not None
+                else {"note": "leave-one-out requires at least 2 studies"}
+            )
+            payload["trim_and_fill"] = (
+                trimfill.to_dict() if trimfill is not None
+                else {"note": "trim-and-fill requires at least 3 studies"}
+            )
+            if subgroups is not None:
+                payload["subgroup_analysis"] = subgroups.to_dict()
+        print(json.dumps(payload, indent=2, default=str))
+    else:
+        print(render_markdown(result))
+        if egger is not None:
+            print("")
+            print(render_egger(egger))
+        if loo is not None:
+            print("")
+            print(render_leave_one_out(loo, log_scale=result.log_scale))
+        if trimfill is not None:
+            print("")
+            print(render_trim_fill(trimfill))
+        if subgroups is not None:
+            print("")
+            print(render_subgroups(subgroups))
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m cannavec_science",
@@ -1200,6 +1334,38 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="Enable live PubMed verification (slower).")
     fr.add_argument("--json", action="store_true")
     fr.set_defaults(func=_cmd_freshness)
+
+    # meta (spec 011 — quantitative evidence synthesis)
+    m = sub.add_parser(
+        "meta",
+        help=(
+            "Pool per-study effect sizes into a fixed-effect + DerSimonian-"
+            "Laird random-effects meta-analysis with heterogeneity (Q, I², "
+            "τ²) and a GRADE inconsistency verdict. Deterministic, stdlib-only."
+        ),
+    )
+    m.add_argument(
+        "spec",
+        help=(
+            'JSON file: {"measure": "OR|RR|MD|SMD|generic", "studies": [...]}. '
+            "Each study carries a primary-source identifier (pmid/doi/nct/"
+            "chembl/uniprot/url) per §I and either a 2×2 table, continuous "
+            "arm summaries, or precomputed yi/vi."
+        ),
+    )
+    m.add_argument(
+        "--measure", default=None,
+        help="Override the spec's measure: OR | RR | MD | SMD | generic.",
+    )
+    m.add_argument("--confidence", type=float, default=0.95,
+                   help="Confidence level for CIs (default 0.95).")
+    m.add_argument("--diagnostics", action="store_true",
+                   help=("Append robustness diagnostics (spec 012): Egger's "
+                         "small-study-effects test and a leave-one-out "
+                         "sensitivity analysis."))
+    m.add_argument("--json", action="store_true",
+                   help="Emit structured JSON instead of Markdown.")
+    m.set_defaults(func=_cmd_meta)
 
     # freshness-report
     fr2 = sub.add_parser(

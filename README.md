@@ -6,7 +6,15 @@ The v0.6 build extends the v0.5 industry-expert-clinical-depth backbone
 across four research domains every working cannabis-research scientist
 asks about, adds a reporting-rigor module, and adds a thirteenth
 primary-source live-discovery lane. All shipping inside Constitution
-§IV (v2.0.0 — research-grade for every audience, evidence standard invariant). 1,539 unit tests green at HEAD; 188 eval prompts
+§IV (v2.0.0 — research-grade for every audience, evidence standard invariant). It also adds a deterministic **quantitative
+evidence-synthesis** primitive (specs 011–012): the `meta` subcommand pools
+effect sizes into fixed/random-effects estimates with heterogeneity (Q, I²,
+τ²), a random-effects **prediction interval**, a GRADE inconsistency verdict,
+and `--diagnostics` robustness checks — Egger's small-study-effects test
+(→ GRADE publication bias), a leave-one-out sensitivity analysis, **subgroup
+analysis** (Cochrane Q_between), and **Duval–Tweedie trim-and-fill** — all
+feeding the grade machinery.
+1,658 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -131,11 +139,87 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
+| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|generic] [--diagnostics] [--json]` | Pool per-study effect sizes (specs 011–014) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment. Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
 etiquette) to fan out across the 13 lanes concurrently. Result ordering
 stays alphabetical-by-source regardless of completion order so identical
 runs produce identical JSON.
+
+### Quantitative evidence synthesis (`meta`, spec 011)
+
+Discovery and grading tell you *which* studies exist and *how trustworthy*
+each one is. The `meta` subcommand answers the next question a review team
+asks: **do the studies agree, and what does pooling them say?** It is the
+backbone's biostatistician — a deterministic, stdlib-only meta-analysis with
+no LLM and no network in the path.
+
+Feed it a JSON list of effect sizes (raw 2×2 tables for OR/RR, raw arm
+summaries for MD/Hedges'-g SMD, or precomputed `yi`/`vi`) and it returns an
+inverse-variance **fixed-effect** and **DerSimonian–Laird random-effects**
+pooled estimate, **Cochran's Q** (with its χ² p-value), **I²**, and **τ²**:
+
+```bash
+$ python3 -m cannavec_science meta cbd_seizures.json --measure OR
+## Meta-analysis — OR (3 studies)
+
+| Study | Identifier | Effect | 95% CI | Weight |
+|---|---|---|---|---|
+| Devinsky 2017 (Dravet) | PMID:28538134 | 0.287 | [0.096, 0.857] | 27.1% |
+| Devinsky 2018 (LGS)    | PMID:29768151 | 0.359 | [0.145, 0.889] | 39.5% |
+| Thiele 2018 (LGS)      | PMID:29503056 | 0.300 | [0.112, 0.804] | 33.4% |
+
+**Random effects (DerSimonian–Laird):** 0.318 [0.180, 0.563]  (p = 0.0001)
+**Heterogeneity:** Q = 0.118 (df = 2, p = 0.9429), I² = 0%, τ² = 0.000
+**GRADE inconsistency:** not serious — I² = 0% indicates low heterogeneity (< 40%).
+```
+
+For k ≥ 3 the random-effects line also carries a **95% prediction interval**
+(Higgins–Thompson–Spiegelhalter 2009; IntHout 2016) — the range a *new*
+study's true effect would plausibly fall in. When heterogeneity is high it is
+far wider than the confidence interval, which is exactly the point: a pooled
+CI of `[−0.05, 0.85]` at I² = 75% hides a prediction interval of
+`[−4.89, 5.69]`. The t-quantile comes from a stdlib bisection on the Student's-t
+survival function — no SciPy.
+
+The headline output is a **GRADE inconsistency verdict** derived from I² on
+the Cochrane thresholds (`< 40%` → not serious; `40–75%` → serious, one
+downgrade; `≥ 75%` → very serious, two downgrades). That verdict flows
+straight into the existing `evidence.apply_grade_modifiers` ladder and the
+`grade_profile` table — closing the loop that previously hardcoded the
+inconsistency column to "not serious". Two constitutional invariants hold:
+
+- **§I.** Every effect size must carry a primary-source identifier
+  (PMID / DOI / NCT / ChEMBL / UniProt / URL). A study without one refuses
+  with a non-zero exit; you cannot pool an unanchored number.
+- **§VII.** The inconsistency downgrade is *computed*, not asserted — the
+  same studies always produce the same verdict.
+
+**Robustness diagnostics (`--diagnostics`, spec 012).** A reviewer never
+stops at the pooled number. Add `--diagnostics` and `meta` also runs **Egger's
+regression test** for funnel-plot asymmetry / small-study effects and a
+**leave-one-out sensitivity analysis** that re-pools the evidence dropping
+each trial in turn (surfacing the study whose removal would most change the
+conclusion). The publication-bias verdict is GRADE-honest about its own
+limits: Egger's test is underpowered below 10 studies (Sterne 2011, BMJ), so a
+positive test with `3 ≤ k < 10` is *reported but does not trigger a downgrade*
+— only `k ≥ 10` with `p < 0.10` is "strongly suspected". When fed into
+`grade_profile`, the Egger and heterogeneity findings downgrade the certainty
+grade *cumulatively*, through the same `evidence._downgrade` ladder the GRADE
+adapter uses. The Student's-t and incomplete-beta numerics are stdlib `math`
+only — no SciPy.
+
+**Explain it and adjust it (spec 014).** `--diagnostics` also runs the two
+methods a senior reviewer reaches for next. **Subgroup analysis** partitions
+the trials by a `subgroup` moderator (dose band, route, indication) and runs
+Cochrane's *test for subgroup differences* (Q_between) — a significant result
+means the moderator explains part of the heterogeneity (e.g. high-dose OR 0.21
+vs low-dose OR 0.66, Q_between p = 0.006). **Trim-and-fill** (Duval & Tweedie
+2000, L0) estimates how many studies the funnel asymmetry implies are missing,
+imputes their mirror images, and reports a **bias-adjusted estimate** — the
+imputed studies are explicitly hypothetical, carry no identifier, and are
+never presented as cited evidence (§I). Both reuse the spec 011 pooling core
+and stay byte-for-byte deterministic.
 
 ### What v0.6 ships
 

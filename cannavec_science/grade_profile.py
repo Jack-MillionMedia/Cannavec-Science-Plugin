@@ -177,12 +177,56 @@ def _effect_estimate(claim: object) -> str:
     return "—"
 
 
-def build_profile(answer: object) -> GradeProfile:
+def _downgrade_certainty(certainty: object, steps: int) -> str:
+    """Downgrade a certainty grade by ``steps`` GRADE levels.
+
+    Routes quantitative downgrade findings (spec 011 inconsistency, spec 012
+    publication bias) through the same ``evidence._downgrade`` ladder the
+    GRADE adapter uses, so the profile's certainty column stays consistent
+    with :func:`evidence.apply_grade_modifiers`. Accepts ``certainty`` as
+    either an :class:`~cannavec_science.evidence.EvidenceLevel` or its label.
+    """
+    label = getattr(certainty, "value", str(certainty))
+    if steps <= 0:
+        return label
+    from cannavec_science.evidence import EvidenceLevel, _downgrade
+
+    level = certainty if isinstance(certainty, EvidenceLevel) else None
+    if level is None:
+        for lvl in EvidenceLevel:
+            if lvl.value == label:
+                level = lvl
+                break
+    if level is None:
+        return label
+    return _downgrade(level, steps).value
+
+
+def build_profile(
+    answer: object,
+    *,
+    meta_by_outcome: dict | None = None,
+    pubbias_by_outcome: dict | None = None,
+) -> GradeProfile:
     """Build a GRADE evidence-profile table for ``answer``.
 
     One row per claim. When ``answer`` has no claims, returns a
     single-row table with the "no admissible evidence" message
     (per the spec's zero-claim edge case).
+
+    ``meta_by_outcome`` (spec 011) optionally maps an outcome label to a
+    :class:`cannavec_science.meta_analysis.MetaAnalysisResult`. When a row's
+    outcome label matches a key, the row's *inconsistency* column is taken
+    from the quantitative heterogeneity verdict instead of the conservative
+    ``"not serious"`` default.
+
+    ``pubbias_by_outcome`` (spec 012) optionally maps an outcome label to an
+    :class:`cannavec_science.meta_analysis.EggerResult`. When matched, the
+    *publication-bias* column is taken from Egger's small-study-effects test.
+
+    Both findings downgrade the certainty grade cumulatively through the same
+    ``evidence._downgrade`` ladder the GRADE adapter uses. Both parameters
+    default to ``None`` — existing callers and tests are unaffected.
     """
     claims = tuple(getattr(answer, "claims", ()) or ())
     prompt = getattr(answer, "prompt", "") or ""
@@ -227,15 +271,41 @@ def build_profile(answer: object) -> GradeProfile:
         certainty_label = getattr(certainty, "value", str(certainty))
         designs = tuple(sorted({_study_design_of_source(s) for s in sources}))
         n_pmids = sum(1 for s in sources if getattr(s, "pmid", None))
+
+        # Inconsistency (spec 011) and publication bias (spec 012) become
+        # data-driven when a quantitative result is supplied for this
+        # outcome; both default to the conservative heuristic otherwise. The
+        # two findings downgrade the certainty grade cumulatively through the
+        # same GRADE ladder the adapter uses.
+        outcome_label = _outcome_label(claim, idx)
+        extra_steps = 0
+
+        inconsistency_label = "not serious"
+        meta = (meta_by_outcome or {}).get(outcome_label)
+        if meta is not None:
+            inconsistency_label = getattr(meta, "inconsistency", "not serious")
+            extra_steps += int(getattr(meta, "downgrade_steps", 0) or 0)
+
+        pubbias_label = pubbias
+        egger = (pubbias_by_outcome or {}).get(outcome_label)
+        if egger is not None:
+            from cannavec_science.meta_analysis import grade_publication_bias
+            pb_label, pb_serious, _rationale = grade_publication_bias(egger)
+            pubbias_label = pb_label
+            if pb_serious:
+                extra_steps += 1
+
+        certainty_label = _downgrade_certainty(certainty, extra_steps)
+
         rows.append(GradeProfileRow(
-            outcome=_outcome_label(claim, idx),
+            outcome=outcome_label,
             n_studies=len(sources),
             study_designs=designs,
             risk_of_bias=rob,
-            inconsistency="not serious",
+            inconsistency=inconsistency_label,
             indirectness="not serious",
             imprecision=imprec,
-            publication_bias=pubbias,
+            publication_bias=pubbias_label,
             effect_estimate=_effect_estimate(claim),
             certainty=certainty_label,
             n_pmids=n_pmids,
