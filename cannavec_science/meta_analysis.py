@@ -65,6 +65,10 @@ __all__ = [
     "OISResult",
     "optimal_information_size",
     "render_ois",
+    "proportion_effect",
+    "ProportionMetaResult",
+    "proportion_meta_analyze",
+    "render_proportion",
 ]
 
 
@@ -80,7 +84,9 @@ class MetaAnalysisError(ValueError):
 # Ratio measures are pooled on the natural-log scale and reported back-
 # transformed; difference measures are pooled on their native scale.
 _LOG_SCALE_MEASURES = frozenset({"OR", "RR"})
-_KNOWN_MEASURES = frozenset({"OR", "RR", "MD", "SMD", "generic"})
+# "PFT" is the Freeman-Tukey double-arcsine single-arm proportion (spec 019):
+# pooled on the transformed scale, reported back-transformed to a rate.
+_KNOWN_MEASURES = frozenset({"OR", "RR", "MD", "SMD", "PFT", "generic"})
 
 # Exact two-sided z critical values for the common confidence levels.
 # Anything else is computed deterministically via :func:`_inv_norm_cdf`.
@@ -116,6 +122,7 @@ class EffectSize:
     measure: str = "generic"
     corrected: bool = False        # continuity correction applied?
     subgroup: str | None = None    # moderator label (spec 014)
+    events: int | None = None      # single-arm event count, for PFT back-transform (spec 019)
 
     def __post_init__(self) -> None:
         if not self.identifier:
@@ -280,6 +287,59 @@ def continuous_effect(
     )
 
 
+def _ft_transform(events: int, n: int) -> tuple[float, float]:
+    """Freeman-Tukey double-arcsine transform of a single-arm rate.
+
+    ``t = arcsin(√(x/(n+1))) + arcsin(√((x+1)/(n+1)))`` with variance
+    ``1/(n+1)`` (Freeman & Tukey 1950). Defined at 0 % and 100 % — the reason
+    the double arcsine is preferred over the logit for pooling proportions.
+    """
+    p_lo = events / (n + 1.0)
+    p_hi = (events + 1.0) / (n + 1.0)
+    t = math.asin(math.sqrt(p_lo)) + math.asin(math.sqrt(p_hi))
+    return t, 1.0 / (n + 1.0)
+
+
+def _ft_back_transform(t: float, n: float) -> float:
+    """Miller (1978) inverse of the Freeman-Tukey double-arcsine transform.
+
+    Back-transforms a pooled transformed value ``t`` to a proportion using the
+    (harmonic-mean) sample size ``n``. Monotone in ``t`` over ``(0, π)``, so it
+    preserves CI ordering; clamped to ``[0, 1]`` at the boundaries.
+    """
+    st = math.sin(t)
+    if st <= 0.0 or n <= 0:
+        return 0.0
+    inner = st + (st - 1.0 / st) / n
+    val = max(0.0, 1.0 - inner * inner)
+    sign = 1.0 if math.cos(t) >= 0.0 else -1.0
+    p = 0.5 * (1.0 - sign * math.sqrt(val))
+    return min(1.0, max(0.0, p))
+
+
+def proportion_effect(
+    study_id: str, *, events: int, n: int, **ids: object
+) -> EffectSize:
+    """Build a Freeman-Tukey :class:`EffectSize` from one single-arm rate.
+
+    ``events`` out of ``n`` (e.g. somnolence in a CBD arm, or cannabis-use-
+    disorder cases in a cohort). The effect is pooled on the transformed scale
+    and reported back-transformed by :func:`proportion_meta_analyze`. A §I
+    identifier is required, exactly as for every other effect size.
+    """
+    if n <= 0:
+        raise MetaAnalysisError(f"{study_id!r}: sample size must be > 0")
+    if events < 0 or events > n:
+        raise MetaAnalysisError(
+            f"{study_id!r}: events ({events}) out of range [0, {n}]"
+        )
+    yi, vi = _ft_transform(events, n)
+    return EffectSize(
+        study_id=study_id, yi=yi, vi=vi, n=n, events=events,
+        measure="PFT", **_collect_ids(ids),
+    )
+
+
 def effects_from_records(records, *, measure: str = "generic") -> list:
     """Build :class:`EffectSize` objects from a list of dict study records.
 
@@ -296,7 +356,13 @@ def effects_from_records(records, *, measure: str = "generic") -> list:
     for idx, st in enumerate(records):
         sid = st.get("study_id") or st.get("id") or f"study {idx + 1}"
         ids = {k: st[k] for k in id_keys if st.get(k)}
-        if m in ("OR", "RR"):
+        if m in ("PFT", "PROP", "PROPORTION"):
+            events = st.get("events", st.get("cases", st.get("x")))
+            total = st.get("n", st.get("total"))
+            if events is None or total is None:
+                raise KeyError("'events'/'n'")
+            es = proportion_effect(sid, events=int(events), n=int(total), **ids)
+        elif m in ("OR", "RR"):
             es = binary_effect(
                 sid, events_t=st["events_t"], n_t=st["n_t"],
                 events_c=st["events_c"], n_c=st["n_c"], measure=m, **ids,
@@ -1484,6 +1550,189 @@ def render_ois(result: OISResult) -> str:
         "",
         f"_{result.rationale}_",
     ])
+    return "\n".join(lines)
+
+
+# ── Single-arm proportion meta-analysis (spec 019) ───────────────────
+
+
+@dataclass(frozen=True)
+class ProportionMetaResult:
+    """A Freeman-Tukey single-arm proportion meta-analysis, back-transformed.
+
+    Pools single-arm rates (event counts) on the double-arcsine scale, reusing
+    the full :func:`meta_analyze` machinery (fixed + DL-random, Cochran's Q,
+    I², τ², prediction interval, GRADE inconsistency verdict), then back-
+    transforms the pooled estimate, its CI, and the prediction interval to
+    proportions using the harmonic-mean sample size (Miller 1978). Per-study
+    rows carry the observed rate; the pooled rows carry the back-transformed
+    pooled rate.
+    """
+
+    k: int
+    confidence: float
+    transformed: MetaAnalysisResult     # the underlying FT-scale pool
+    harmonic_n: float
+
+    fixed_proportion: float
+    fixed_ci: tuple[float, float]
+    random_proportion: float
+    random_ci: tuple[float, float]
+    prediction_interval: tuple[float, float] | None
+
+    # heterogeneity + GRADE verdict (mirrored from the FT-scale pool)
+    q: float
+    q_df: int
+    i_squared: float
+    tau_squared: float
+    inconsistency: str
+    downgrade_steps: int
+    rationale: str
+
+    def study_rates(self) -> list[dict]:
+        """Observed per-study rate rows (events / n)."""
+        rows = []
+        for s in self.transformed.studies:
+            n = s.n or 0
+            e = s.events if s.events is not None else 0
+            rows.append({
+                "study_id": s.study_id,
+                "identifier": s.identifier,
+                "events": e,
+                "n": n,
+                "proportion": (e / n) if n else None,
+            })
+        return rows
+
+    def to_dict(self) -> dict:
+        return {
+            "measure": "PFT",
+            "k": self.k,
+            "confidence": self.confidence,
+            "harmonic_n": self.harmonic_n,
+            "fixed": {
+                "proportion": self.fixed_proportion,
+                "ci": list(self.fixed_ci),
+            },
+            "random": {
+                "proportion": self.random_proportion,
+                "ci": list(self.random_ci),
+                "prediction_interval": (
+                    list(self.prediction_interval)
+                    if self.prediction_interval is not None else None
+                ),
+            },
+            "heterogeneity": {
+                "q": self.q, "q_df": self.q_df,
+                "i_squared": self.i_squared, "tau_squared": self.tau_squared,
+            },
+            "inconsistency": self.inconsistency,
+            "downgrade_steps": self.downgrade_steps,
+            "rationale": self.rationale,
+            "studies": self.study_rates(),
+        }
+
+
+def proportion_meta_analyze(
+    effects: Sequence[EffectSize] | Iterable[EffectSize],
+    *,
+    confidence: float = 0.95,
+) -> ProportionMetaResult:
+    """Pool single-arm proportions (Freeman-Tukey) and back-transform.
+
+    ``effects`` are :class:`EffectSize` objects built by
+    :func:`proportion_effect` (``measure="PFT"``, each carrying ``events`` and
+    ``n``). Reuses :func:`meta_analyze` for every numeric quantity, then back-
+    transforms the pooled FT estimate / CI / prediction interval to a rate.
+    """
+    studies = tuple(effects)
+    if not studies:
+        raise MetaAnalysisError(
+            "proportion_meta_analyze requires at least one effect size"
+        )
+    for s in studies:
+        if s.measure != "PFT" or s.events is None or s.n is None:
+            raise MetaAnalysisError(
+                f"{s.study_id!r}: proportion pooling needs PFT effects with "
+                "events + n (build them with proportion_effect)"
+            )
+
+    base = meta_analyze(
+        studies, measure="PFT", log_scale=False, confidence=confidence
+    )
+
+    # Harmonic-mean sample size for the pooled back-transformation (Miller
+    # 1978 / metaprop default) — robust to disparate arm sizes.
+    harmonic_n = len(studies) / math.fsum(1.0 / (s.n or 1) for s in studies)
+
+    def bt(x: float) -> float:
+        return _ft_back_transform(x, harmonic_n)
+
+    f_lo, f_hi = base.fixed_ci
+    r_lo, r_hi = base.random_ci
+    pi = None
+    if base.prediction_interval is not None:
+        p_lo, p_hi = base.prediction_interval
+        pi = (bt(p_lo), bt(p_hi))
+
+    return ProportionMetaResult(
+        k=base.k,
+        confidence=confidence,
+        transformed=base,
+        harmonic_n=harmonic_n,
+        fixed_proportion=bt(base.fixed_estimate),
+        fixed_ci=(bt(f_lo), bt(f_hi)),
+        random_proportion=bt(base.random_estimate),
+        random_ci=(bt(r_lo), bt(r_hi)),
+        prediction_interval=pi,
+        q=base.q,
+        q_df=base.q_df,
+        i_squared=base.i_squared,
+        tau_squared=base.tau_squared,
+        inconsistency=base.inconsistency,
+        downgrade_steps=base.downgrade_steps,
+        rationale=base.rationale,
+    )
+
+
+def render_proportion(result: ProportionMetaResult) -> str:
+    """Markdown for a single-arm proportion meta-analysis."""
+    def pct(x: float) -> str:
+        return f"{x * 100:.1f}%"
+
+    lines = [
+        "## Single-arm proportion meta-analysis (Freeman-Tukey)",
+        "",
+        f"- **Studies (k):** {result.k}",
+        f"- **Pooled rate (random):** {pct(result.random_proportion)} "
+        f"(95% CI {pct(result.random_ci[0])} to {pct(result.random_ci[1])})",
+        f"- **Pooled rate (fixed):** {pct(result.fixed_proportion)} "
+        f"(95% CI {pct(result.fixed_ci[0])} to {pct(result.fixed_ci[1])})",
+        f"- **Heterogeneity:** Q = {result.q:.2f} (df {result.q_df}), "
+        f"I² = {result.i_squared:.0f}%, τ² = {result.tau_squared:.4f}",
+    ]
+    if result.prediction_interval is not None:
+        lo, hi = result.prediction_interval
+        lines.append(
+            f"- **95% prediction interval:** {pct(lo)} to {pct(hi)} "
+            "(plausible rate in a new setting)"
+        )
+    lines.append(
+        f"- **GRADE inconsistency:** {result.inconsistency} — {result.rationale}"
+    )
+    lines.append("")
+    lines.append("| Study | Events / n | Observed rate |")
+    lines.append("|---|---|---|")
+    for r in result.study_rates():
+        rate = pct(r["proportion"]) if r["proportion"] is not None else "—"
+        lines.append(f"| {r['study_id']} | {r['events']} / {r['n']} | {rate} |")
+    lines.append("")
+    lines.append(
+        "_Pooled on the Freeman-Tukey double-arcsine scale (defined at 0 % and "
+        "100 %), back-transformed with the harmonic-mean sample size "
+        f"(n̄ₕ = {result.harmonic_n:.1f}). Single-arm rates carry no comparator — "
+        "they are not a treatment effect._"
+    )
     return "\n".join(lines)
 
 

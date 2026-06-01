@@ -15,8 +15,10 @@ and `--diagnostics` robustness checks — Egger's small-study-effects test
 analysis** (Cochrane Q_between), and **Duval–Tweedie trim-and-fill** — all
 feeding the grade machinery, and `--certainty` rates the pooled body on the
 GRADE ⊕-scale with **both** imprecision criteria (CI-vs-null **and** the
-Optimal Information Size, spec 018).
-1,739 unit tests green at HEAD; 188 eval prompts
+Optimal Information Size, spec 018). `--measure prop` additionally pools
+**single-arm rates** (adverse-event incidence, prevalence) with the
+Freeman-Tukey double-arcsine transform (spec 019), defined even at 0 % / 100 %.
+1,760 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -141,7 +143,7 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
-| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|generic] [--diagnostics] [--json]` | Pool per-study effect sizes (specs 011–014) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment. Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
+| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|prop\|generic] [--diagnostics] [--certainty] [--json]` | Pool per-study effect sizes (specs 011–019) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment; `--certainty` adds the GRADE ⊕ rating (with the spec 018 Optimal-Information-Size imprecision criterion); `--measure prop` pools **single-arm rates** (Freeman–Tukey double-arcsine, spec 019 — incidence/prevalence, valid at 0 %/100 %). Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
 etiquette) to fan out across the 13 lanes concurrently. Result ordering
@@ -305,6 +307,27 @@ outcomes, each with its `studies`, `measure`, optional `baseline`, and the
 reviewer-assessed GRADE domains; everything else reuses the spec 011/015/016
 backbone (no new statistics). A study without a primary-source identifier
 refuses the whole section — a brief never carries an unanchored pooled number.
+
+**Pool a single-arm rate (`meta --measure prop`, spec 019).** Not every question
+is a contrast. A toxicologist pooling adverse-event *incidence*, or an
+epidemiologist pooling *prevalence*, needs a rate — not an odds ratio. `meta
+--measure prop` pools single-arm counts with the **Freeman-Tukey double-arcsine**
+transform (defined at 0 % and 100 %, where a logit pool fails), reusing the same
+fixed/random pooling, heterogeneity, prediction-interval, and GRADE-inconsistency
+machinery, then back-transforms to a rate via the Miller-1978 inverse:
+
+```
+## Single-arm proportion meta-analysis (Freeman-Tukey)
+- **Studies (k):** 4
+- **Pooled rate (random):** 40.2% (95% CI 29.1% to 51.7%)
+- **Heterogeneity:** Q = 11.95 (df 3), I² = 75%, τ² = 0.0411
+- **95% prediction interval:** 2.7% to 86.8% (plausible rate in a new setting)
+- **GRADE inconsistency:** serious — I² = 75% …
+```
+
+The sidecar is single-arm `{events, n}` rows, each §I-anchored; the footnote
+states plainly that a pooled rate **carries no comparator — it is not a treatment
+effect**, so the surface can never be read as an efficacy claim.
 
 ### What v0.6 ships
 

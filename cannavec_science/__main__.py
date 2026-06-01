@@ -1049,6 +1049,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         render_trim_fill,
         subgroup_analysis,
         trim_and_fill,
+        proportion_meta_analyze,
+        render_proportion,
     )
 
     try:
@@ -1059,6 +1061,41 @@ def _cmd_meta(args: argparse.Namespace) -> int:
 
     measure = (getattr(args, "measure", None) or spec.get("measure") or "generic")
     confidence = float(getattr(args, "confidence", 0.95) or 0.95)
+
+    # Single-arm proportion meta-analysis (spec 019): a structurally different
+    # surface — pooled rates carry no comparator — handled before the
+    # comparative OR/RR/MD/SMD pipeline.
+    if str(measure).strip().upper() in ("PFT", "PROP", "PROPORTION"):
+        try:
+            prop_effects = effects_from_records(
+                spec.get("studies", []), measure="PFT")
+            presult = proportion_meta_analyze(prop_effects, confidence=confidence)
+        except KeyError as exc:
+            print(f"[error] study missing required field: {exc}", file=sys.stderr)
+            return 2
+        except MetaAnalysisError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
+        p_egger = None
+        if getattr(args, "diagnostics", False):
+            try:
+                p_egger = egger_test(prop_effects)
+            except MetaAnalysisError:
+                p_egger = None
+        if getattr(args, "json", False):
+            payload = presult.to_dict()
+            if getattr(args, "diagnostics", False):
+                payload["egger"] = (
+                    p_egger.to_dict() if p_egger is not None
+                    else {"note": "Egger's test requires at least 3 studies"}
+                )
+            print(json.dumps(payload, indent=2, default=str))
+        else:
+            print(render_proportion(presult))
+            if p_egger is not None:
+                print("")
+                print(render_egger(p_egger))
+        return 0
 
     try:
         effects = effects_from_records(spec.get("studies", []), measure=measure)
@@ -1412,21 +1449,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Pool per-study effect sizes into a fixed-effect + DerSimonian-"
             "Laird random-effects meta-analysis with heterogeneity (Q, I², "
-            "τ²) and a GRADE inconsistency verdict. Deterministic, stdlib-only."
+            "τ²) and a GRADE inconsistency verdict — comparative (OR/RR/MD/SMD) "
+            "or single-arm rates (--measure prop, Freeman-Tukey). "
+            "Deterministic, stdlib-only."
         ),
     )
     m.add_argument(
         "spec",
         help=(
-            'JSON file: {"measure": "OR|RR|MD|SMD|generic", "studies": [...]}. '
-            "Each study carries a primary-source identifier (pmid/doi/nct/"
-            "chembl/uniprot/url) per §I and either a 2×2 table, continuous "
-            "arm summaries, or precomputed yi/vi."
+            'JSON file: {"measure": "OR|RR|MD|SMD|prop|generic", "studies": '
+            '[...]}. Each study carries a primary-source identifier (pmid/doi/'
+            "nct/chembl/uniprot/url) per §I and either a 2×2 table, continuous "
+            "arm summaries, a single-arm {events, n} rate (prop), or "
+            "precomputed yi/vi."
         ),
     )
     m.add_argument(
         "--measure", default=None,
-        help="Override the spec's measure: OR | RR | MD | SMD | generic.",
+        help=("Override the spec's measure: OR | RR | MD | SMD | prop | "
+              "generic. 'prop' pools single-arm rates (Freeman-Tukey)."),
     )
     m.add_argument("--confidence", type=float, default=0.95,
                    help="Confidence level for CIs (default 0.95).")
