@@ -143,7 +143,7 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
-| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|prop\|generic] [--diagnostics] [--certainty] [--json]` | Pool per-study effect sizes (specs 011–019) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment; `--certainty` adds the GRADE ⊕ rating (with the spec 018 Optimal-Information-Size imprecision criterion); `--measure prop` pools **single-arm rates** (Freeman–Tukey double-arcsine, spec 019 — incidence/prevalence, valid at 0 %/100 %). Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
+| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|prop\|generic] [--diagnostics] [--certainty] [--moderator-key K] [--json]` | Pool per-study effect sizes (specs 011–020) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment; `--certainty` adds the GRADE ⊕ rating (with the spec 018 Optimal-Information-Size imprecision criterion); `--measure prop` pools **single-arm rates** (Freeman–Tukey double-arcsine, spec 019 — incidence/prevalence, valid at 0 %/100 %); `--moderator-key K [--knha]` runs a **meta-regression** on a continuous moderator (spec 020 — slope, R², residual heterogeneity). Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
 etiquette) to fan out across the 13 lanes concurrently. Result ordering
@@ -328,6 +328,18 @@ machinery, then back-transforms to a rate via the Miller-1978 inverse:
 The sidecar is single-arm `{events, n}` rows, each §I-anchored; the footnote
 states plainly that a pooled rate **carries no comparator — it is not a treatment
 effect**, so the surface can never be read as an efficacy claim.
+
+**Explain the heterogeneity (`meta --moderator-key K`, spec 020).** When I² is
+high, the next question is *why*. Subgroup analysis (`--diagnostics`) splits it by
+a categorical label; **meta-regression** explains it with a *continuous*
+moderator — does the effect scale with THC dose, drift with study year, or track
+baseline severity? `--moderator-key dose` regresses each study's effect on its
+`dose` field (random-effects WLS with DerSimonian-Laird residual τ²), reporting
+the slope, its CI and test, **R²** (the share of between-study variance the
+moderator explains), and the residual heterogeneity left over. `--knha` selects
+the Knapp-Hartung t for the slope (the modern default for few studies). It is
+honest about thin evidence: under ~10 studies per covariate the block carries a
+`CAUTION … treat as exploratory` line, never a falsely firm trend.
 
 ### What v0.6 ships
 

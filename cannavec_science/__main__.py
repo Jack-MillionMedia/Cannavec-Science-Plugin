@@ -1051,6 +1051,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         trim_and_fill,
         proportion_meta_analyze,
         render_proportion,
+        meta_regression,
+        render_meta_regression,
     )
 
     try:
@@ -1135,6 +1137,26 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             except MetaAnalysisError:
                 subgroups = None
 
+    # Meta-regression on a continuous moderator (spec 020). Each study record
+    # must carry a numeric field named by --moderator-key.
+    metareg = None
+    mod_key = getattr(args, "moderator_key", None)
+    if mod_key:
+        records = spec.get("studies", [])
+        try:
+            mod_vals = [float(r[mod_key]) for r in records]
+        except (KeyError, TypeError, ValueError):
+            print(f"[error] meta-regression: every study needs a numeric "
+                  f"{mod_key!r} field", file=sys.stderr)
+            return 2
+        try:
+            metareg = meta_regression(
+                effects, mod_vals, moderator_name=mod_key,
+                confidence=confidence, knha=getattr(args, "knha", False))
+        except MetaAnalysisError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
+
     # Absolute effects & NNT (spec 015). CLI --baseline-risk overrides any
     # spec {"baseline": {...}} block. Ratio measures only — a continuous
     # mean difference has no risk difference and refuses with a non-zero exit.
@@ -1213,6 +1235,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             payload["certainty"] = certainty.to_dict()
         if abs_effect is not None:
             payload["absolute_effect"] = abs_effect.to_dict()
+        if metareg is not None:
+            payload["meta_regression"] = metareg.to_dict()
         print(json.dumps(payload, indent=2, default=str))
     else:
         print(render_markdown(result))
@@ -1234,6 +1258,9 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         if abs_effect is not None:
             print("")
             print(render_absolute(abs_effect))
+        if metareg is not None:
+            print("")
+            print(render_meta_regression(metareg))
     return 0
 
 
@@ -1475,6 +1502,14 @@ def _build_parser() -> argparse.ArgumentParser:
                    help=("Append robustness diagnostics (spec 012): Egger's "
                          "small-study-effects test and a leave-one-out "
                          "sensitivity analysis."))
+    m.add_argument("--moderator-key", default=None,
+                   help=("Meta-regression (spec 020): the numeric study-record "
+                         "field to regress the effect on (e.g. dose, year, "
+                         "baseline severity). Reports slope, R², and residual "
+                         "heterogeneity."))
+    m.add_argument("--knha", action="store_true",
+                   help=("Use the Knapp-Hartung t-test for the meta-regression "
+                         "slope (recommended for few studies)."))
     # Absolute effects & NNT (spec 015) — ratio measures only.
     m.add_argument("--baseline-risk", type=float, default=None,
                    help=("Assumed comparator (control) risk in (0,1). When set "

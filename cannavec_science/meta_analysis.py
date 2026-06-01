@@ -69,6 +69,9 @@ __all__ = [
     "ProportionMetaResult",
     "proportion_meta_analyze",
     "render_proportion",
+    "MetaRegressionResult",
+    "meta_regression",
+    "render_meta_regression",
 ]
 
 
@@ -1733,6 +1736,225 @@ def render_proportion(result: ProportionMetaResult) -> str:
         f"(n̄ₕ = {result.harmonic_n:.1f}). Single-arm rates carry no comparator — "
         "they are not a treatment effect._"
     )
+    return "\n".join(lines)
+
+
+# ── Meta-regression on a continuous moderator (spec 020) ─────────────
+
+
+@dataclass(frozen=True)
+class MetaRegressionResult:
+    """A random-effects meta-regression of effect size on one continuous moderator.
+
+    The continuous analogue of the spec 014 subgroup analysis (which handles
+    categorical moderators). Fits ``y_i = β₀ + β₁·x_i`` by weighted least
+    squares with DerSimonian-Laird residual heterogeneity, and reports whether
+    the moderator explains a meaningful share of between-study variance (R²).
+    Honest about small k — meta-regression needs ≈ 10 studies per covariate
+    (Higgins & Thompson), so a thin pool is flagged, not silently trusted.
+    """
+
+    k: int
+    moderator: str
+    confidence: float
+    intercept: float
+    slope: float
+    slope_se: float
+    slope_ci: tuple[float, float]
+    slope_stat: float            # z (Wald) or t (Knapp-Hartung)
+    slope_p: float
+    knha: bool
+    tau_squared_total: float     # intercept-only between-study variance
+    tau_squared_residual: float  # left after the moderator
+    i_squared_residual: float    # residual heterogeneity, percent
+    q_residual: float
+    q_residual_df: int
+    q_residual_p: float
+    r_squared: float             # share of τ² explained by the moderator
+    enough_studies: bool         # k ≥ 10 (Higgins rule of thumb)
+    rationale: str
+
+    def to_dict(self) -> dict:
+        return {
+            "k": self.k,
+            "moderator": self.moderator,
+            "confidence": self.confidence,
+            "intercept": self.intercept,
+            "slope": self.slope,
+            "slope_se": self.slope_se,
+            "slope_ci": list(self.slope_ci),
+            "slope_stat": self.slope_stat,
+            "slope_p": self.slope_p,
+            "test": "knapp-hartung" if self.knha else "wald-z",
+            "tau_squared_total": self.tau_squared_total,
+            "tau_squared_residual": self.tau_squared_residual,
+            "i_squared_residual": self.i_squared_residual,
+            "q_residual": self.q_residual,
+            "q_residual_df": self.q_residual_df,
+            "q_residual_p": self.q_residual_p,
+            "r_squared": self.r_squared,
+            "enough_studies": self.enough_studies,
+            "rationale": self.rationale,
+        }
+
+
+def meta_regression(
+    effects: Sequence[EffectSize] | Iterable[EffectSize],
+    moderators: Sequence[float],
+    *,
+    moderator_name: str = "moderator",
+    confidence: float = 0.95,
+    knha: bool = False,
+) -> MetaRegressionResult:
+    """Regress effect size on one continuous moderator (DL random effects).
+
+    ``moderators`` is a per-study sequence of covariate values, parallel to
+    ``effects`` (e.g. mean THC dose, study year, baseline severity). Set
+    ``knha=True`` for the Knapp-Hartung t-based test (recommended for few
+    studies). Refuses when k ≤ 2 (cannot estimate a slope plus residual
+    heterogeneity) or the moderator has no variance.
+    """
+    studies = tuple(effects)
+    xs = [float(m) for m in moderators]
+    k = len(studies)
+    if k != len(xs):
+        raise MetaAnalysisError(
+            f"meta_regression: {k} effects but {len(xs)} moderator values"
+        )
+    p = 2  # intercept + slope
+    if k <= p:
+        raise MetaAnalysisError(
+            "meta_regression needs k > 2 studies for one moderator"
+        )
+    for s in studies:
+        if not s.identifier:
+            raise MetaAnalysisError(
+                f"effect size {s.study_id!r} has no primary-source identifier (§I)"
+            )
+    x_mean = math.fsum(xs) / k
+    if math.fsum((x - x_mean) ** 2 for x in xs) <= 1e-12:
+        raise MetaAnalysisError(
+            "meta_regression: the moderator has no variance (all values equal)"
+        )
+
+    ys = [s.yi for s in studies]
+    vs = [s.vi for s in studies]
+    df_res = k - p
+
+    # ── Step 1: fixed-weight WLS → DerSimonian-Laird residual τ². ──
+    a = [1.0 / v for v in vs]
+    b0_f, b1_f = _wls_line(a, xs, ys)
+    q_e = math.fsum(ai * (yi - (b0_f + b1_f * xi)) ** 2
+                    for ai, xi, yi in zip(a, xs, ys))
+    tr_p = _wls_trace_p(a, xs)
+    tau2_res = max(0.0, (q_e - df_res) / tr_p) if tr_p > 0 else 0.0
+
+    # ── Step 2: refit with random weights 1/(v + τ²_res). ──
+    aw = [1.0 / (v + tau2_res) for v in vs]
+    b0, b1 = _wls_line(aw, xs, ys)
+    sw = math.fsum(aw)
+    swx = math.fsum(wi * xi for wi, xi in zip(aw, xs))
+    swxx = math.fsum(wi * xi * xi for wi, xi in zip(aw, xs))
+    det = sw * swxx - swx * swx
+    var_b1 = sw / det                       # (X'W*X)^-1 [slope, slope]
+
+    if knha:
+        s2 = (1.0 / df_res) * math.fsum(
+            wi * (yi - (b0 + b1 * xi)) ** 2
+            for wi, xi, yi in zip(aw, xs, ys))
+        se_b1 = math.sqrt(s2 * var_b1)
+        crit = _t_critical(confidence, df_res)
+        stat = b1 / se_b1 if se_b1 > 0 else 0.0
+        p_val = _t_sf_two_sided(stat, df_res)
+    else:
+        se_b1 = math.sqrt(var_b1)
+        crit = _z_critical(confidence)
+        stat = b1 / se_b1 if se_b1 > 0 else 0.0
+        p_val = _two_sided_p(stat)
+    slope_ci = (b1 - crit * se_b1, b1 + crit * se_b1)
+
+    i2_res = (max(0.0, (q_e - df_res) / q_e) * 100.0
+              if q_e > 1e-12 and df_res > 0 else 0.0)
+    q_res_p = _chi2_sf(q_e, df_res) if df_res >= 1 else 1.0
+
+    tau2_total = meta_analyze(studies, confidence=confidence).tau_squared
+    r2 = (max(0.0, (tau2_total - tau2_res) / tau2_total)
+          if tau2_total > 1e-12 else 0.0)
+
+    enough = k >= 10
+    direction = "increases" if b1 > 0 else "decreases" if b1 < 0 else "is flat in"
+    sig = "significant" if p_val < (1.0 - confidence) else "not significant"
+    rationale = (
+        f"Effect {direction} {moderator_name} (slope {b1:.4g}, "
+        f"{'t' if knha else 'z'}={stat:.2f}, p={p_val:.3f}, {sig}); the "
+        f"moderator explains {r2 * 100:.0f}% of the between-study variance "
+        f"(R²), leaving residual I² = {i2_res:.0f}%."
+    )
+    if not enough:
+        rationale += (
+            f" CAUTION: only {k} studies — meta-regression needs ≈ 10 per "
+            "covariate (Higgins & Thompson); treat as exploratory."
+        )
+
+    return MetaRegressionResult(
+        k=k, moderator=moderator_name, confidence=confidence,
+        intercept=b0, slope=b1, slope_se=se_b1, slope_ci=slope_ci,
+        slope_stat=stat, slope_p=p_val, knha=knha,
+        tau_squared_total=tau2_total, tau_squared_residual=tau2_res,
+        i_squared_residual=i2_res, q_residual=q_e, q_residual_df=df_res,
+        q_residual_p=q_res_p, r_squared=r2, enough_studies=enough,
+        rationale=rationale,
+    )
+
+
+def _wls_line(w: Sequence[float], xs: Sequence[float], ys: Sequence[float]
+              ) -> tuple[float, float]:
+    """Weighted least-squares intercept + slope for a simple line."""
+    sw = math.fsum(w)
+    swx = math.fsum(wi * xi for wi, xi in zip(w, xs))
+    swxx = math.fsum(wi * xi * xi for wi, xi in zip(w, xs))
+    swy = math.fsum(wi * yi for wi, yi in zip(w, ys))
+    swxy = math.fsum(wi * xi * yi for wi, xi, yi in zip(w, xs, ys))
+    det = sw * swxx - swx * swx
+    b0 = (swxx * swy - swx * swxy) / det
+    b1 = (sw * swxy - swx * swy) / det
+    return b0, b1
+
+
+def _wls_trace_p(w: Sequence[float], xs: Sequence[float]) -> float:
+    """tr(P) = Σwᵢ − tr[(X'WX)⁻¹ X'W²X] for the DL residual-τ² denominator."""
+    sw = math.fsum(w)
+    swx = math.fsum(wi * xi for wi, xi in zip(w, xs))
+    swxx = math.fsum(wi * xi * xi for wi, xi in zip(w, xs))
+    det = sw * swxx - swx * swx
+    sw2 = math.fsum(wi * wi for wi in w)
+    sw2x = math.fsum(wi * wi * xi for wi, xi in zip(w, xs))
+    sw2xx = math.fsum(wi * wi * xi * xi for wi, xi in zip(w, xs))
+    inv = ((swxx / det, -swx / det), (-swx / det, sw / det))
+    tr_term = (inv[0][0] * sw2 + inv[0][1] * sw2x
+               + inv[1][0] * sw2x + inv[1][1] * sw2xx)
+    return sw - tr_term
+
+
+def render_meta_regression(result: MetaRegressionResult) -> str:
+    """Markdown for a meta-regression on a continuous moderator."""
+    lo, hi = result.slope_ci
+    test = "Knapp-Hartung t" if result.knha else "Wald z"
+    lines = [
+        f"### Meta-regression on {result.moderator}",
+        "",
+        f"- **Studies (k):** {result.k}",
+        f"- **Slope (β₁):** {result.slope:.4g} "
+        f"(95% CI {lo:.4g} to {hi:.4g}); {test} = {result.slope_stat:.2f}, "
+        f"p = {result.slope_p:.3f}",
+        f"- **Intercept (β₀):** {result.intercept:.4g}",
+        f"- **R² (τ² explained):** {result.r_squared * 100:.0f}%",
+        f"- **Residual heterogeneity:** Q = {result.q_residual:.2f} "
+        f"(df {result.q_residual_df}), I² = {result.i_squared_residual:.0f}%, "
+        f"τ²_res = {result.tau_squared_residual:.4f}",
+        "",
+        f"_{result.rationale}_",
+    ]
     return "\n".join(lines)
 
 
