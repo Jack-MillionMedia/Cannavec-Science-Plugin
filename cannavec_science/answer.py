@@ -1027,16 +1027,19 @@ def compose_answer(
             from cannavec_science.minor_cannabinoids import (
                 format_for_researcher as _fmt_minor,
             )
+            # Nested under the Answer's ``##`` section heading, which already
+            # names the compound: suppress the monograph's own title and render
+            # sub-sections at ``###`` so the brief keeps one clean heading tree.
             for compound in matched_major_cb_rows:
                 a.add_section(
                     f"Major cannabinoid monograph — {compound.name}",
-                    _fmt_minor(compound),
+                    _fmt_minor(compound, title=False, heading_level=2),
                 )
                 _attach_monograph_citations(a, compound)
             for compound in matched_minor_cb_rows:
                 a.add_section(
                     f"Minor cannabinoid monograph — {compound.name}",
-                    _fmt_minor(compound),
+                    _fmt_minor(compound, title=False, heading_level=2),
                 )
                 _attach_monograph_citations(a, compound)
         # Spec 003 US7 / FR-007 — eCBome entries render as a reference
