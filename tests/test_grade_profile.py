@@ -122,6 +122,57 @@ class MetaInconsistencyBridgeTests(unittest.TestCase):
         self.assertEqual(p.rows[0].certainty, "Level C")
 
 
+class PublicationBiasBridgeTests(unittest.TestCase):
+    """Spec 012: an Egger result drives the publication-bias column and
+    stacks with the inconsistency downgrade."""
+
+    def _level_a_answer(self):
+        from types import SimpleNamespace
+        from cannavec_science.evidence import (
+            Claim, ClaimType, Source, SourceTier,
+        )
+        s1 = Source(title="RCT1", tier=SourceTier.SR_FLAGSHIP, pmid="1", year=2017)
+        s2 = Source(title="RCT2", tier=SourceTier.SR_FLAGSHIP, pmid="2", year=2018)
+        claim = Claim(
+            text="Seizure frequency reduction",
+            claim_type=ClaimType.EDUCATIONAL,
+            sources=(s1, s2),
+        )
+        return SimpleNamespace(claims=[claim], prompt="p", generated_at="")
+
+    def _serious_egger(self):
+        from cannavec_science.meta_analysis import EggerResult
+        return EggerResult(
+            k=12, intercept=1.5, intercept_se=0.4, t=3.75, df=10,
+            p_value=0.004, slope=0.1, bias_label="strongly suspected",
+            bias_serious=True, rationale="Egger p = 0.004 (k = 12).",
+        )
+
+    def test_serious_pubbias_sets_column_and_downgrades(self):
+        p = build_profile(
+            self._level_a_answer(),
+            pubbias_by_outcome={"Seizure frequency reduction": self._serious_egger()},
+        )
+        self.assertEqual(p.rows[0].publication_bias, "strongly suspected")
+        self.assertEqual(p.rows[0].certainty, "Level B")
+
+    def test_inconsistency_and_pubbias_stack(self):
+        from cannavec_science import meta_analysis as ma
+        meta = ma.meta_analyze([
+            ma.EffectSize(study_id="S1", yi=0.1, vi=0.01, pmid="1"),
+            ma.EffectSize(study_id="S2", yi=0.5, vi=0.04, pmid="2"),
+        ])  # I²=68.75% → serious → one downgrade
+        p = build_profile(
+            self._level_a_answer(),
+            meta_by_outcome={"Seizure frequency reduction": meta},
+            pubbias_by_outcome={"Seizure frequency reduction": self._serious_egger()},
+        )
+        # Level A − 1 (inconsistency) − 1 (publication bias) = Level C.
+        self.assertEqual(p.rows[0].inconsistency, "serious")
+        self.assertEqual(p.rows[0].publication_bias, "strongly suspected")
+        self.assertEqual(p.rows[0].certainty, "Level C")
+
+
 class EdgeCaseTests(unittest.TestCase):
     def test_to_dict_round_trip(self):
         a = compose_answer("CBD Dravet syndrome")

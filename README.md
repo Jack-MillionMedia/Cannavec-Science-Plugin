@@ -7,10 +7,12 @@ across four research domains every working cannabis-research scientist
 asks about, adds a reporting-rigor module, and adds a thirteenth
 primary-source live-discovery lane. All shipping inside Constitution
 §IV (v2.0.0 — research-grade for every audience, evidence standard invariant). It also adds a deterministic **quantitative
-evidence-synthesis** primitive (spec 011): the `meta` subcommand pools
+evidence-synthesis** primitive (specs 011–012): the `meta` subcommand pools
 effect sizes into fixed/random-effects estimates with heterogeneity (Q, I²,
-τ²) and a GRADE inconsistency verdict that feeds the grade machinery.
-1,602 unit tests green at HEAD; 188 eval prompts
+τ²), a GRADE inconsistency verdict, and `--diagnostics` robustness checks —
+Egger's small-study-effects test (→ GRADE publication bias) and a
+leave-one-out sensitivity analysis — all feeding the grade machinery.
+1,625 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -135,7 +137,7 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
-| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|generic] [--json]` | Pool per-study effect sizes (spec 011) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²) and a **GRADE inconsistency verdict**. Every study must carry a primary-source identifier (§I) or the run refuses with a non-zero exit. |
+| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|generic] [--diagnostics] [--json]` | Pool per-study effect sizes (specs 011–012) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²) and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test and a leave-one-out sensitivity analysis. Every study must carry a primary-source identifier (§I) or the run refuses with a non-zero exit. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
 etiquette) to fan out across the 13 lanes concurrently. Result ordering
@@ -182,6 +184,20 @@ inconsistency column to "not serious". Two constitutional invariants hold:
   with a non-zero exit; you cannot pool an unanchored number.
 - **§VII.** The inconsistency downgrade is *computed*, not asserted — the
   same studies always produce the same verdict.
+
+**Robustness diagnostics (`--diagnostics`, spec 012).** A reviewer never
+stops at the pooled number. Add `--diagnostics` and `meta` also runs **Egger's
+regression test** for funnel-plot asymmetry / small-study effects and a
+**leave-one-out sensitivity analysis** that re-pools the evidence dropping
+each trial in turn (surfacing the study whose removal would most change the
+conclusion). The publication-bias verdict is GRADE-honest about its own
+limits: Egger's test is underpowered below 10 studies (Sterne 2011, BMJ), so a
+positive test with `3 ≤ k < 10` is *reported but does not trigger a downgrade*
+— only `k ≥ 10` with `p < 0.10` is "strongly suspected". When fed into
+`grade_profile`, the Egger and heterogeneity findings downgrade the certainty
+grade *cumulatively*, through the same `evidence._downgrade` ladder the GRADE
+adapter uses. The Student's-t and incomplete-beta numerics are stdlib `math`
+only — no SciPy.
 
 ### What v0.6 ships
 

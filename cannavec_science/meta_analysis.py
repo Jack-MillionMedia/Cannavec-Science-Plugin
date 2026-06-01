@@ -46,6 +46,13 @@ __all__ = [
     "meta_analyze",
     "grade_inconsistency",
     "render_markdown",
+    "EggerResult",
+    "egger_test",
+    "grade_publication_bias",
+    "LeaveOneOutRow",
+    "leave_one_out",
+    "render_egger",
+    "render_leave_one_out",
 ]
 
 
@@ -585,6 +592,233 @@ def render_markdown(result: MetaAnalysisResult) -> str:
     return "\n".join(lines)
 
 
+# ── Robustness diagnostics (spec 012) ───────────────────────────────
+
+
+@dataclass(frozen=True)
+class EggerResult:
+    """Egger's regression test for small-study effects / funnel asymmetry."""
+
+    k: int
+    intercept: float
+    intercept_se: float
+    t: float
+    df: int
+    p_value: float
+    slope: float
+    bias_label: str          # GRADE publication-bias verdict
+    bias_serious: bool        # triggers a GRADE downgrade?
+    rationale: str
+
+    def to_dict(self) -> dict:
+        return {
+            "k": self.k,
+            "intercept": self.intercept,
+            "intercept_se": self.intercept_se,
+            "t": self.t,
+            "df": self.df,
+            "p_value": self.p_value,
+            "slope": self.slope,
+            "publication_bias": {
+                "verdict": self.bias_label,
+                "serious": self.bias_serious,
+                "rationale": self.rationale,
+            },
+        }
+
+
+def _pubbias_verdict(p_value: float, k: int) -> tuple[str, bool, str]:
+    """Map an Egger p-value + study count to a GRADE publication-bias verdict.
+
+    Egger's test is underpowered below 10 studies (Sterne 2011, BMJ), so a
+    positive test with 3 ≤ k < 10 is reported but does NOT trigger a GRADE
+    downgrade. Only k ≥ 10 with p < 0.10 yields a "strongly suspected"
+    downgrade.
+    """
+    if k < 3:
+        return (
+            "not assessable (< 3 studies)",
+            False,
+            "Egger's test cannot be computed with fewer than three studies.",
+        )
+    if p_value < 0.10:
+        if k >= 10:
+            return (
+                "strongly suspected",
+                True,
+                f"Egger's test p = {p_value:.4f} (k = {k}) indicates funnel "
+                "asymmetry; GRADE downgrades certainty one level for "
+                "publication bias.",
+            )
+        return (
+            "small-study effects detected (underpowered)",
+            False,
+            f"Egger's test p = {p_value:.4f} but only k = {k} studies; the "
+            "test is underpowered below 10 studies (Sterne 2011), so no GRADE "
+            "downgrade is applied — interpret with caution.",
+        )
+    return (
+        "undetected",
+        False,
+        f"Egger's test p = {p_value:.4f} (k = {k}); no funnel asymmetry detected.",
+    )
+
+
+def egger_test(effects: Sequence[EffectSize] | Iterable[EffectSize]) -> EggerResult:
+    """Egger's regression test for funnel-plot asymmetry.
+
+    Regresses each study's standard-normal deviate (yᵢ/seᵢ) on its precision
+    (1/seᵢ) by ordinary least squares; the intercept's two-sided t-test
+    (df = k − 2) is the test for small-study effects. Requires k ≥ 3.
+    """
+    studies = tuple(effects)
+    k = len(studies)
+    if k < 3:
+        raise MetaAnalysisError("Egger's test requires at least 3 studies")
+    for s in studies:
+        if not s.identifier:
+            raise MetaAnalysisError(
+                f"effect size {s.study_id!r} has no primary-source identifier (§I)"
+            )
+
+    xs = [1.0 / s.se for s in studies]          # precision
+    ys = [s.yi / s.se for s in studies]         # standard normal deviate
+    n = float(k)
+    xbar = math.fsum(xs) / n
+    ybar = math.fsum(ys) / n
+    sxx = math.fsum((x - xbar) ** 2 for x in xs)
+    if sxx <= 0:
+        raise MetaAnalysisError("Egger's test undefined: studies share identical precision")
+    sxy = math.fsum((x - xbar) * (y - ybar) for x, y in zip(xs, ys))
+    slope = sxy / sxx
+    intercept = ybar - slope * xbar
+    df = k - 2
+    residuals = [y - (intercept + slope * x) for x, y in zip(xs, ys)]
+    sse = math.fsum(e * e for e in residuals)
+    s2 = sse / df
+    var_a = s2 * (1.0 / n + xbar * xbar / sxx)
+    se_a = math.sqrt(var_a) if var_a > 0 else 0.0
+
+    if se_a > 0:
+        t = intercept / se_a
+        p_value = _t_sf_two_sided(t, df)
+    elif abs(intercept) < 1e-12:
+        t, p_value = 0.0, 1.0
+    else:
+        t, p_value = math.copysign(math.inf, intercept), 0.0
+
+    label, serious, rationale = _pubbias_verdict(p_value, k)
+    return EggerResult(
+        k=k, intercept=intercept, intercept_se=se_a, t=t, df=df,
+        p_value=p_value, slope=slope, bias_label=label,
+        bias_serious=serious, rationale=rationale,
+    )
+
+
+def grade_publication_bias(result: EggerResult) -> tuple[str, bool, str]:
+    """Return the (verdict, serious, rationale) carried by an Egger result."""
+    return (result.bias_label, result.bias_serious, result.rationale)
+
+
+@dataclass(frozen=True)
+class LeaveOneOutRow:
+    """One row of a leave-one-out sensitivity analysis."""
+
+    dropped_study_id: str
+    dropped_identifier: str | None
+    k_remaining: int
+    estimate: float
+    estimate_display: float
+    ci: tuple[float, float]
+    ci_display: tuple[float, float]
+    i_squared: float
+    influence: float          # |full pooled − leave-one-out pooled|, analysis scale
+
+    def to_dict(self) -> dict:
+        return {
+            "dropped_study_id": self.dropped_study_id,
+            "dropped_identifier": self.dropped_identifier,
+            "k_remaining": self.k_remaining,
+            "estimate": self.estimate,
+            "estimate_display": self.estimate_display,
+            "ci": list(self.ci),
+            "ci_display": list(self.ci_display),
+            "i_squared": self.i_squared,
+            "influence": self.influence,
+        }
+
+
+def leave_one_out(
+    effects: Sequence[EffectSize] | Iterable[EffectSize],
+    *,
+    measure: str | None = None,
+    confidence: float = 0.95,
+) -> tuple[LeaveOneOutRow, ...]:
+    """Re-pool the evidence dropping each study in turn (requires k ≥ 2).
+
+    Surfaces the influence of each trial — the study whose removal would most
+    shift the random-effects estimate is the one a reviewer scrutinises first.
+    """
+    studies = tuple(effects)
+    if len(studies) < 2:
+        raise MetaAnalysisError("leave-one-out requires at least 2 studies")
+    full = meta_analyze(studies, measure=measure, confidence=confidence)
+    rows: list[LeaveOneOutRow] = []
+    for i in range(len(studies)):
+        subset = studies[:i] + studies[i + 1:]
+        res = meta_analyze(subset, measure=measure, confidence=confidence)
+        rows.append(LeaveOneOutRow(
+            dropped_study_id=studies[i].study_id,
+            dropped_identifier=studies[i].identifier,
+            k_remaining=res.k,
+            estimate=res.random_estimate,
+            estimate_display=res.random_estimate_display,
+            ci=res.random_ci,
+            ci_display=res.random_ci_display,
+            i_squared=res.i_squared,
+            influence=abs(full.random_estimate - res.random_estimate),
+        ))
+    return tuple(rows)
+
+
+def render_egger(result: EggerResult) -> str:
+    """Markdown for an Egger small-study-effects test."""
+    return "\n".join([
+        "### Small-study effects — Egger's test",
+        "",
+        f"- **Intercept:** {result.intercept:.3f} "
+        f"(SE {result.intercept_se:.3f})",
+        f"- **t = {result.t:.3f}**, df = {result.df}, "
+        f"two-sided p = {result.p_value:.4f}",
+        f"- **Publication bias:** {result.bias_label} — {result.rationale}",
+    ])
+
+
+def render_leave_one_out(
+    rows: Sequence[LeaveOneOutRow], *, log_scale: bool = False
+) -> str:
+    """Markdown table for a leave-one-out sensitivity analysis."""
+    lines = [
+        "### Leave-one-out sensitivity",
+        "",
+        "| Omitted study | k | Pooled (random) | I² | Influence |",
+        "|---|---|---|---|---|",
+    ]
+    for r in rows:
+        lines.append(
+            f"| {r.dropped_study_id} | {r.k_remaining} | "
+            f"{r.estimate_display:.3f} [{r.ci_display[0]:.3f}, "
+            f"{r.ci_display[1]:.3f}] | {r.i_squared:.0f}% | "
+            f"{r.influence:.3f} |"
+        )
+    lines.append("")
+    lines.append(
+        "_Influence = absolute shift in the pooled (log-scale) estimate when "
+        "that study is omitted; the largest-influence study drives the result._"
+    )
+    return "\n".join(lines)
+
+
 # ── stdlib numerics (no NumPy / SciPy — Constitution §X) ─────────────
 
 
@@ -700,3 +934,68 @@ def _gamma_cf(a: float, x: float) -> float:
         if abs(delta - 1.0) < 1e-15:
             break
     return math.exp(-x + a * math.log(x) - gln) * h
+
+
+def _t_sf_two_sided(t: float, df: int) -> float:
+    """Two-sided Student's-t tail probability 2·P(T > |t|) for ``df`` d.o.f.
+
+    Uses the identity P(|T| > t) = I_x(df/2, 1/2) with x = df/(df + t²),
+    where I is the regularized incomplete beta. Stdlib ``math`` only.
+    """
+    if df <= 0:
+        return 1.0
+    if not math.isfinite(t):
+        return 0.0
+    x = df / (df + t * t)
+    return _betai(df / 2.0, 0.5, x)
+
+
+def _betai(a: float, b: float, x: float) -> float:
+    """Regularized incomplete beta function I_x(a, b)."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    lbeta = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+    front = math.exp(lbeta + a * math.log(x) + b * math.log(1.0 - x))
+    if x < (a + 1.0) / (a + b + 2.0):
+        return front * _betacf(a, b, x) / a
+    return 1.0 - front * _betacf(b, a, 1.0 - x) / b
+
+
+def _betacf(a: float, b: float, x: float) -> float:
+    """Continued-fraction core of the incomplete beta (modified Lentz)."""
+    tiny = 1e-300
+    qab = a + b
+    qap = a + 1.0
+    qam = a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    if abs(d) < tiny:
+        d = tiny
+    d = 1.0 / d
+    h = d
+    for m in range(1, 300):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if abs(d) < tiny:
+            d = tiny
+        c = 1.0 + aa / c
+        if abs(c) < tiny:
+            c = tiny
+        d = 1.0 / d
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if abs(d) < tiny:
+            d = tiny
+        c = 1.0 + aa / c
+        if abs(c) < tiny:
+            c = tiny
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < 1e-15:
+            break
+    return h

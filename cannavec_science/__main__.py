@@ -1017,7 +1017,11 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         MetaAnalysisError,
         binary_effect,
         continuous_effect,
+        egger_test,
+        leave_one_out,
         meta_analyze,
+        render_egger,
+        render_leave_one_out,
         render_markdown,
     )
 
@@ -1066,10 +1070,43 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         print(f"[error] {exc}", file=sys.stderr)
         return 2
 
+    # Optional robustness diagnostics (spec 012): Egger's test + leave-one-out.
+    egger = None
+    loo = None
+    if getattr(args, "diagnostics", False):
+        try:
+            loo = leave_one_out(
+                effects,
+                measure=(None if str(measure).lower() == "generic" else measure),
+                confidence=confidence,
+            )
+        except MetaAnalysisError:
+            loo = None
+        try:
+            egger = egger_test(effects)
+        except MetaAnalysisError:
+            egger = None
+
     if getattr(args, "json", False):
-        print(json.dumps(result.to_dict(), indent=2, default=str))
+        payload = result.to_dict()
+        if getattr(args, "diagnostics", False):
+            payload["egger"] = (
+                egger.to_dict() if egger is not None
+                else {"note": "Egger's test requires at least 3 studies"}
+            )
+            payload["leave_one_out"] = (
+                [r.to_dict() for r in loo] if loo is not None
+                else {"note": "leave-one-out requires at least 2 studies"}
+            )
+        print(json.dumps(payload, indent=2, default=str))
     else:
         print(render_markdown(result))
+        if egger is not None:
+            print("")
+            print(render_egger(egger))
+        if loo is not None:
+            print("")
+            print(render_leave_one_out(loo, log_scale=result.log_scale))
     return 0
 
 
@@ -1298,6 +1335,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     m.add_argument("--confidence", type=float, default=0.95,
                    help="Confidence level for CIs (default 0.95).")
+    m.add_argument("--diagnostics", action="store_true",
+                   help=("Append robustness diagnostics (spec 012): Egger's "
+                         "small-study-effects test and a leave-one-out "
+                         "sensitivity analysis."))
     m.add_argument("--json", action="store_true",
                    help="Emit structured JSON instead of Markdown.")
     m.set_defaults(func=_cmd_meta)
