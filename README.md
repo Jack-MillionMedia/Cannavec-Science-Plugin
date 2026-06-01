@@ -221,6 +221,40 @@ imputed studies are explicitly hypothetical, carry no identifier, and are
 never presented as cited evidence (§I). Both reuse the spec 011 pooling core
 and stay byte-for-byte deterministic.
 
+**Make it actionable — absolute effects & NNT (`--baseline-risk`, spec 015).**
+A pooled odds ratio of 0.52 is not yet a decision. The GRADE *Summary-of-
+Findings* table turns it into one by anchoring it to an **assumed comparator
+risk** and reading off the **anticipated absolute effect**. Pass
+`--baseline-risk` (with `--outcome`, optional `--baseline-pmid` to anchor the
+baseline per §I, and `--outcome-desirable` to flip the benefit direction) and
+`meta` appends that row:
+
+```bash
+$ python3 -m cannavec_science meta cbd_seizures.json --measure RR \
+    --baseline-risk 0.40 --outcome "convulsive seizures" \
+    --baseline-source "pooled placebo arms" --baseline-pmid 28538134
+### Anticipated absolute effects — convulsive seizures
+
+- **Relative effect:** RR 0.52 (95% CI 0.4 to 0.68)
+- **Assumed comparator risk:** 400 per 1000 (40%) — pooled placebo arms [PMID:28538134]
+- **Corresponding intervention risk:** 208 per 1000 (95% CI 161 to 270)
+- **Risk difference:** 192 fewer per 1000 (95% CI 239 fewer to 130 fewer)
+- **Number needed to treat:** NNTB 5.22 (95% CI 4.18 to 7.69)
+```
+
+Two rigor guarantees come with it. **Direction is never guessed** — NNTB vs
+NNTH is derived from whether the outcome is desirable, so a risk *increase* is
+a benefit for "responders" and a harm for "adverse events" (§VII). And the
+**NNT confidence interval is honest about the null**: when the relative-effect
+CI crosses 1, there is no finite NNT range — it runs from a benefit, through
+infinity, to a harm. Per Altman 1998 (*BMJ* 317:1309) `meta` prints
+`NNTB 13.85 to ∞ to NNTH 13.97` rather than a naive finite interval that hides
+the discontinuity. The assumed baseline carries its own provenance: an
+unsourced one is rendered with a visible "not primary-source anchored" caveat
+and `acr_sourced: false` in `--json`, so an illustrative baseline is never
+laundered as a measured fact (§I). The translation is `RR · ACR` for risk
+ratios and the GRADE odds→risk transform for odds ratios; pure stdlib `math`.
+
 ### What v0.6 ships
 
 1. **Pain medicine registry (≥ 7 curated rows)** — NASEM 2017
@@ -660,7 +694,7 @@ refuses, or cites in prose — every verdict is computed by
 ## The deterministic backbone
 
 ```
-cannavec_science/                       # 64 modules · stdlib-only
+cannavec_science/                       # 68 modules · stdlib-only
 
 # Core evidence + safety
 ├── evidence.py                  # GRADE, Source, Claim, ClaimType, source-authority weight
@@ -710,6 +744,10 @@ cannavec_science/                       # 64 modules · stdlib-only
 ├── grade_profile.py             # GRADE evidence-profile table (MD + CSV)
 ├── protocol_skeleton.py         # 9-section IRB protocol stub
 ├── regulatory_feasibility.py    # US-federal / EU-EMA / Canada / UK advisory
+
+# Quantitative evidence synthesis
+├── meta_analysis.py             # Fixed + DL random effects, Q/I²/τ², Egger, leave-one-out, prediction interval, subgroup, trim-and-fill
+├── absolute_effects.py          # Relative→absolute (GRADE SoF): risk difference + NNTB/NNTH (Altman 1998 null-crossing CI)
 
 # Curated science registries (20)
 ├── major_cannabinoids.py        # Δ⁹-THC, CBD, THCA, CBDA

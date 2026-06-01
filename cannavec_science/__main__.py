@@ -14,7 +14,10 @@ Subcommands:
 - ``source-health`` — probe per-source liveness.
 - ``meta <studies.json>`` — pool per-study effect sizes into a
   fixed/random-effects meta-analysis with heterogeneity (Q, I², τ²) and
-  a GRADE inconsistency verdict (spec 011).
+  a GRADE inconsistency verdict (spec 011); ``--diagnostics`` adds Egger /
+  leave-one-out / subgroup / trim-and-fill (specs 012-014) and
+  ``--baseline-risk`` adds the GRADE Summary-of-Findings absolute effect +
+  NNT (spec 015).
 
 Every subcommand returns a non-zero exit code on refusal / error.
 Stdlib only.
@@ -1099,6 +1102,43 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             except MetaAnalysisError:
                 subgroups = None
 
+    # Absolute effects & NNT (spec 015). CLI --baseline-risk overrides any
+    # spec {"baseline": {...}} block. Ratio measures only — a continuous
+    # mean difference has no risk difference and refuses with a non-zero exit.
+    abs_effect = None
+    spec_baseline = spec.get("baseline") if isinstance(spec.get("baseline"), dict) else {}
+    baseline_risk = getattr(args, "baseline_risk", None)
+    if baseline_risk is None and spec_baseline.get("risk") is not None:
+        baseline_risk = float(spec_baseline["risk"])
+    if baseline_risk is not None:
+        from cannavec_science.absolute_effects import (
+            AbsoluteEffectError,
+            RiskProvenance,
+            absolute_from_meta,
+            render_markdown as render_absolute,
+        )
+        prov = RiskProvenance(
+            label=(getattr(args, "baseline_source", None) or spec_baseline.get("label")
+                   or "assumed baseline risk (unsourced)"),
+            pmid=(getattr(args, "baseline_pmid", None) or spec_baseline.get("pmid")),
+            doi=spec_baseline.get("doi"),
+            nct=spec_baseline.get("nct"),
+            url=spec_baseline.get("url"),
+        )
+        outcome = (getattr(args, "outcome", None) or spec_baseline.get("outcome")
+                   or spec.get("outcome") or "the outcome")
+        desirable = bool(getattr(args, "outcome_desirable", False)
+                         or spec_baseline.get("outcome_desirable", False))
+        try:
+            abs_effect = absolute_from_meta(
+                result, acr=baseline_risk, outcome=outcome,
+                outcome_desirable=desirable, acr_provenance=prov,
+                model=getattr(args, "absolute_model", "random"),
+            )
+        except AbsoluteEffectError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
+
     if getattr(args, "json", False):
         payload = result.to_dict()
         if getattr(args, "diagnostics", False):
@@ -1116,6 +1156,8 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             )
             if subgroups is not None:
                 payload["subgroup_analysis"] = subgroups.to_dict()
+        if abs_effect is not None:
+            payload["absolute_effect"] = abs_effect.to_dict()
         print(json.dumps(payload, indent=2, default=str))
     else:
         print(render_markdown(result))
@@ -1131,6 +1173,9 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         if subgroups is not None:
             print("")
             print(render_subgroups(subgroups))
+        if abs_effect is not None:
+            print("")
+            print(render_absolute(abs_effect))
     return 0
 
 
@@ -1363,6 +1408,25 @@ def _build_parser() -> argparse.ArgumentParser:
                    help=("Append robustness diagnostics (spec 012): Egger's "
                          "small-study-effects test and a leave-one-out "
                          "sensitivity analysis."))
+    # Absolute effects & NNT (spec 015) — ratio measures only.
+    m.add_argument("--baseline-risk", type=float, default=None,
+                   help=("Assumed comparator (control) risk in (0,1). When set "
+                         "for an OR/RR pool, append the GRADE Summary-of-"
+                         "Findings absolute effect + NNT. May also be given in "
+                         'the spec under {"baseline": {"risk": ...}}.'))
+    m.add_argument("--outcome", default=None,
+                   help="Outcome label for the absolute-effect block.")
+    m.add_argument("--outcome-desirable", action="store_true",
+                   help=("Treat the outcome as desirable (response/remission) "
+                         "so a risk increase is a benefit. Default: undesirable "
+                         "(event/relapse), so a risk reduction is the benefit."))
+    m.add_argument("--baseline-source", default=None,
+                   help="Provenance label for the assumed comparator risk (§I).")
+    m.add_argument("--baseline-pmid", default=None,
+                   help="Anchor the assumed comparator risk to a PMID (§I).")
+    m.add_argument("--absolute-model", choices=["random", "fixed"],
+                   default="random",
+                   help="Pooled estimate used for the absolute effect.")
     m.add_argument("--json", action="store_true",
                    help="Emit structured JSON instead of Markdown.")
     m.set_defaults(func=_cmd_meta)
