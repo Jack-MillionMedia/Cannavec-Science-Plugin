@@ -55,3 +55,6 @@ Issues = "https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/issues"
 where = ["."]
 include = ["cannavec_science*"]
 exclude = ["tests*", "evals*"]
+
+[tool.setuptools.package-data]
+cannavec_science = ["data/*.csv"]
