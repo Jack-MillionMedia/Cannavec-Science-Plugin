@@ -159,7 +159,7 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "CBDA synthase Taura 1996 cannabidiolic acid biosynthesis"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("8632416", pmids)
+        self.assertIn("8663284", pmids)
 
 
 class RendererTests(unittest.TestCase):

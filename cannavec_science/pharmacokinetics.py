@@ -27,7 +27,7 @@ Topic coverage:
 - ``distribution`` — plasma protein binding (~95-99%, dominated by
   lipoprotein-association rather than albumin), lipid sequestration in
   adipose tissue (long terminal half-life from slow release), and
-  brain partitioning. Garrett 1977 (PMID 887158) is the classic
+  brain partitioning. Garrett & Hunt 1977 (PMID 845807) is the classic
   distribution reference.
 - ``detection_window`` — urine cannabinoid detection window. THC-COOH
   metabolite detectable for days-to-weeks after cessation depending on
