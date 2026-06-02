@@ -73,7 +73,8 @@ query (and vice-versa for a mechanism query).
 Any paper flagged "RETRACTED" must be ranked last.
 
 Return ONLY a JSON object of this exact shape, covering EVERY index from the \
-shortlist exactly once, best first:
+shortlist exactly once, best first. Every item MUST include a brief reason \
+(<=12 words) naming the evidence type and why it ranks where it does:
 {"ranking": [{"index": <int>, "reason": "<=12 words"}, ...]}
 """
 
@@ -88,9 +89,12 @@ _SCHEMA = {
                 "type": "object",
                 "properties": {
                     "index": {"type": "integer"},
+                    # Required so every reranked row carries the model's own
+                    # justification; otherwise the model sometimes omits it and
+                    # the row falls back to the deterministic BM25 rationale.
                     "reason": {"type": "string"},
                 },
-                "required": ["index"],
+                "required": ["index", "reason"],
                 "additionalProperties": False,
             },
         }
