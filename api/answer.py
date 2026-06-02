@@ -68,16 +68,19 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
-    def _json(self, status: int, payload: dict) -> None:
+    def _json(self, status: int, payload: dict, cache_seconds: int = 86400) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        if status == 200:
-            # Curated answers are deterministic → cacheable at the edge.
+        if status == 200 and cache_seconds > 0:
+            # Curated answers are deterministic → cacheable at the edge. A
+            # live-augmented answer carries fresh data, so it is cached for a
+            # shorter window (passed by the caller).
             self.send_header(
                 "Cache-Control",
-                "public, s-maxage=86400, stale-while-revalidate=604800",
+                f"public, s-maxage={cache_seconds}, "
+                f"stale-while-revalidate={cache_seconds * 7}",
             )
         self._cors()
         self.end_headers()
@@ -98,12 +101,17 @@ class handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
+    @staticmethod
+    def _truthy(v) -> bool:
+        return str(v).strip().lower() in ("1", "true", "yes", "on")
+
     def do_GET(self) -> None:
         q = parse_qs(urlparse(self.path).query)
         question = (q.get("question") or [""])[0].strip()
         fmt = (q.get("format") or ["json"])[0]
         policy = (q.get("retraction_policy") or ["strict"])[0]
-        self._handle(question, fmt, policy)
+        augment = self._truthy((q.get("augment") or ["false"])[0])
+        self._handle(question, fmt, policy, augment)
 
     def do_POST(self) -> None:
         try:
@@ -118,9 +126,11 @@ class handler(BaseHTTPRequestHandler):
         question = str(data.get("question", "")).strip()
         fmt = str(data.get("format", "json"))
         policy = str(data.get("retraction_policy", "strict"))
-        self._handle(question, fmt, policy)
+        augment = self._truthy(data.get("augment", False))
+        self._handle(question, fmt, policy, augment)
 
-    def _handle(self, question: str, fmt: str, policy: str) -> None:
+    def _handle(self, question: str, fmt: str, policy: str,
+                augment: bool = False) -> None:
         if not question:
             self._json(400, {"ok": False, "error": "missing 'question'"})
             return
@@ -132,11 +142,25 @@ class handler(BaseHTTPRequestHandler):
             self._json(500, {"ok": False, "error": "internal error",
                              "detail": type(exc).__name__})
             return
+
+        # Phase 2 (opt-in): weave clearly-tagged, never-promoted live findings
+        # onto the curated brief (Constitution §IX). Best-effort — a refusal,
+        # an offline lane, or a missing NCBI_API_KEY leaves the curated answer
+        # intact. Live data → shorter edge cache.
+        n_live = 0
+        if augment:
+            try:
+                from cannavec_science import live
+                n_live = live.augment_answer(a, max_results=5)
+            except Exception:  # noqa: BLE001 — augmentation must never 500
+                n_live = 0
+
         if fmt == "markdown":
             self._text(200, a.to_markdown())
         else:
             self._json(200, {
                 "ok": True,
                 "is_refusal": a.is_refusal,
+                "augmented": n_live,
                 "answer": a.to_dict(),
-            })
+            }, cache_seconds=3600 if augment else 86400)

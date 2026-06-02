@@ -25,15 +25,21 @@ class handler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self) -> None:
-        payload: dict = {"status": "ok", "phase": 1, "live_discovery": False}
+        payload: dict = {"status": "ok"}
         try:
             import cannavec_science
             from cannavec_science.registries import all_registry_groups
+            from cannavec_science._http import ncbi_api_key
             groups = all_registry_groups()
+            # Live discovery is *configured* when an NCBI key is present; the
+            # curated path needs neither key nor network.
+            live_ready = ncbi_api_key() is not None
             payload["version"] = getattr(cannavec_science, "__version__", "unknown")
+            payload["phase"] = 2 if live_ready else 1
+            payload["live_discovery"] = live_ready
             payload["curated_registries"] = len(groups)
             payload["registry_names"] = list(groups)
-            payload["endpoints"] = ["/api/answer", "/api/rigor",
+            payload["endpoints"] = ["/api/answer", "/api/discover", "/api/rigor",
                                     "/api/registries", "/api/health"]
         except Exception as exc:  # noqa: BLE001
             payload["status"] = "degraded"
