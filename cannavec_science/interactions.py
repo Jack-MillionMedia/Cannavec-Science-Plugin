@@ -384,7 +384,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
                 year=2011,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
                 pmid="35115300",
                 year=2020,
             ),
@@ -411,7 +411,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
                 year=2014,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
                 pmid="35115300",
                 year=2020,
             ),
@@ -592,7 +592,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
                 year=2019,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
                 pmid="35115300",
                 year=2020,
             ),
@@ -620,7 +620,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
                 year=2014,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
                 pmid="35115300",
                 year=2020,
             ),
@@ -703,7 +703,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
                 year=2014,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
                 pmid="35115300",
                 year=2020,
             ),

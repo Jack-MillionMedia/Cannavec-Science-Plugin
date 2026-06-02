@@ -170,7 +170,7 @@ class PharmacokineticsRow:
 # ── Citations ──────────────────────────────────────────────────────────
 
 _HUESTIS_2005 = PharmacokineticsCitation(
-    label="Huestis MA, Chem Biodivers 2005, human cannabinoid pharmacokinetics "
+    label="Huestis MA, Handb Exp Pharmacol 2005, human cannabinoid pharmacokinetics "
           "(canonical PK review)",
     pmid="16596792", year=2005,
 )

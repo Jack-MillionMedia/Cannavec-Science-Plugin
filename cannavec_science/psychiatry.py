@@ -185,10 +185,10 @@ _HJORTHOJ_2023 = PsychiatryCitation(
     pmid="37140715", year=2023,
 )
 _MURRAY_2017 = PsychiatryCitation(
-    label="Murray RM et al., Lancet Psychiatry 2017, cannabis-associated "
-          "psychosis — neural substrate and clinical impact (narrative "
-          "review)",
-    pmid="27717258", year=2017,
+    label="Murray RM et al., World Psychiatry 2016, traditional marijuana, "
+          "high-potency cannabis and synthetic cannabinoids — increasing "
+          "risk for psychosis (review)",
+    pmid="27717258", year=2016,
 )
 
 

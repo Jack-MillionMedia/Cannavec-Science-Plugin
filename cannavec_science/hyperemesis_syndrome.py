@@ -176,15 +176,15 @@ _DEZIECK_2017 = HyperemesisSyndromeCitation(
     pmid="28494183", year=2017,
 )
 _RICHARDS_2017 = HyperemesisSyndromeCitation(
-    label="Richards JR et al., Ann Pharmacother 2017, treatment of "
+    label="Richards JR et al., Pharmacotherapy 2017, treatment of "
           "cannabinoid hyperemesis syndrome — a systematic review",
     pmid="28370228", year=2017,
 )
 _KIM_2018 = HyperemesisSyndromeCitation(
-    label="Kim HS et al., BMJ Open 2018, cyclic vomiting presentations "
+    label="Kim HS et al., Acad Emerg Med 2015, cyclic vomiting presentations "
           "following marijuana liberalization in Colorado — emergency "
           "department visits before and after legalization",
-    pmid="25903855", year=2018,
+    pmid="25903855", year=2015,
 )
 
 

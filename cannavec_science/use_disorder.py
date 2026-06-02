@@ -185,7 +185,7 @@ _VERWEIJ_2010 = UseDisorderCitation(
     pmid="20402985", year=2010,
 )
 _CHEN_2009 = UseDisorderCitation(
-    label="Chen CY et al., Drug Alcohol Depend 2009, early-onset drug use "
+    label="Chen CY et al., Addict Behav 2009, early-onset drug use "
           "and risk for drug dependence problems",
     pmid="19022584", year=2009,
 )

@@ -189,10 +189,16 @@ _MUCKE_2018_COCHRANE = PainMedicineCitation(
     pmid="29513392", year=2018,
 )
 _BOEHNKE_2019 = PainMedicineCitation(
-    label="Boehnke KF et al., J Pain 2019, qualifying conditions of medical "
-          "cannabis license holders in the United States — prospective "
-          "cohort analyses",
+    label="Boehnke KF et al., Health Aff 2019, qualifying conditions of "
+          "medical-cannabis license holders in the United States (national "
+          "registry analysis)",
     pmid="30715980", year=2019,
+)
+_BOEHNKE_PILLS_2019 = PainMedicineCitation(
+    label="Boehnke KF et al., J Pain 2019, Pills to Pot — observational "
+          "analyses of cannabis substitution among medical-cannabis users "
+          "with chronic pain",
+    pmid="30690169", year=2019,
 )
 _ANDREAE_2015 = PainMedicineCitation(
     label="Andreae MH et al., J Pain 2015, inhaled cannabis for chronic "
@@ -374,12 +380,13 @@ _BOEHNKE_2019_COHORT = PainMedicineRow(
     name="Boehnke 2019 J Pain medical-cannabis prospective cohort",
     topic=PainMedicineTopic.COHORT_OBSERVATIONAL,
     claim_text=(
-        "Boehnke et al. 2019 J Pain analysed US medical-cannabis-license "
-        "holder qualifying conditions over 2016-2017 — chronic pain was "
-        "the most common qualifying condition (~62% of patients). The "
-        "Boehnke prospective MMJ-card cohort reports lower opioid use, "
-        "lower pain-VAS scores, and improved quality-of-life measures vs "
-        "baseline. The Boehnke evidence is OBSERVATIONAL — not causal "
+        "Boehnke et al. 2019 (Health Aff) analysed US medical-cannabis-"
+        "license-holder qualifying conditions over 2016-2017 — chronic pain "
+        "was the most common qualifying condition (~62% of patients). A "
+        "companion Boehnke 2019 J Pain survey ('Pills to Pot', n = 1,321 "
+        "chronic-pain MMJ users) reported ~80% substituting cannabis for "
+        "pain medications (53% for opioids), citing fewer side effects. The "
+        "Boehnke evidence is OBSERVATIONAL — not causal "
         "(no placebo arm; self-selection bias inherent to MMJ-cohort "
         "design). The signal is consistent with the RCT literature but "
         "should be interpreted as descriptive epidemiology of real-world "
@@ -389,7 +396,7 @@ _BOEHNKE_2019_COHORT = PainMedicineRow(
     claim_type=ClaimType.CLINICAL_EFFICACY,
     evidence_level=EvidenceLevel.C,
     source_tier=SourceTier.SINGLE_ARM_OR_MECH,
-    citations=(_BOEHNKE_2019,),
+    citations=(_BOEHNKE_2019, _BOEHNKE_PILLS_2019),
     population="US medical-cannabis-license holders (real-world cohort)",
     n_patients=0,
     key_finding_summary=(

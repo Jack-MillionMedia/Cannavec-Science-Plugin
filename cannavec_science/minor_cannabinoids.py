@@ -276,7 +276,7 @@ _STOUT_2014 = MinorCannabinoidCitation(
     pmid="24160757", year=2014,
 )
 _NAVARRO_2018 = MinorCannabinoidCitation(
-    label="Navarro G et al., Biochem Pharmacol 2018, CBG selective α2-adrenoceptor agonism",
+    label="Navarro G et al., Front Pharmacol 2018, cannabigerol is a partial agonist at CB1/CB2 receptors and CB1-CB2 heteroreceptor complexes",
     pmid="29977202", year=2018,
 )
 _BORRELLI_2013 = MinorCannabinoidCitation(
