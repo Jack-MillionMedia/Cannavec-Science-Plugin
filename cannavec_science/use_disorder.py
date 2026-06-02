@@ -11,26 +11,26 @@ Constitution §IV (researcher-only) with primary citations per §I.
 Topic coverage:
 
 - ``dsm5_criteria`` — DSM-5 cannabis use disorder framework. Hasin
-  2013 (PMID 23537606) is the field-standard publication describing
+  2013 (PMID 23903334) is the field-standard publication describing
   the merger of abuse + dependence into a single severity-graded
   disorder (≥ 2 of 11 = mild; ≥ 4 = moderate; ≥ 6 = severe).
 - ``screening_instrument`` — Cannabis Use Disorder Identification
-  Test – Revised (CUDIT-R). Adamson 2010 (PMID 20231083) developed
+  Test – Revised (CUDIT-R). Adamson 2010 (PMID 20347232) developed
   the 8-item cannabis-specific revision of the WHO AUDIT framework;
   modern protocols use the CUDIT-R as the screening tool.
 - ``withdrawal_scale`` — Cannabis Withdrawal Scale (CWS). Allsop 2011
-  (PMID 21652129) developed and validated the 19-item self-report
+  (PMID 21724338) developed and validated the 19-item self-report
   scale used in essentially every cannabis-withdrawal trial.
 - ``prevalence`` — CUD lifetime / 12-month prevalence. Hasin 2015
   (PMID 26502112) NESARC-III is the field-standard US population
   prevalence reference (~3% 12-month, ~6.3% lifetime under DSM-5).
-- ``heritability`` — CUD heritability. Verweij 2010 (PMID 20096023)
+- ``heritability`` — CUD heritability. Verweij 2010 (PMID 20402985)
   twin-and-family meta-analysis estimates broad-sense heritability
   ~0.51-0.59 for cannabis dependence (DSM-IV framework, comparable
   to other substance-use disorders).
 - ``age_of_onset`` — telescoping effect / adolescent-onset risk.
-  Chen 2009 (PMID 19166934) for the telescoping effect; Hall &
-  Degenhardt 2009 (PMID 19836820) for adolescent-onset dependence-
+  Chen 2009 (PMID 19022584) for the telescoping effect; Hall &
+  Degenhardt 2009 (PMID 19837255) for adolescent-onset dependence-
   trajectory data.
 
 Each row carries `to_claim()` returning a typed Claim, identifier-
@@ -158,19 +158,19 @@ class UseDisorderRow:
 _HASIN_2013 = UseDisorderCitation(
     label="Hasin DS et al., Am J Psychiatry 2013, DSM-5 criteria for "
           "substance use disorders — recommendations and rationale",
-    pmid="23537606", year=2013,
+    pmid="23903334", year=2013,
 )
 _ADAMSON_2010 = UseDisorderCitation(
     label="Adamson SJ et al., Drug Alcohol Depend 2010, an improved brief "
           "measure of cannabis misuse — the Cannabis Use Disorders "
           "Identification Test-Revised (CUDIT-R)",
-    pmid="20231083", year=2010,
+    pmid="20347232", year=2010,
 )
 _ALLSOP_2011 = UseDisorderCitation(
     label="Allsop DJ et al., Drug Alcohol Depend 2011, the Cannabis "
           "Withdrawal Scale development — patterns and predictors of "
           "cannabis withdrawal and distress",
-    pmid="21652129", year=2011,
+    pmid="21724338", year=2011,
 )
 _HASIN_2015 = UseDisorderCitation(
     label="Hasin DS et al., JAMA Psychiatry 2015, prevalence of marijuana "
@@ -182,22 +182,22 @@ _VERWEIJ_2010 = UseDisorderCitation(
     label="Verweij KJ et al., Addiction 2010, genetic and environmental "
           "influences on cannabis use initiation and problematic use — "
           "a meta-analysis of twin studies",
-    pmid="20096023", year=2010,
+    pmid="20402985", year=2010,
 )
 _CHEN_2009 = UseDisorderCitation(
-    label="Chen CY et al., Drug Alcohol Depend 2009, early-onset drug use "
+    label="Chen CY et al., Addict Behav 2009, early-onset drug use "
           "and risk for drug dependence problems",
-    pmid="19166934", year=2009,
+    pmid="19022584", year=2009,
 )
 _HALL_DEGENHARDT_2009 = UseDisorderCitation(
     label="Hall W & Degenhardt L, Lancet 2009, adverse health effects of "
           "non-medical cannabis use",
-    pmid="19836820", year=2009,
+    pmid="19837255", year=2009,
 )
 _BUDNEY_2004 = UseDisorderCitation(
     label="Budney AJ et al., Am J Psychiatry 2004, review of the validity "
           "and significance of cannabis withdrawal syndrome",
-    pmid="15569892", year=2004,
+    pmid="15514394", year=2004,
 )
 _VOLKOW_2014 = UseDisorderCitation(
     label="Volkow ND et al., NEJM 2014, adverse health effects of marijuana "

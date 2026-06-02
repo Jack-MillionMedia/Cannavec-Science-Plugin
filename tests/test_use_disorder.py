@@ -179,26 +179,26 @@ class RendererTests(unittest.TestCase):
     def test_render_includes_dsm5_pmid(self):
         rows = all_use_disorder_rows()
         md = render_markdown(rows)
-        self.assertIn("23537606", md)
+        self.assertIn("23903334", md)
 
 
 class IntegrationWithComposerTests(unittest.TestCase):
     def test_dsm5_criteria_query_surfaces_hasin_2013(self):
         a = compose_answer("cannabis use disorder DSM-5 criteria framework")
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("23537606", pmids)
+        self.assertIn("23903334", pmids)
 
     def test_cws_query_surfaces_allsop_2011(self):
         a = compose_answer("cannabis withdrawal syndrome assessment scale Allsop")
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("21652129", pmids)
+        self.assertIn("21724338", pmids)
 
     def test_volkow_2014_continues_to_fire_on_cud_query(self):
         # The existing v0.3 adverse-events Volkow CUD-risk row must
         # continue to fire alongside the new DSM-5 framework row.
         a = compose_answer("cannabis use disorder DSM-5 criteria adolescent")
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("23537606", pmids)
+        self.assertIn("23903334", pmids)
         self.assertIn("24897085", pmids)
 
 

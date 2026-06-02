@@ -97,19 +97,19 @@ _DEVANE_1992 = EcbomeCitation(
 )
 _MECHOULAM_1995 = EcbomeCitation(
     label="Mechoulam R et al., Biochem Pharmacol 1995, 2-AG identification",
-    pmid="7544547", year=1995,
+    pmid="7605349", year=1995,
 )
 _DI_MARZO_2018 = EcbomeCitation(
     label="Di Marzo V et al., Nat Rev Drug Discov 2018, eCBome overview",
-    pmid="30382238", year=2018,
+    pmid="30116049", year=2018,
 )
 _BISOGNO_2005 = EcbomeCitation(
     label="Bisogno T et al., J Biol Chem 2005, DAGLα cloning",
-    pmid="15545257", year=2005,
+    pmid="14610053", year=2005,
 )
 _DINH_2002 = EcbomeCitation(
     label="Dinh TP et al., PNAS 2002, MAGL identification",
-    pmid="12235421", year=2002,
+    pmid="12136125", year=2002,
 )
 _CRAVATT_1996 = EcbomeCitation(
     label="Cravatt BF et al., Nature 1996, FAAH cloning",
@@ -117,11 +117,11 @@ _CRAVATT_1996 = EcbomeCitation(
 )
 _LO_VERME_2005 = EcbomeCitation(
     label="Lo Verme J et al., Mol Pharmacol 2005, PEA via PPARα",
-    pmid="15860571", year=2005,
+    pmid="15465922", year=2005,
 )
 _OVERTON_2006 = EcbomeCitation(
     label="Overton HA et al., Cell Metab 2006, GPR119 as OEA receptor",
-    pmid="16517406", year=2006,
+    pmid="16517404", year=2006,
 )
 _RYBERG_2007 = EcbomeCitation(
     label="Ryberg E et al., Br J Pharmacol 2007, GPR55 cannabinoid receptor",
@@ -129,11 +129,11 @@ _RYBERG_2007 = EcbomeCitation(
 )
 _HUANG_2002 = EcbomeCitation(
     label="Huang SM et al., PNAS 2002, NADA endocannabinoid",
-    pmid="12077423", year=2002,
+    pmid="12060783", year=2002,
 )
 _KACZOCHA_2009 = EcbomeCitation(
     label="Kaczocha M et al., PNAS 2009, FABP5/FABP7 as anandamide transporters",
-    pmid="19505913", year=2009,
+    pmid="19307565", year=2009,
 )
 _PERTWEE_2010 = EcbomeCitation(
     label="Pertwee RG et al., Pharmacol Rev 2010, IUPHAR cannabinoid receptors",

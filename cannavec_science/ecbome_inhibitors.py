@@ -11,19 +11,19 @@ with primary citations per §I.
 Topic coverage:
 
 - ``faah_inhibitor_efficacy`` — PF-04457845 (Pfizer) Phase 2 cannabis
-  withdrawal trial (D'Souza 2019 PMID 30985083) and Phase 2 osteoarthritis-
-  pain trial (Huggins 2012 PMID 22910298). The two best-developed
+  withdrawal trial (D'Souza 2019 PMID 30528676) and Phase 2 osteoarthritis-
+  pain trial (Huggins 2012 PMID 22727500). The two best-developed
   clinical translation stories for on-target FAAH inhibition.
 - ``faah_inhibitor_safety_disaster`` — BIA 10-2474 (Bial) Phase 1
   Rennes 2016 fatal-and-serious-adverse-event disaster (Kerbrat 2016
-  PMID 27806243). CRITICAL — the disaster is attributed to OFF-TARGET
-  serine-hydrolase inhibition (van Esbroeck 2017 PMID 28912346), NOT
+  PMID 27806235). CRITICAL — the disaster is attributed to OFF-TARGET
+  serine-hydrolase inhibition (van Esbroeck 2017 PMID 28596366), NOT
   to on-target FAAH biology. A researcher conflating BIA 10-2474
   toxicity with FAAH-inhibitor risk in general will reach wrong
   drug-development conclusions.
 - ``magl_inhibitor`` — MAGL (monoacylglycerol lipase) inhibitor
   pharmacology. ABX-1431 / lorcaserin / lu AG06466 era — Cisar 2018
-  (PMID 29498523) ABX-1431 SAR / pharmacology paper.
+  (PMID 30067909) ABX-1431 SAR / pharmacology paper.
 - ``dual_inhibitor`` — JZL195 dual FAAH / MAGL inhibitor mechanism
   reference (Long 2009 PMID 19429692) — endocannabinoid-tone elevation
   via simultaneous AEA + 2-AG protection.
@@ -157,7 +157,7 @@ _DSOUZA_2019 = EcbomeInhibitorCitation(
           "of a fatty acid amide hydrolase inhibitor (PF-04457845) in the "
           "treatment of cannabis withdrawal and dependence in men — "
           "double-blind randomised placebo-controlled Phase 2a trial",
-    pmid="30985083", year=2019,
+    pmid="30528676", year=2019,
 )
 _HUGGINS_2012 = EcbomeInhibitorCitation(
     label="Huggins JP et al., Pain 2012, an efficient randomised, "
@@ -166,13 +166,13 @@ _HUGGINS_2012 = EcbomeInhibitorCitation(
           "modulates endocannabinoids but fails to induce effective "
           "analgesia in patients with pain due to osteoarthritis of the "
           "knee",
-    pmid="22910298", year=2012,
+    pmid="22727500", year=2012,
 )
 _KERBRAT_2016 = EcbomeInhibitorCitation(
     label="Kerbrat A et al., NEJM 2016, acute neurologic disorder from "
           "an inhibitor of fatty acid amide hydrolase (BIA 10-2474) — "
           "Rennes Phase 1 fatal-and-serious-adverse-event report",
-    pmid="27806243", year=2016,
+    pmid="27806235", year=2016,
 )
 _VAN_ESBROECK_2017 = EcbomeInhibitorCitation(
     label="van Esbroeck ACM et al., Science 2017, activity-based protein "
@@ -180,13 +180,13 @@ _VAN_ESBROECK_2017 = EcbomeInhibitorCitation(
           "BIA 10-2474 (the molecular explanation for the Rennes "
           "disaster — off-target inhibition of multiple lipases, NOT "
           "on-target FAAH biology)",
-    pmid="28912346", year=2017,
+    pmid="28596366", year=2017,
 )
 _CISAR_2018 = EcbomeInhibitorCitation(
     label="Cisar JS et al., J Med Chem 2018, identification of ABX-1431, "
           "a selective inhibitor of monoacylglycerol lipase (MAGL) and "
           "clinical candidate for treatment of neurological disorders",
-    pmid="29498523", year=2018,
+    pmid="30067909", year=2018,
 )
 _LONG_2009 = EcbomeInhibitorCitation(
     label="Long JZ et al., Nat Chem Biol 2009, dual blockade of fatty "

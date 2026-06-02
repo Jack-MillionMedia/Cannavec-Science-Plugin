@@ -10,8 +10,8 @@ Topic coverage:
 
 - ``decarb_kinetics`` — THCA → Δ⁹-THC decarboxylation kinetics. Rate
   constants are matrix-, temperature-, and time-dependent; the canonical
-  primary literature is Veress 1990 (PMID 2384545) for the kinetic
-  framework and Wang 2016 / Citti 2018 for modern dose-response curves.
+  primary literature for the kinetic framework is Wang 2016
+  (DOI 10.1089/can.2016.0020) and Citti 2018 for modern dose-response curves.
 - ``hplc_validation`` — HPLC method validation for cannabinoid potency.
   Reverse-phase C18 / C8 with UV at 220-230 nm is the workhorse; AOAC
   2015.13 and the USP <467> / <1226> framework set the validation
@@ -169,15 +169,10 @@ class AnalyticalChemistryRow:
 
 # ── Citations ──────────────────────────────────────────────────────────
 
-_VERESS_1990 = AnalyticalChemistryCitation(
-    label="Veress T et al., J Chromatogr 1990, decarboxylation kinetics "
-          "of cannabinoid acids",
-    pmid="2384545", year=1990,
-)
 _DUSSY_2005 = AnalyticalChemistryCitation(
     label="Dussy FE et al., Forensic Sci Int 2005, isolation of Δ⁹-THCA-A "
           "and quantification by HPLC vs GC",
-    pmid="15734279", year=2005,
+    pmid="15734104", year=2005,
 )
 _WANG_2016 = AnalyticalChemistryCitation(
     label="Wang M et al., Cannabis Cannabinoid Res 2016, decarboxylation "
@@ -188,7 +183,7 @@ _CITTI_2018 = AnalyticalChemistryCitation(
     label="Citti C et al., J Pharm Biomed Anal 2018, analytical "
           "considerations for cannabinoids in cannabis extracts and "
           "medicinal products",
-    pmid="29073592", year=2018,
+    pmid="28641906", year=2018,
 )
 _HAZEKAMP_2012 = AnalyticalChemistryCitation(
     label="Hazekamp A & Fischedick JT, Drug Test Anal 2012, cannabis — "
@@ -198,7 +193,7 @@ _HAZEKAMP_2012 = AnalyticalChemistryCitation(
 _LEWIS_2018 = AnalyticalChemistryCitation(
     label="Lewis MA et al., Planta Med 2018, Pharmacological foundations "
           "of cannabis chemovars",
-    pmid="29161730", year=2018,
+    pmid="29161743", year=2018,
 )
 _POMAHACOVA_2009 = AnalyticalChemistryCitation(
     label="Pomahacova B et al., Inhal Toxicol 2009, cannabis smoke "
@@ -219,12 +214,12 @@ _GAONI_1964 = AnalyticalChemistryCitation(
 _HILLIG_MAHLBERG_2004 = AnalyticalChemistryCitation(
     label="Hillig KW & Mahlberg PG, Am J Bot 2004, chemotaxonomic analysis "
           "of cannabinoid variation in Cannabis (Cannabaceae)",
-    pmid="21652340", year=2004,
+    pmid="21653452", year=2004,
 )
 _LEGHISSA_2018 = AnalyticalChemistryCitation(
-    label="Leghissa A et al., J Sep Sci 2018, the imperatives and "
-          "challenges of analyzing Cannabis edibles",
-    pmid="29251828", year=2018,
+    label="Leghissa A et al., J Sep Sci 2018, a review of methods for the "
+          "chemical characterization of cannabis natural products",
+    pmid="28986974", year=2018,
 )
 _AIZPURUA_OLAIZOLA_2016 = AnalyticalChemistryCitation(
     label="Aizpurua-Olaizola O et al., J Nat Prod 2016, evolution of the "
@@ -252,7 +247,7 @@ _DECARB_KINETICS_FLOWER = AnalyticalChemistryRow(
     source_tier=SourceTier.SINGLE_ARM_OR_MECH,
     matrix="dry cannabis flower",
     conditions="110 °C, ambient atmosphere, ~30-60 min hold time",
-    citations=(_VERESS_1990, _WANG_2016),
+    citations=(_WANG_2016,),
     key_notes=(
         "Kinetic parameters drift with matrix water content: dried-and-"
         "cured material decarboxylates faster than freshly harvested "

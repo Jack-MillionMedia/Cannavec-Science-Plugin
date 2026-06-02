@@ -253,7 +253,7 @@ class RendererTests(unittest.TestCase):
 
     def test_pmid_and_doi_surface_in_render(self):
         md = render_markdown(all_analytical_chemistry_rows())
-        self.assertIn("PMID 2384545", md)         # Veress 1990
+        self.assertIn("10.1089/can.2016.0020", md)  # Wang 2016 (DOI render)
         self.assertIn("PMID 22362625", md)        # Hazekamp & Fischedick 2012
 
 

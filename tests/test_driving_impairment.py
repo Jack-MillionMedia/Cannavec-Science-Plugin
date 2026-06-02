@@ -47,7 +47,7 @@ class RegistryShapeTests(unittest.TestCase):
             c.pmid for r in all_driving_impairment_rows()
             for c in r.citations if c.pmid
         }
-        for p in ("25371545", "35138350", "27082781"):
+        for p in ("26144593", "35080588", "27701009"):
             self.assertIn(p, pmids)
 
     def test_compton_2017_nhtsa_report_id_present(self):
@@ -164,7 +164,7 @@ class RendererTests(unittest.TestCase):
 
     def test_render_includes_hartman_pmid(self):
         md = render_markdown(all_driving_impairment_rows())
-        self.assertIn("25371545", md)
+        self.assertIn("26144593", md)
 
 
 class IntegrationWithComposerTests(unittest.TestCase):

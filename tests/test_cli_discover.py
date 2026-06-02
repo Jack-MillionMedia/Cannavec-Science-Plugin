@@ -182,5 +182,111 @@ class DiscoverParallelTests(unittest.TestCase):
             self.assertEqual(len(payload["sources"][live_source]), 2)
 
 
+class _FakeReranker:
+    """Patched-in stand-in for LLMReranker — reorders without any network."""
+
+    name = "llm"
+
+    def __init__(self, *args, **kwargs):
+        self.model = kwargs.get("model")
+
+    def plan(self, query, candidates):
+        from cannavec_science.ranker import RankPlan
+
+        order = tuple(c.identifier for c in reversed(list(candidates)))
+        rationales = {order[0]: "fake top"} if order else {}
+        return RankPlan(order=order, rationales=rationales, backend="llm")
+
+
+class _RaisingReranker:
+    """Simulates a missing API key / offline model — must degrade silently."""
+
+    name = "llm"
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def plan(self, query, candidates):
+        raise RuntimeError("no ANTHROPIC_API_KEY")
+
+
+class DiscoverRankingTests(unittest.TestCase):
+    """The ranker integration: deterministic by default, opt-in LLM lift."""
+
+    def _args(self, **kwargs) -> argparse.Namespace:
+        defaults = dict(
+            query="cbd epilepsy",
+            sources="pubmed,chembl",
+            since=None,
+            max=5,
+            include_europepmc=False,
+            include_openalex=False,
+            parallel=1,
+            json=True,
+            rank=True,
+            rerank_llm=False,
+            rerank_model="claude-sonnet-4-6",
+        )
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+
+    def _registry(self):
+        return {"pubmed": _runner("pubmed"), "chembl": _runner("chembl")}
+
+    def _run(self, args):
+        with patch.dict(
+            "cannavec_science.__main__._DISCOVERER_REGISTRY",
+            self._registry(), clear=True,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_discover(args)
+        return rc, json.loads(buf.getvalue())
+
+    def test_deterministic_ranking_present_by_default(self):
+        rc, payload = self._run(self._args())
+        self.assertEqual(rc, 0)
+        self.assertIn("ranking", payload)
+        self.assertEqual(payload["ranking"]["backend_used"], "deterministic")
+        self.assertFalse(payload["ranking"]["escalated"])
+        # All four fanned-out candidates appear in the cross-source ranking.
+        ids = {r["identifier"] for r in payload["ranking"]["ranked"]}
+        self.assertEqual(ids, {"pubmed-0", "pubmed-1", "chembl-0", "chembl-1"})
+
+    def test_no_rank_omits_ranking(self):
+        rc, payload = self._run(self._args(rank=False))
+        self.assertEqual(rc, 0)
+        self.assertNotIn("ranking", payload)
+
+    def test_rerank_llm_reorders_when_escalated(self):
+        # Four equal-score candidates (no query overlap) → near-tie → escalates.
+        with patch("cannavec_science.ranker_llm.LLMReranker", _FakeReranker):
+            rc, payload = self._run(self._args(rerank_llm=True))
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["ranking"]["backend_used"], "llm")
+        self.assertTrue(payload["ranking"]["escalated"])
+        # Four equal-score candidates → the top is a near-tie.
+        self.assertEqual(payload["ranking"]["escalation_reason"], "top near-tie")
+
+    def test_rerank_llm_degrades_to_deterministic_on_failure(self):
+        with patch("cannavec_science.ranker_llm.LLMReranker", _RaisingReranker):
+            rc, payload = self._run(self._args(rerank_llm=True))
+        self.assertEqual(rc, 0, "a failed model must never break discover")
+        self.assertEqual(payload["ranking"]["backend_used"], "deterministic")
+        self.assertTrue(any("failed" in n for n in payload["ranking"]["notes"]))
+
+    def test_ranking_skipped_when_no_candidates(self):
+        # A lane that errors out yields no rankable candidates → no ranking key.
+        registry = {"chembl": _failing_runner("chembl", RuntimeError("boom"))}
+        with patch.dict(
+            "cannavec_science.__main__._DISCOVERER_REGISTRY", registry, clear=True,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_discover(self._args(sources="chembl"))
+        self.assertEqual(rc, 0)
+        self.assertNotIn("ranking", json.loads(buf.getvalue()))
+
+
 if __name__ == "__main__":
     unittest.main()

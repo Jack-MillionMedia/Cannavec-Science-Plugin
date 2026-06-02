@@ -10,18 +10,18 @@ caution; v0.5 ships a curated registry under Constitution §IV
 Topic coverage:
 
 - ``diagnostic_criteria`` — Sorensen 2017 systematic review (PMID
-  27567272) and Allen 2004 original case series (PMID 15082584).
+  28000146) and Allen 2004 original case series (PMID 15479672).
   Cyclic vomiting + abdominal pain + compulsive hot bathing in a
   chronic heavy cannabis user; resolves with cessation.
-- ``rome_iv`` — Venkatesan 2019 (PMID 31480576) consensus criteria
+- ``rome_iv`` — Venkatesan 2019 (PMID 31241819) consensus criteria
   positioning CHS within the Rome IV functional GI disorder framework
   (a subtype of cyclic vomiting syndrome characterised by chronic
   cannabis exposure).
-- ``capsaicin_treatment`` — Dezieck 2017 (PMID 28215116) acute-phase
+- ``capsaicin_treatment`` — Dezieck 2017 (PMID 28494183) acute-phase
   topical capsaicin treatment with caveat that cessation remains
   the only definitive long-term resolution.
 - ``cyclic_vomiting_dx`` — CVS vs CHS differential and post-
-  legalization ED epidemiology (Kim 2018 PMID 30049481).
+  legalization ED epidemiology (Kim 2018 PMID 25903855).
 
 Each row carries `to_claim()` returning a typed Claim, identifier-
 anchored citations per §I, and is matched by a topic-keyword regex
@@ -151,13 +151,13 @@ _SORENSEN_2017 = HyperemesisSyndromeCitation(
     label="Sorensen CJ et al., J Med Toxicol 2017, cannabinoid hyperemesis "
           "syndrome — diagnosis, pathophysiology, and treatment (systematic "
           "review of 64 published case-series and case-reports)",
-    pmid="27567272", year=2017,
+    pmid="28000146", year=2017,
 )
 _ALLEN_2004 = HyperemesisSyndromeCitation(
     label="Allen JH et al., Gut 2004, cannabinoid hyperemesis — cyclical "
           "hyperemesis in association with chronic cannabis abuse (original "
           "9-case series naming the syndrome)",
-    pmid="15082584", year=2004,
+    pmid="15479672", year=2004,
 )
 _SIMONETTO_2012 = HyperemesisSyndromeCitation(
     label="Simonetto DA et al., Mayo Clin Proc 2012, cannabinoid "
@@ -168,23 +168,23 @@ _VENKATESAN_2019 = HyperemesisSyndromeCitation(
     label="Venkatesan T et al., Neurogastroenterol Motil 2019, ACG "
           "and CAPS expert review on cyclic vomiting syndrome — including "
           "CHS diagnostic considerations within the Rome IV framework",
-    pmid="31480576", year=2019,
+    pmid="31241819", year=2019,
 )
 _DEZIECK_2017 = HyperemesisSyndromeCitation(
     label="Dezieck L et al., Clin Toxicol 2017, capsaicin cream for "
           "treatment of cannabinoid hyperemesis syndrome — case series",
-    pmid="28215116", year=2017,
+    pmid="28494183", year=2017,
 )
 _RICHARDS_2017 = HyperemesisSyndromeCitation(
-    label="Richards JR et al., Ann Pharmacother 2017, treatment of "
+    label="Richards JR et al., Pharmacotherapy 2017, treatment of "
           "cannabinoid hyperemesis syndrome — a systematic review",
-    pmid="28634640", year=2017,
+    pmid="28370228", year=2017,
 )
 _KIM_2018 = HyperemesisSyndromeCitation(
-    label="Kim HS et al., BMJ Open 2018, cyclic vomiting presentations "
+    label="Kim HS et al., Acad Emerg Med 2015, cyclic vomiting presentations "
           "following marijuana liberalization in Colorado — emergency "
           "department visits before and after legalization",
-    pmid="30049481", year=2018,
+    pmid="25903855", year=2015,
 )
 
 

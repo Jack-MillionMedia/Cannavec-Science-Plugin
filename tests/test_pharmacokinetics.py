@@ -223,7 +223,7 @@ class RendererTests(unittest.TestCase):
         rows = all_pharmacokinetics_rows()
         md = render_markdown(rows)
         # Huestis 2005 PMID is the canonical reference.
-        self.assertIn("16142973", md)
+        self.assertIn("16596792", md)
 
 
 class IntegrationWithComposerTests(unittest.TestCase):
@@ -240,14 +240,14 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "CBD epidiolex food effect AUC fivefold high fat meal"
         )
         text = a.to_markdown()
-        self.assertIn("31166007", text)
+        self.assertIn("31247132", text)
 
     def test_11_oh_thc_returns_active_metabolite_row(self):
         a = compose_answer("11-hydroxy-THC active metabolite oral dronabinol")
         self.assertFalse(a.is_refusal)
         # The Wall 1983 PMID should appear in the citation set.
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("6311559", pmids)
+        self.assertIn("6309462", pmids)
 
 
 if __name__ == "__main__":

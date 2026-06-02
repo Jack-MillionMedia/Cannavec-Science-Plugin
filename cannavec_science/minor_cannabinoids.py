@@ -217,11 +217,11 @@ _PERTWEE_2008 = MinorCannabinoidCitation(
 )
 _THOMAS_2005 = MinorCannabinoidCitation(
     label="Thomas A et al., Br J Pharmacol 2005, THCV CB1 antagonism in vitro and in vivo",
-    pmid="16282192", year=2005,
+    pmid="16205722", year=2005,
 )
 _RIEDEL_2009 = MinorCannabinoidCitation(
     label="Riedel G et al., Br J Pharmacol 2009, THCV reduces food intake in mice",
-    pmid="19422089", year=2009,
+    pmid="19378378", year=2009,
 )
 _JADOON_2016 = MinorCannabinoidCitation(
     label="Jadoon KA et al., Diabetes Care 2016, THCV in type 2 diabetes",
@@ -237,23 +237,26 @@ _HILL_2012 = MinorCannabinoidCitation(
 )
 _HILL_2013 = MinorCannabinoidCitation(
     label="Hill AJ et al., Br J Pharmacol 2013, CBDV mechanism review",
-    pmid="23425285", year=2013,
+    pmid="23902406", year=2013,
 )
 _DEVINSKY_CBDV_2018 = MinorCannabinoidCitation(
-    label="Devinsky O et al., Epilepsia 2018, CBDV Phase II adult focal epilepsy (negative)",
-    pmid="29446035", year=2018,
+    label="Brodie MJ et al., Cannabis Cannabinoid Res 2021, Phase 2 RCT of "
+          "cannabidivarin (GWP42006) add-on therapy in adults with "
+          "inadequately-controlled focal seizures (negative primary endpoint)",
+    pmid="33998885", year=2021,
 )
 _DESPRES_2013 = MinorCannabinoidCitation(
     label="Borrelli F et al., Biochem Pharmacol 2013, CBC anti-inflammatory in colitis model",
-    pmid="22735542", year=2012,
+    pmid="23373571", year=2012,
 )
 _RUSSO_2018 = MinorCannabinoidCitation(
-    label="Russo EB, Front Plant Sci 2018, minor-cannabinoid pharmacology synthesis",
-    pmid="30815017", year=2019,
+    label="Russo EB, Front Plant Sci 2019, the case for the entourage effect "
+          "and conventional breeding of clinical cannabis (No 'Strain,' No Gain)",
+    pmid="30687364", year=2019,
 )
 _KARNIOL_1975 = MinorCannabinoidCitation(
     label="Karniol IG et al., Pharmacology 1975, CBN sedation observations (historical, low-quality)",
-    pmid="1098986", year=1975,
+    pmid="1221432", year=1975,
 )
 # NOTE (v2.7): the Linck 2024 Sci Rep CBN-sleep crossover reference
 # was previously shipped here with a `pending PubMed verification`
@@ -270,11 +273,11 @@ _KARNIOL_1975 = MinorCannabinoidCitation(
 # `pending verification` / search-URL re-introduction.
 _STOUT_2014 = MinorCannabinoidCitation(
     label="Stout SM & Cimino NM, Drug Metab Rev 2014, cannabinoid PK and drug interactions",
-    pmid="24329521", year=2014,
+    pmid="24160757", year=2014,
 )
 _NAVARRO_2018 = MinorCannabinoidCitation(
-    label="Navarro G et al., Biochem Pharmacol 2018, CBG selective α2-adrenoceptor agonism",
-    pmid="29940156", year=2018,
+    label="Navarro G et al., Front Pharmacol 2018, cannabigerol is a partial agonist at CB1/CB2 receptors and CB1-CB2 heteroreceptor complexes",
+    pmid="29977202", year=2018,
 )
 _BORRELLI_2013 = MinorCannabinoidCitation(
     label="Borrelli F et al., Biochem Pharmacol 2013, CBG anti-inflammatory in IBD model",
@@ -286,7 +289,7 @@ _VALDEOLIVAS_2015 = MinorCannabinoidCitation(
 )
 _DEMEIJER_2003 = MinorCannabinoidCitation(
     label="de Meijer EPM et al., Genetics 2003, cannabinoid biosynthesis in Cannabis sativa",
-    pmid="12586722", year=2003,
+    pmid="12586720", year=2003,
 )
 
 
@@ -1333,10 +1336,10 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 citations=(
                     MinorCannabinoidCitation(
                         label=(
-                            "Mechoulam R et al., Hexahydrocannabinol pharmacology "
-                            "review (historical)"
+                            "Edery H, Mechoulam R et al., J Med Chem 1984, "
+                            "activity of novel amino-hexahydrocannabinols in baboons"
                         ),
-                        pmid="4348475", year=1972,
+                        pmid="6541257", year=1984,
                     ),
                 ),
             ),
@@ -1536,7 +1539,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                             "Citti C et al., Sci Rep 2019, isolation + "
                             "pharmacology of THCP from Cannabis sativa FM2"
                         ),
-                        pmid="31876792", year=2019,
+                        pmid="31889124", year=2019,
                     ),
                 ),
             ),
@@ -1557,7 +1560,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                             "Citti C et al., Sci Rep 2019, isolation + "
                             "pharmacology of THCP"
                         ),
-                        pmid="31876792", year=2019,
+                        pmid="31889124", year=2019,
                     ),
                 ),
             ),
@@ -1587,7 +1590,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 citations=(
                     MinorCannabinoidCitation(
                         label="Citti C et al., Sci Rep 2019, in vivo tetrad data on THCP",
-                        pmid="31876792", year=2019,
+                        pmid="31889124", year=2019,
                     ),
                 ),
             ),
@@ -1649,7 +1652,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
         citations=(
             MinorCannabinoidCitation(
                 label="Citti C et al., Sci Rep 2019, THCP isolation + pharmacology",
-                pmid="31876792", year=2019,
+                pmid="31889124", year=2019,
             ),
         ),
     ),

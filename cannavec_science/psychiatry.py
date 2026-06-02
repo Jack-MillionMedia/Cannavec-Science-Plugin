@@ -17,16 +17,16 @@ Topic coverage:
   studies, dose-response signal for cannabis-use frequency and
   psychosis risk.
 - ``mr_causality`` — Vaucher 2018 Mol Psychiatry Mendelian
-  randomization (PMID 29039420). Genetic-instrument analysis
+  randomization (PMID 28115737). Genetic-instrument analysis
   suggesting bidirectional causality (cannabis → schizophrenia AND
   schizophrenia → cannabis) under MR-instrument-validity
   assumptions.
 - ``acute_pharmacology`` — Bhattacharyya 2009 Arch Gen Psychiatry
-  acute-THC fMRI (PMID 19996036). Healthy-volunteer acute Δ⁹-THC
+  acute-THC fMRI (PMID 19349314). Healthy-volunteer acute Δ⁹-THC
   challenge produces transient psychotomimetic symptoms with
   measurable prefrontal-cortex BOLD changes.
-- ``national_cohort`` — Hjorthøj 2023 Lancet Psychiatry national-
-  register study (PMID 36402143). Population-level attributable-
+- ``national_cohort`` — Hjorthøj 2023 Psychological Medicine national-
+  register study (PMID 37140715). Population-level attributable-
   fraction analysis using Danish national health registers.
 - ``review_lancet`` — Murray 2017 Lancet Psychiatry narrative review
   of cannabis-and-psychosis evidence (PMID 28935667 or analogous).
@@ -169,26 +169,26 @@ _MARCONI_2016 = PsychiatryCitation(
 _VAUCHER_2018 = PsychiatryCitation(
     label="Vaucher J et al., Molecular Psychiatry 2018, cannabis use and "
           "risk of schizophrenia — a Mendelian randomization study",
-    pmid="29039420", year=2018,
+    pmid="28115737", year=2018,
 )
 _BHATTACHARYYA_2009 = PsychiatryCitation(
     label="Bhattacharyya S et al., Archives of General Psychiatry 2009, "
           "modulation of mediotemporal and ventrostriatal function in "
           "humans by Δ⁹-tetrahydrocannabinol — a neural basis for the "
           "effects of Cannabis sativa on learning and psychosis",
-    pmid="19996036", year=2009,
+    pmid="19349314", year=2009,
 )
 _HJORTHOJ_2023 = PsychiatryCitation(
-    label="Hjorthøj C et al., Lancet Psychiatry 2023, association between "
+    label="Hjorthøj C et al., Psychological Medicine 2023, association between "
           "cannabis use disorder and schizophrenia stronger in young males "
           "than in females — Danish national register analysis",
-    pmid="36402143", year=2023,
+    pmid="37140715", year=2023,
 )
 _MURRAY_2017 = PsychiatryCitation(
-    label="Murray RM et al., Lancet Psychiatry 2017, cannabis-associated "
-          "psychosis — neural substrate and clinical impact (narrative "
-          "review)",
-    pmid="27986841", year=2017,
+    label="Murray RM et al., World Psychiatry 2016, traditional marijuana, "
+          "high-potency cannabis and synthetic cannabinoids — increasing "
+          "risk for psychosis (review)",
+    pmid="27717258", year=2016,
 )
 
 
@@ -349,10 +349,10 @@ _BHATTACHARYYA_ACUTE_THC = PsychiatryRow(
 
 
 _HJORTHOJ_REGISTER = PsychiatryRow(
-    name="Hjorthøj 2023 Lancet Psychiatry — Danish national-register CUD & schizophrenia",
+    name="Hjorthøj 2023 Psychological Medicine — Danish national-register CUD & schizophrenia",
     topic=PsychiatryTopic.NATIONAL_COHORT,
     claim_text=(
-        "Hjorthøj et al. 2023 Lancet Psychiatry analysed Danish national "
+        "Hjorthøj et al. 2023 Psychological Medicine analysed Danish national "
         "health register data (~7 million individuals) on cannabis use "
         "disorder (ICD-coded clinical CUD diagnosis) and subsequent "
         "schizophrenia incidence. The Hjorthøj finding was that the "

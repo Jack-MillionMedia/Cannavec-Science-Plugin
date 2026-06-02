@@ -451,8 +451,8 @@ _REGISTRY: tuple[AdverseEvent, ...] = (
         ),
         citations=(
             AdverseEventCitation(
-                label="Hartman 2015 — Cannabis effects on driving (review)",
-                pmid="26041581",
+                label="Hartman & Huestis 2013 Clin Chem — cannabis effects on driving skills (review)",
+                pmid="23220273",
                 year=2015,
             ),
         ),
@@ -809,8 +809,8 @@ _REGISTRY: tuple[AdverseEvent, ...] = (
         ),
         citations=(
             AdverseEventCitation(
-                label="Hartman 2015 — Cannabis effects on driving (review)",
-                pmid="26041581",
+                label="Hartman & Huestis 2013 Clin Chem — cannabis effects on driving skills (review)",
+                pmid="23220273",
                 year=2015,
             ),
         ),
@@ -883,7 +883,7 @@ _REGISTRY: tuple[AdverseEvent, ...] = (
                     "Blount 2020 — Vitamin E acetate in BAL fluid "
                     "associated with EVALI (NEJM)"
                 ),
-                pmid="31995731",
+                pmid="31860793",
                 doi="10.1056/NEJMoa1916433",
                 year=2020,
             ),

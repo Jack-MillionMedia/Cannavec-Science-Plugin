@@ -219,7 +219,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Geffrey 2015 — CBD-clobazam interaction in paediatric epilepsy",
-                pmid="25940466",
+                pmid="26114620",
                 year=2015,
             ),
             InteractionCitation(
@@ -252,7 +252,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Grayson 2018 — INR elevation with CBD + warfarin (case)",
-                pmid="29744288",
+                pmid="29387536",
                 year=2018,
             ),
             InteractionCitation(
@@ -284,7 +284,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Leino 2019 — CBD-tacrolimus trough rise (case)",
-                pmid="30907227",
+                pmid="31012522",
                 year=2019,
             ),
         ),
@@ -341,12 +341,12 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Sachse-Seeboth 2009 — CYP2C9 polymorphism and THC PK",
-                pmid="19444221",
+                pmid="19005461",
                 year=2009,
             ),
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
         ),
@@ -380,12 +380,12 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Yamaori 2011 — CBD CYP2C19 inhibition (in-vitro)",
-                pmid="21356050",
+                pmid="21821735",
                 year=2011,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -407,12 +407,12 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -434,7 +434,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Hartman 2015 — Cannabis-alcohol co-use PK",
-                pmid="26041581",
+                pmid="23220273",
                 year=2015,
             ),
         ),
@@ -588,12 +588,12 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Leino 2019 — CBD-tacrolimus trough rise (case)",
-                pmid="30907227",
+                pmid="31012522",
                 year=2019,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -616,12 +616,12 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -672,7 +672,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
         ),
@@ -699,12 +699,12 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
             InteractionCitation(
-                label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                label="Bansal et al. 2022 Drug Metab Dispos — cannabinoid CYP drug-interaction predictions",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -731,7 +731,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
         ),

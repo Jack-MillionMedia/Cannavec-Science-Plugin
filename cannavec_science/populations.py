@@ -380,13 +380,13 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
             ),
             PopulationCitation(
                 label="Stockings 2018 — Cannabis and cannabinoids for chronic non-cancer pain SR/MA (Pain)",
-                pmid="29796855",
+                pmid="29847469",
                 year=2018,
                 role="systematic_review",
             ),
             PopulationCitation(
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
-                pmid="26408728",
+                pmid="26103030",
                 year=2015,
                 role="systematic_review",
             ),
@@ -432,7 +432,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
         citations=(
             PopulationCitation(
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
-                pmid="26408728",
+                pmid="26103030",
                 year=2015,
             ),
         ),
@@ -453,7 +453,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
         citations=(
             PopulationCitation(
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
-                pmid="26408728",
+                pmid="26103030",
                 year=2015,
             ),
         ),

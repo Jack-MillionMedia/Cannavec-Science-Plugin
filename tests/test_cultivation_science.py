@@ -240,8 +240,8 @@ class RendererTests(unittest.TestCase):
 
     def test_pmid_surfaces_in_render(self):
         md = render_markdown(all_cultivation_science_rows())
-        self.assertIn("PMID 3621052", md)         # Lydon 1987
-        self.assertIn("PMID 12663552", md)        # de Meijer 2003
+        self.assertIn("PMID 3628508", md)         # Lydon 1987
+        self.assertIn("PMID 12586720", md)        # de Meijer 2003
 
 
 class FreshnessFieldTests(unittest.TestCase):

@@ -188,6 +188,49 @@ def _augment_with_live(a, args) -> None:
                 a.add_live_finding(**finding)
 
 
+# Default model for the opt-in LLM rerank step. Sonnet 4.6 is accuracy-
+# equivalent to Opus for a bounded rerank against an explicit rubric, at ~half
+# the cost; the confidence short-circuit already keeps calls rare. Override per
+# run with ``--rerank-model``.
+_DEFAULT_RERANK_MODEL = "claude-sonnet-4-6"
+
+
+def _maybe_rank(args: argparse.Namespace, out_payload: dict):
+    """Rank the fanned-out candidates across sources, or return ``None``.
+
+    Deterministic ranking is on by default (free, offline, additive — it never
+    removes the per-source view). ``--rerank-llm`` adds the optional LLM lift,
+    which fires only on a genuine top-of-list near-tie (the cost short-circuit)
+    and degrades silently to the deterministic floor if the model, API key, or
+    network is unavailable — the per-source results always stand.
+    """
+    if not getattr(args, "rank", True):
+        return None
+    from cannavec_science.ranker import (
+        candidates_from_discovery,
+        rank_candidates,
+    )
+
+    cands = candidates_from_discovery(out_payload)
+    if not cands:
+        return None
+
+    backend = None
+    if getattr(args, "rerank_llm", False):
+        from cannavec_science.ranker_llm import LLMReranker
+
+        backend = LLMReranker(
+            model=getattr(args, "rerank_model", _DEFAULT_RERANK_MODEL)
+        )
+
+    return rank_candidates(
+        args.query,
+        cands,
+        backend=backend,
+        top_k=max(1, int(getattr(args, "max", 10) or 10)),
+    )
+
+
 def _cmd_discover(args: argparse.Namespace) -> int:
     from cannavec_science.discover_guard import DiscoverRefused, preflight
     from cannavec_science.synthesis import synthesize, render_markdown
@@ -247,10 +290,19 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             synth_rows[src] = val
     block = synthesize(args.query, synth_rows)
 
+    rank_result = _maybe_rank(args, out_payload)
+
     if args.json:
         out_payload["synthesis"] = block.to_dict()
+        if rank_result is not None:
+            out_payload["ranking"] = rank_result.to_dict()
         print(json.dumps(out_payload, indent=2, default=str))
         return 0
+
+    if rank_result is not None:
+        from cannavec_science.ranker import render_markdown as _render_rank_md
+
+        print(_render_rank_md(rank_result))
 
     for src in sorted(out_payload["sources"]):
         val = out_payload["sources"][src]
@@ -411,7 +463,7 @@ def _classify_identifier(ident: str) -> str:
 
 
 def _verify_pmid_render(ident: str, args: argparse.Namespace) -> int:
-    from cannavec_science.pubmed_verify import verify_pmid
+    from cannavec_science.pubmed_verify import verify_pmid, VerificationVerdict
     from cannavec_science.retraction import is_retracted
 
     result = verify_pmid(ident)
@@ -428,17 +480,39 @@ def _verify_pmid_render(ident: str, args: argparse.Namespace) -> int:
                 pmid=ident, count=0, error=str(exc),
             )
 
+    # Map the typed verdict to a CLI verdict + exit code. Verification that
+    # did not actually happen (transport/network failure) must FAIL CLOSED as
+    # UNVERIFIED — never PASS (Constitution §I: a citation is only trustworthy
+    # once the upstream record is confirmed). A locally-registered retraction
+    # is an independent, definitive FAIL even when the upstream is unreachable.
+    #   0 = PASS · 1 = FAIL (record bad/retracted/mismatch) · 3 = UNVERIFIED
+    verdict = result.verdict
+    if rec is not None:
+        cli_verdict, exit_code = "FAIL", 1
+    elif verdict == VerificationVerdict.NETWORK_ERROR:
+        cli_verdict, exit_code = "UNVERIFIED", 3
+    elif verdict in (
+        VerificationVerdict.NOT_FOUND,
+        VerificationVerdict.RETRACTED,
+        VerificationVerdict.MISMATCH,
+    ):
+        cli_verdict, exit_code = "FAIL", 1
+    else:  # MATCH / BARE_CITE_OK
+        cli_verdict, exit_code = "PASS", 0
+
     if getattr(args, "json", False):
         out = {
             "identifier": ident,
             "kind": "PMID",
-            "first_author": getattr(result, "first_author_surname", None)
-                or getattr(result, "first_author", None),
-            "year": getattr(result, "year", None),
-            "journal": getattr(result, "journal", None),
-            "title": getattr(result, "title", None),
-            "retraction_status": getattr(result, "retraction_status", "unknown"),
+            "verdict": cli_verdict,
+            "first_author": result.actual_first_author,
+            "year": result.actual_year,
+            "journal": result.journal,
+            "title": result.title,
+            "retraction_status": result.retraction_status,
         }
+        if result.notes:
+            out["notes"] = list(result.notes)
         if rec is not None:
             out["retraction_registry"] = {
                 "status": rec.status.value,
@@ -447,36 +521,47 @@ def _verify_pmid_render(ident: str, args: argparse.Namespace) -> int:
         if citation_block is not None:
             out["citation_network"] = citation_block.to_dict()
         print(json.dumps(out, indent=2, default=str))
-        return 1 if rec is not None or not result else 0
+        return exit_code
 
     print(f"## Identifier verification — PMID {ident}")
     print("")
-    if not result:
-        print("- **Status:** FAIL — identifier not resolvable upstream")
-        return 1
-    print(
-        f"- **First author:** "
-        f"{getattr(result, 'first_author_surname', None) or getattr(result, 'first_author', None) or '?'}"
-    )
-    print(f"- **Year:** {getattr(result, 'year', None) or '?'}")
-    print(f"- **Journal:** {getattr(result, 'journal', None) or '?'}")
-    if hasattr(result, "title") and result.title:
-        print(f"- **Title:** {result.title}")
-    retr_status = getattr(result, "retraction_status", "unknown")
-    print(f"- **Retraction status:** {retr_status}")
+    # Locally-registered retraction is definitive even if the upstream fetch
+    # failed — surface it first.
     if rec is not None:
         print(
             f"- **Retraction registry:** **{rec.status.value}**"
             f" ({getattr(rec, 'date', '?')})"
         )
+        print("- **Verdict:** FAIL — citation is retracted")
+        return exit_code
+    if verdict == VerificationVerdict.NETWORK_ERROR:
+        print("- **Status:** UNVERIFIED — could not reach PubMed (network error)")
+        for note in result.notes:
+            print(f"  - {note}")
+        print("- **Verdict:** UNVERIFIED")
+        return exit_code
+    if verdict == VerificationVerdict.NOT_FOUND:
+        print("- **Status:** FAIL — PMID not found in PubMed")
         print("- **Verdict:** FAIL")
-        return 1
+        return exit_code
+    print(f"- **First author:** {result.actual_first_author or '?'}")
+    print(f"- **Year:** {result.actual_year or '?'}")
+    print(f"- **Journal:** {result.journal or '?'}")
+    if result.title:
+        print(f"- **Title:** {result.title}")
+    print(f"- **Retraction status:** {result.retraction_status}")
+    if verdict == VerificationVerdict.RETRACTED:
+        print("- **Verdict:** FAIL — record is retracted")
+        return exit_code
+    if verdict == VerificationVerdict.MISMATCH:
+        print("- **Verdict:** FAIL — record does not match the cited claim")
+        return exit_code
     print("- **Verdict:** PASS")
     if citation_block is not None and not citation_block.error:
         print("")
         from cannavec_science.citation_network import render_markdown as render_cn
         print(render_cn(citation_block))
-    return 0
+    return exit_code
 
 
 def _verify_doi_render(ident: str, args: argparse.Namespace) -> int:
@@ -1448,6 +1533,33 @@ def _build_parser() -> argparse.ArgumentParser:
             "(default 1, serial; recommended <=4 for NCBI etiquette). "
             "Result ordering is deterministic regardless of completion "
             "order, so identical --parallel runs produce identical output."
+        ),
+    )
+    d.add_argument(
+        "--no-rank", action="store_false", dest="rank", default=True,
+        help=(
+            "Disable the cross-source candidate ranking section (it is on by "
+            "default: a free, offline, deterministic re-ordering of the "
+            "fanned-out hits by relevance + study design + recency, with "
+            "retracted papers sunk to the bottom)."
+        ),
+    )
+    d.add_argument(
+        "--rerank-llm", action="store_true", default=False,
+        help=(
+            "Add the optional LLM rerank lift on top of the deterministic "
+            "ranking. Fires only on a genuine top-of-list near-tie (the cost "
+            "short-circuit), ranks indices only (never a source of citations), "
+            "and degrades to the deterministic order if the model / API key / "
+            "network is unavailable. Requires ANTHROPIC_API_KEY."
+        ),
+    )
+    d.add_argument(
+        "--rerank-model", default=_DEFAULT_RERANK_MODEL,
+        help=(
+            f"Model for --rerank-llm (default: {_DEFAULT_RERANK_MODEL}). "
+            "Sonnet 4.6 is accuracy-equivalent to Opus for a bounded rerank at "
+            "lower cost; pass claude-opus-4-8 for the maximum ceiling."
         ),
     )
     d.add_argument("--json", action="store_true")

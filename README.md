@@ -158,6 +158,33 @@ etiquette) to fan out across the 13 lanes concurrently. Result ordering
 stays alphabetical-by-source regardless of completion order so identical
 runs produce identical JSON.
 
+`discover` also ranks the fanned-out candidates into a single cross-source
+**Ranked candidates** view (on by default; `--no-rank` to suppress). The
+ranking is a free, offline, **deterministic** retrieve-then-rerank: an
+Okapi-BM25 relevance score over title + abstract + topic, modulated by a
+study-design prior (meta-analysis / SR > RCT > cohort > case report — a
+*ranking* signal, never a GRADE), a gentle recency factor, and a hard
+retraction sink that pins retracted papers to the bottom. This deterministic
+order is the always-available accuracy *floor*. `--rerank-llm` adds an
+optional LLM lift on top: it fires **only when the deterministic order is
+genuinely uncertain**, via three triggers — a top-of-list near-tie; a *design
+inversion* where a still-relevant stronger-design paper (RCT / SR /
+meta-analysis) has been buried below a keyword-dense weaker-design one; or a
+*weak lexical signal* where no candidate covers enough of the query, so BM25's
+lexical match is unreliable (it is blind to synonymy: a `cbd` query never
+matches a `cannabidiol` title) and the LLM's semantic read is the more
+effective ranker. It is a confidence short-circuit: the model runs where it
+changes the answer and is skipped where the deterministic order is already
+decisive, so cost stays bounded. The result records *which* trigger fired. It
+reorders by **index only** so it can never introduce or invent a citation
+(Constitution §I/§IX), never assigns a grade (§VII), and **degrades silently
+to the deterministic order** if the model / `ANTHROPIC_API_KEY` / network is
+unavailable. `--rerank-model` selects the model (default `claude-sonnet-4-6`,
+accuracy-equivalent to Opus for a bounded rerank at lower cost; pass
+`claude-opus-4-8` for the maximum ceiling). The deterministic core is
+stdlib-only; the LLM layer lives in `cannavec_science.ranker_llm` and is
+imported only when used.
+
 ### Quantitative evidence synthesis (`meta`, spec 011)
 
 Discovery and grading tell you *which* studies exist and *how trustworthy*

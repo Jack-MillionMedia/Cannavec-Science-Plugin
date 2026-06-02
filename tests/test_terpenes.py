@@ -174,7 +174,7 @@ class TestEntourageNote(unittest.TestCase):
     def test_note_includes_pmid(self) -> None:
         note = entourage_effect_note()
         # Russo 2011 is the canonical entourage-effect citation
-        self.assertIn("20925516", note)
+        self.assertIn("21749363", note)
 
     def test_note_hedges(self) -> None:
         note = entourage_effect_note()
@@ -206,7 +206,7 @@ class TestFormatForClinician(unittest.TestCase):
             t for t in all_terpenes() if t.name == TerpeneName.MYRCENE
         )
         out = format_for_clinician([myrcene])
-        self.assertIn("20925516", out)  # Russo 2011 citation in entourage note
+        self.assertIn("21749363", out)  # Russo 2011 citation in entourage note
 
 
 class TestSafetyIntegration(unittest.TestCase):

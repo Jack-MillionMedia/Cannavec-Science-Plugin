@@ -9,29 +9,29 @@ Constitution §IV (researcher-only) with primary citations per §I.
 Topic coverage:
 
 - ``inhaled_pk`` — Δ⁹-THC pharmacokinetics by inhaled route (smoked +
-  vaped). Huestis 2005 (PMID 16142973) is the canonical reference for
-  rapid-onset PK; vaped data from Spindle 2018 (PMID 30357265).
+  vaped). Huestis 2005 (PMID 16596792) is the canonical reference for
+  rapid-onset PK; vaped data from Spindle 2018 (PMID 30646391).
 - ``oral_pk`` — Δ⁹-THC pharmacokinetics by oral route. Wall 1983
-  (PMID 6311559) is the classic study; modern dronabinol PK is
+  (PMID 6309462) is the classic study; modern dronabinol PK is
   consistent.
 - ``food_effect`` — CBD oral PK food effect. Birnbaum 2019 (PMID
-  31166007) showed a 4-5 fold AUC increase with high-fat meal, which
+  31247132) showed a 4-5 fold AUC increase with high-fat meal, which
   is now the FDA-recognised Epidiolex food-effect label.
 - ``active_metabolite`` — 11-OH-Δ⁹-THC active-metabolite PK. Wall
-  1983 (PMID 6311559) established the equimolar-after-oral vs
+  1983 (PMID 6309462) established the equimolar-after-oral vs
   ~10%-after-inhaled AUC ratio — the first-pass-effect explanation
   for why edibles produce a different subjective profile from
   smoked cannabis.
 - ``oromucosal_pk`` — nabiximols (Sativex) oromucosal PK. Karschner
-  2011 (PMID 21240010) for the absorption profile.
+  2011 (PMID 21078841) for the absorption profile.
 - ``distribution`` — plasma protein binding (~95-99%, dominated by
   lipoprotein-association rather than albumin), lipid sequestration in
   adipose tissue (long terminal half-life from slow release), and
-  brain partitioning. Garrett 1977 (PMID 887158) is the classic
+  brain partitioning. Garrett & Hunt 1977 (PMID 845807) is the classic
   distribution reference.
 - ``detection_window`` — urine cannabinoid detection window. THC-COOH
   metabolite detectable for days-to-weeks after cessation depending on
-  chronicity of use; Huestis 1996 (PMID 8773290) is the classic
+  chronicity of use; Huestis 1996 (PMID 1320536) is the classic
   controlled-dose reference.
 
 Every row carries a `to_claim()` returning a typed
@@ -170,49 +170,49 @@ class PharmacokineticsRow:
 # ── Citations ──────────────────────────────────────────────────────────
 
 _HUESTIS_2005 = PharmacokineticsCitation(
-    label="Huestis MA, Chem Biodivers 2005, human cannabinoid pharmacokinetics "
+    label="Huestis MA, Handb Exp Pharmacol 2005, human cannabinoid pharmacokinetics "
           "(canonical PK review)",
-    pmid="16142973", year=2005,
+    pmid="16596792", year=2005,
 )
 _HUESTIS_1992 = PharmacokineticsCitation(
     label="Huestis MA et al., J Anal Toxicol 1992, blood cannabinoids I — "
           "absorption of THC and formation of 11-OH-THC and THC-COOH during "
           "and after smoking marijuana",
-    pmid="1335089", year=1992,
+    pmid="1338215", year=1992,
 )
 _WALL_1983 = PharmacokineticsCitation(
     label="Wall ME et al., Clin Pharmacol Ther 1983, metabolism, "
           "disposition, and kinetics of Δ⁹-tetrahydrocannabinol in men and "
           "women",
-    pmid="6311559", year=1983,
+    pmid="6309462", year=1983,
 )
 _SPINDLE_2018 = PharmacokineticsCitation(
     label="Spindle TR et al., JAMA Netw Open 2018, acute effects of smoked "
           "and vaporized cannabis in healthy adults who infrequently use "
           "cannabis",
-    pmid="30357265", year=2018,
+    pmid="30646391", year=2018,
 )
 _BIRNBAUM_2019 = PharmacokineticsCitation(
     label="Birnbaum AK et al., Epilepsia 2019, food effect on cannabidiol "
           "(CBD) oral pharmacokinetics — high-fat meal increases CBD AUC "
           "approximately 4-5 fold (Epidiolex label-supporting data)",
-    pmid="31166007", year=2019,
+    pmid="31247132", year=2019,
 )
 _KARSCHNER_2011 = PharmacokineticsCitation(
     label="Karschner EL et al., Clin Chem 2011, pharmacokinetics of "
           "Δ⁹-tetrahydrocannabinol after oromucosal Sativex administration",
-    pmid="21240010", year=2011,
+    pmid="21078841", year=2011,
 )
 _GARRETT_1977 = PharmacokineticsCitation(
-    label="Garrett ER & Hunt CA, J Pharm Sci 1977, physicochemical "
-          "properties, solubility, and protein binding of Δ⁹-THC",
-    pmid="887158", year=1977,
+    label="Garrett ER & Hunt CA, J Pharm Sci 1977, pharmacokinetics of "
+          "Δ⁹-THC in dogs",
+    pmid="845807", year=1977,
 )
 _HUESTIS_1996 = PharmacokineticsCitation(
     label="Huestis MA et al., J Anal Toxicol 1996, characterization of the "
           "absorption phase of marijuana smoking — urine cannabinoid "
           "detection window",
-    pmid="8773290", year=1996,
+    pmid="1320536", year=1996,
 )
 _DEVINSKY_2018_LGS = PharmacokineticsCitation(
     label="Devinsky O et al., NEJM 2018, effect of cannabidiol on drop "

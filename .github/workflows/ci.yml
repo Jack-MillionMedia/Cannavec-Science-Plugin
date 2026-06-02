@@ -1,0 +1,59 @@
+name: CI
+
+# Two gates for Cannavec Science:
+#   * tests          — the offline, stdlib-only unit suite (Constitution §III,
+#                      spec 007). Runs on every push / PR; no network, no secrets.
+#   * citation-audit — the ONLINE guard the offline suite cannot provide: it
+#                      checks that every curated PMID still resolves to the paper
+#                      its label claims (evals/audit_pmids.py). A well-formed but
+#                      wrong PMID passes all offline tests, so this runs weekly
+#                      (and on demand) against live PubMed.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # 06:00 UTC every Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    # Offline / deterministic — the Constitution's gate. Skip on schedule
+    # (the weekly run is only for the live citation audit).
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Offline unit suite (stdlib only — zero installs)
+        run: python3 -m unittest discover -s tests
+
+  citation-audit:
+    # Online integrity guard. Scheduled + manual only (kept off per-push to
+    # stay polite to NCBI and avoid PR-time network flakiness). Add an
+    # NCBI_API_KEY repo secret to lift the rate limit; the job still runs
+    # without it, just slower.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit curated PMIDs against live PubMed
+        env:
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+        run: python3 evals/audit_pmids.py

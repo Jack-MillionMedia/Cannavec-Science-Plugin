@@ -138,7 +138,7 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "olivetolic acid synthase polyketide pathway biosynthesis"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("19429605", pmids)
+        self.assertIn("19454282", pmids)
 
     def test_luo_2019_query_returns_heterologous_row(self):
         a = compose_answer(
@@ -152,14 +152,14 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "THCA synthase enzymology FAD-dependent oxidocyclase"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("15453749", pmids)
+        self.assertIn("15190053", pmids)
 
     def test_cbdas_query_returns_taura_1996(self):
         a = compose_answer(
             "CBDA synthase Taura 1996 cannabidiolic acid biosynthesis"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("8632416", pmids)
+        self.assertIn("8663284", pmids)
 
 
 class RendererTests(unittest.TestCase):

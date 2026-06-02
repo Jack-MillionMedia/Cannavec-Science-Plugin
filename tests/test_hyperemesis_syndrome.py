@@ -150,21 +150,21 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "cannabinoid hyperemesis syndrome diagnostic criteria"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("27567272", pmids)
+        self.assertIn("28000146", pmids)
 
     def test_chs_query_returns_allen_2004(self):
         a = compose_answer(
             "cannabinoid hyperemesis syndrome compulsive hot bathing"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("15082584", pmids)
+        self.assertIn("15479672", pmids)
 
     def test_capsaicin_query_returns_dezieck_2017(self):
         a = compose_answer(
             "capsaicin cream cannabinoid hyperemesis treatment"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("28215116", pmids)
+        self.assertIn("28494183", pmids)
 
     def test_static_caution_remains(self):
         # The existing v0.x static caution must continue to render

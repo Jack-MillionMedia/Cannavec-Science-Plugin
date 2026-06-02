@@ -11,17 +11,17 @@ Topic coverage:
 
 - ``polyketide_origin`` — olivetol synthase (OLS, type III polyketide
   synthase) and olivetolic acid cyclase (OAC) co-produce olivetolic
-  acid from hexanoyl-CoA + 3× malonyl-CoA. Taura 2009 (PMID 19429605)
-  and Gagne 2012 (PMID 22802647) are the two foundational primary
+  acid from hexanoyl-CoA + 3× malonyl-CoA. Taura 2009 (PMID 19454282)
+  and Gagne 2012 (PMID 22802619) are the two foundational primary
   references for the OLS / OAC dual-enzyme polyketide entry into
   the pathway.
 - ``prenyltransferase`` — geranyl pyrophosphate transferase (CBGAS /
   GOT / prenyltransferase) couples olivetolic acid + GPP →
   cannabigerolic acid (CBGA), the common precursor for all
-  downstream cannabinoid acids. Page 2011 (PMID 21896800) is the
-  primary characterisation paper.
-- ``acid_synthase`` — THCA synthase (Sirikantaramas 2004 PMID 15453749)
-  and CBDA synthase (Taura 1996 PMID 8632416) are FAD-dependent
+  downstream cannabinoid acids. Fellermeier & Zenk 1998 (PMID 9607329)
+  is the primary characterisation paper for this prenyltransferase step.
+- ``acid_synthase`` — THCA synthase (Sirikantaramas 2004 PMID 15190053)
+  and CBDA synthase (Taura 1996 PMID 8663284) are FAD-dependent
   oxidocyclases that catalyse the divergent cyclisation of CBGA into
   THCA vs CBDA. The two synthases share substrate but differ in
   product specificity — the molecular basis of chemotype Type I
@@ -164,33 +164,32 @@ _TAURA_2009 = BiosynthesisCitation(
     label="Taura F et al., FEBS Lett 2009, cannabidiolic-acid synthase, "
           "the chemotype-determining enzyme in the fiber-type Cannabis "
           "sativa — characterisation of olivetolic acid biosynthesis",
-    pmid="19429605", year=2009,
+    pmid="19454282", year=2009,
 )
 _GAGNE_2012 = BiosynthesisCitation(
     label="Gagne SJ et al., PNAS 2012, identification of olivetolic acid "
           "cyclase from Cannabis sativa reveals a unique catalytic route "
           "to plant polyketides",
-    pmid="22802647", year=2012,
+    pmid="22802619", year=2012,
 )
 _PAGE_2011 = BiosynthesisCitation(
-    label="Page JE & Boubakir Z, Phytochemistry 2011, aromatic "
-          "prenyltransferase from Cannabis (CBGAS / GOT) — biosynthesis "
-          "of cannabigerolic acid by a soluble bacterial enzyme; "
-          "comparative work establishing the plant pathway PT step",
-    pmid="21896800", year=2011,
+    label="Fellermeier M & Zenk MH, FEBS Lett 1998, prenylation of "
+          "olivetolate by a hemp transferase (GOT) yields cannabigerolic "
+          "acid — the first committed step of cannabinoid biosynthesis",
+    pmid="9607329", year=1998,
 )
 _SIRIKANTARAMAS_2004 = BiosynthesisCitation(
     label="Sirikantaramas S et al., J Biol Chem 2004, the gene controlling "
           "marijuana psychoactivity — molecular cloning and heterologous "
           "expression of Δ¹-tetrahydrocannabinolic acid synthase from "
           "Cannabis sativa L.",
-    pmid="15453749", year=2004,
+    pmid="15190053", year=2004,
 )
 _TAURA_1996 = BiosynthesisCitation(
-    label="Taura F et al., J Am Chem Soc 1996, first direct evidence for "
-          "the mechanism of Δ¹-tetrahydrocannabinolic acid biosynthesis — "
-          "characterisation of CBDA synthase",
-    pmid="8632416", year=1996,
+    label="Taura F et al., J Biol Chem 1996, purification and "
+          "characterisation of cannabidiolic-acid (CBDA) synthase from "
+          "Cannabis sativa — oxidocyclisation of cannabigerolic acid",
+    pmid="8663284", year=1996,
 )
 _LUO_2019 = BiosynthesisCitation(
     label="Luo X et al., Nature 2019, complete biosynthesis of "

@@ -135,7 +135,7 @@ class BiaDisambiguationTests(unittest.TestCase):
             # van Esbroeck 2017 is the activity-based protein profiling
             # citation that proved the off-target mechanism.
             pmids = {c.pmid for c in r.citations}
-            self.assertIn("28912346", pmids)
+            self.assertIn("28596366", pmids)
 
     def test_bia_row_carries_kerbrat_2016(self):
         rows = [
@@ -144,7 +144,7 @@ class BiaDisambiguationTests(unittest.TestCase):
         ]
         for r in rows:
             pmids = {c.pmid for c in r.citations}
-            self.assertIn("27806243", pmids)
+            self.assertIn("27806235", pmids)
 
 
 class ClaimRoundTripTests(unittest.TestCase):
@@ -160,13 +160,13 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "PF-04457845 FAAH inhibitor cannabis withdrawal NEJM"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("30985083", pmids)
+        self.assertIn("30528676", pmids)
 
     def test_bia_query_returns_disaster_row(self):
         a = compose_answer("BIA 10-2474 Rennes Phase 1 disaster")
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("27806243", pmids)
-        self.assertIn("28912346", pmids)
+        self.assertIn("27806235", pmids)
+        self.assertIn("28596366", pmids)
         # The off-target disambiguation must appear in the rendered text.
         self.assertIn("off-target", a.to_markdown().lower())
 

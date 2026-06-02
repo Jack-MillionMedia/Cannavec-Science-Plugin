@@ -830,13 +830,13 @@ _SORENSEN_2017 = EndocrineCitation(
     label="Sorensen CJ et al., J Med Toxicol 2017, cannabinoid hyperemesis "
           "syndrome — diagnosis, pathophysiology, and treatment (systematic "
           "review of 64 case series)",
-    pmid="27567272", doi="10.1007/s13181-016-0595-z", year=2017,
+    pmid="28000146", doi="10.1007/s13181-016-0595-z", year=2017,
 )
 _VENKATESAN_2019 = EndocrineCitation(
     label="Venkatesan T et al., Neurogastroenterol Motil 2019, ACG/CAPS "
           "consensus on cannabinoid hyperemesis syndrome within the cyclic-"
           "vomiting-syndrome spectrum",
-    pmid="31480576", doi="10.1111/nmo.13606", year=2019,
+    pmid="31241819", doi="10.1111/nmo.13606", year=2019,
 )
 
 

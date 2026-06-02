@@ -234,7 +234,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
             ),
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -264,7 +264,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
             "matrices than cannabis.",
             "No adequately powered human RCT has isolated linalool as the "
             "active constituent responsible for anxiolytic effects in cannabis.",
-            "In-vitro 5-HT1A activity (PMID 25237920) at concentrations "
+            "In-vitro 5-HT1A activity has been reported at concentrations "
             "that are likely not achieved by typical cannabis inhalation.",
             "Claims about linalool 'causing' sedation or anxiolysis in cannabis "
             "exceed current evidence and are treated as banned-pattern "
@@ -273,13 +273,8 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
-            ),
-            TerpeneCitation(
-                label="Karunanithi S et al., Neuropharmacology 2014, linalool and GABA-A",
-                pmid="25237920",
-                year=2014,
             ),
         ),
         topic_tags=frozenset({"sleep", "anxiety"}),
@@ -316,7 +311,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -341,9 +336,8 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         ),
         entourage_role="proposed",
         key_notes=(
-            "One small human pilot (Lv X et al. 2020, PMID 33059502) showed "
-            "mood effects after oral limonene supplementation at gram doses "
-            "— not via cannabis inhalation.",
+            "Human limonene-and-mood signals come from oral supplementation "
+            "at gram doses — not via cannabis inhalation.",
             "Commonly marketed as 'uplifting' in cannabis retail contexts "
             "without adequate trial evidence.",
             "Antifungal activity confirmed in vitro; agronomically relevant "
@@ -352,13 +346,8 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
-            ),
-            TerpeneCitation(
-                label="Lv X et al., Front Pharmacol 2020, limonene and mood",
-                pmid="33059502",
-                year=2020,
             ),
         ),
         topic_tags=frozenset({"anxiety"}),
@@ -395,7 +384,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -428,7 +417,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -460,7 +449,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -606,7 +595,7 @@ def entourage_effect_note() -> str:
     commercially over-claimed.
     """
     return (
-        "**Entourage effect hypothesis** (Russo 2011, PMID 20925516): "
+        "**Entourage effect hypothesis** (Russo 2011, PMID 21749363): "
         "Terpenes may modulate cannabinoid effects via receptor-level "
         "interactions. This hypothesis has mechanistic support at the "
         "in-vitro level for β-caryophyllene (CB2 agonism) and linalool "

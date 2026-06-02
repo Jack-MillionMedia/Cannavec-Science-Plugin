@@ -140,7 +140,7 @@ _TERPENE_REGISTRY: list[CannabisTerpene] = [
             ),
         ),
         odor_descriptors=("spicy", "woody", "clove-like", "peppery"),
-        primary_survey_pmid="29422988",
+        primary_survey_pmid=None,
     ),
 
     CannabisTerpene(
@@ -185,7 +185,7 @@ _TERPENE_REGISTRY: list[CannabisTerpene] = [
             ),
         ),
         odor_descriptors=("earthy", "musky", "herbal", "mango-like"),
-        primary_survey_pmid="29422988",
+        primary_survey_pmid=None,
     ),
 
     CannabisTerpene(
@@ -217,7 +217,7 @@ _TERPENE_REGISTRY: list[CannabisTerpene] = [
             ),
         ),
         odor_descriptors=("citrus", "lemon", "orange"),
-        primary_survey_pmid="29422988",
+        primary_survey_pmid=None,
     ),
 
     CannabisTerpene(
@@ -262,7 +262,7 @@ _TERPENE_REGISTRY: list[CannabisTerpene] = [
             ),
         ),
         odor_descriptors=("floral", "lavender", "woody"),
-        primary_survey_pmid="29422988",
+        primary_survey_pmid=None,
     ),
 
     CannabisTerpene(
@@ -294,7 +294,7 @@ _TERPENE_REGISTRY: list[CannabisTerpene] = [
             ),
         ),
         odor_descriptors=("pine", "fresh", "resinous"),
-        primary_survey_pmid="29422988",
+        primary_survey_pmid=None,
     ),
 
     CannabisTerpene(
@@ -310,7 +310,7 @@ _TERPENE_REGISTRY: list[CannabisTerpene] = [
         ),
         receptor_interactions=(),
         odor_descriptors=("floral", "piney", "herby", "fresh"),
-        primary_survey_pmid="29422988",
+        primary_survey_pmid=None,
     ),
 
     CannabisTerpene(
@@ -356,7 +356,7 @@ _TERPENE_REGISTRY: list[CannabisTerpene] = [
             ),
         ),
         odor_descriptors=("woody", "earthy", "spicy"),
-        primary_survey_pmid="29422988",
+        primary_survey_pmid=None,
     ),
 ]
 

@@ -20,12 +20,12 @@ Topic coverage:
   demographics + alcohol the cannabis-only adjusted OR dropped to
   ~1.05 (95% CI 0.86-1.27) — the most-cited NHTSA finding and the
   most-mis-cited result in the cannabis-driving literature.
-- ``plasma_dose_response`` — Hartman 2015 Clin Chem (PMID 25371545)
+- ``plasma_dose_response`` — Hartman 2015 Clin Chem (PMID 26144593)
   analysis of plasma Δ⁹-THC concentration vs crash-risk dose-response.
   Provides the methodologically rigorous plasma-concentration
   framework that per-se thresholds reference (but cannot endorse
   causally given the long detection window).
-- ``simulator_rct`` — Marcotte 2022 JAMA Psychiatry (PMID 35138350)
+- ``simulator_rct`` — Marcotte 2022 JAMA Psychiatry (PMID 35080588)
   randomized double-blind placebo-controlled simulator-driving RCT.
   Acute Δ⁹-THC dose-dependently impaired driving-performance composite
   score (DSC) up to ~3-4 h post-smoking; impairment persisted longer
@@ -34,7 +34,7 @@ Topic coverage:
   cohort linking cannabis-positive emergency-department crashes in
   British Columbia. Real-world post-legalization signal.
 - ``systematic_review`` — Bondallaz 2016 Forensic Sci Int systematic
-  review (PMID 27082781) of cannabis-and-driving evidence — the
+  review (PMID 27701009) of cannabis-and-driving evidence — the
   most-cited synthesis in the forensic-toxicology literature.
 
 Each row carries `to_claim()`, identifier-anchored citations per §I
@@ -182,24 +182,24 @@ _HARTMAN_2015 = DrivingImpairmentCitation(
     label="Hartman RL et al., Clinical Chemistry 2015, cannabis effects on "
           "driving lateral control with and without alcohol — plasma THC "
           "dose-response analysis",
-    pmid="25371545", year=2015,
+    pmid="26144593", year=2015,
 )
 _MARCOTTE_2022 = DrivingImpairmentCitation(
     label="Marcotte TD et al., JAMA Psychiatry 2022, driving performance "
           "and cannabis users' perception of safety — double-blind placebo-"
           "controlled randomized driving-simulator trial",
-    pmid="35138350", year=2022,
+    pmid="35080588", year=2022,
 )
 _BRUBACHER_2022 = DrivingImpairmentCitation(
     label="Brubacher JR et al., New England Journal of Medicine 2022, "
           "cannabis legalization and detection of THC in injured drivers "
           "(British Columbia trauma-centre study)",
-    pmid="35081282", year=2022,
+    pmid="35020985", year=2022,
 )
 _BONDALLAZ_2016 = DrivingImpairmentCitation(
     label="Bondallaz P et al., Forensic Science International 2016, cannabis "
           "and its effects on driving skills — systematic review",
-    pmid="27082781", year=2016,
+    pmid="27701009", year=2016,
 )
 
 

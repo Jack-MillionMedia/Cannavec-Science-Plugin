@@ -22,7 +22,7 @@ Topic coverage:
   Modest effect-size, "moderate-quality evidence". Single most-cited
   cannabis-medicine SR.
 - ``sr_neuropathic`` — Stockings 2018 PAIN systematic review of
-  cannabinoid neuropathic-pain trials (PMID 30121596). 47 RCTs
+  cannabinoid neuropathic-pain trials (PMID 29847469). 47 RCTs
   evaluated.
 - ``cochrane_review`` — Mücke 2018 Cochrane review on cannabinoids
   for chronic neuropathic pain (PMID 29513392). The Cochrane
@@ -30,14 +30,14 @@ Topic coverage:
   AE-driven discontinuation" — different in tone from the broader
   Whiting / Stockings findings.
 - ``cohort_observational`` — Boehnke 2019 J Pain prospective
-  medical-cannabis cohort (PMID 31237829). Observational evidence
+  medical-cannabis cohort (PMID 30715980). Observational evidence
   from a real-world MMJ-card cohort showing opioid-reduction
   patterns; observational, not causal.
 - ``ipd_meta_analysis`` — Andreae 2015 J Pain individual-patient-data
   meta-analysis of inhaled cannabis for neuropathic pain (PMID
-  25840040). 5 trials, NNT ≈ 5.6.
+  26362106). 5 trials, NNT ≈ 5.6.
 - ``experimental_pain`` — de Vita 2018 J Pain experimental-pain SR
-  (PMID 30362962). Laboratory-pain (cold-pressor, heat-pain,
+  (PMID 30422266). Laboratory-pain (cold-pressor, heat-pain,
   electrical) cannabinoid effects in healthy volunteers — quantitative
   vs the clinical-trial literature.
 
@@ -179,7 +179,7 @@ _STOCKINGS_2018 = PainMedicineCitation(
     label="Stockings E et al., PAIN 2018, cannabis and cannabinoids for the "
           "treatment of people with chronic non-cancer pain — systematic "
           "review and meta-analysis",
-    pmid="30121596", year=2018,
+    pmid="29847469", year=2018,
 )
 _MUCKE_2018_COCHRANE = PainMedicineCitation(
     label="Mücke M et al., Cochrane Database Syst Rev 2018, cannabis-based "
@@ -189,22 +189,28 @@ _MUCKE_2018_COCHRANE = PainMedicineCitation(
     pmid="29513392", year=2018,
 )
 _BOEHNKE_2019 = PainMedicineCitation(
-    label="Boehnke KF et al., J Pain 2019, qualifying conditions of medical "
-          "cannabis license holders in the United States — prospective "
-          "cohort analyses",
-    pmid="31237829", year=2019,
+    label="Boehnke KF et al., Health Aff 2019, qualifying conditions of "
+          "medical-cannabis license holders in the United States (national "
+          "registry analysis)",
+    pmid="30715980", year=2019,
+)
+_BOEHNKE_PILLS_2019 = PainMedicineCitation(
+    label="Boehnke KF et al., J Pain 2019, Pills to Pot — observational "
+          "analyses of cannabis substitution among medical-cannabis users "
+          "with chronic pain",
+    pmid="30690169", year=2019,
 )
 _ANDREAE_2015 = PainMedicineCitation(
     label="Andreae MH et al., J Pain 2015, inhaled cannabis for chronic "
           "neuropathic pain — individual-patient-data meta-analysis "
           "(5 trials, NNT ≈ 5.6)",
-    pmid="25840040", year=2015,
+    pmid="26362106", year=2015,
 )
 _DEVITA_2018 = PainMedicineCitation(
     label="De Vita MJ et al., J Pain 2018, association of cannabinoid "
           "administration with experimental pain in healthy adults — "
           "systematic review and meta-analysis",
-    pmid="30362962", year=2018,
+    pmid="30422266", year=2018,
 )
 _NASEM_2017 = PainMedicineCitation(
     label="National Academies of Sciences, Engineering, and Medicine 2017, "
@@ -374,12 +380,13 @@ _BOEHNKE_2019_COHORT = PainMedicineRow(
     name="Boehnke 2019 J Pain medical-cannabis prospective cohort",
     topic=PainMedicineTopic.COHORT_OBSERVATIONAL,
     claim_text=(
-        "Boehnke et al. 2019 J Pain analysed US medical-cannabis-license "
-        "holder qualifying conditions over 2016-2017 — chronic pain was "
-        "the most common qualifying condition (~62% of patients). The "
-        "Boehnke prospective MMJ-card cohort reports lower opioid use, "
-        "lower pain-VAS scores, and improved quality-of-life measures vs "
-        "baseline. The Boehnke evidence is OBSERVATIONAL — not causal "
+        "Boehnke et al. 2019 (Health Aff) analysed US medical-cannabis-"
+        "license-holder qualifying conditions over 2016-2017 — chronic pain "
+        "was the most common qualifying condition (~62% of patients). A "
+        "companion Boehnke 2019 J Pain survey ('Pills to Pot', n = 1,321 "
+        "chronic-pain MMJ users) reported ~80% substituting cannabis for "
+        "pain medications (53% for opioids), citing fewer side effects. The "
+        "Boehnke evidence is OBSERVATIONAL — not causal "
         "(no placebo arm; self-selection bias inherent to MMJ-cohort "
         "design). The signal is consistent with the RCT literature but "
         "should be interpreted as descriptive epidemiology of real-world "
@@ -389,7 +396,7 @@ _BOEHNKE_2019_COHORT = PainMedicineRow(
     claim_type=ClaimType.CLINICAL_EFFICACY,
     evidence_level=EvidenceLevel.C,
     source_tier=SourceTier.SINGLE_ARM_OR_MECH,
-    citations=(_BOEHNKE_2019,),
+    citations=(_BOEHNKE_2019, _BOEHNKE_PILLS_2019),
     population="US medical-cannabis-license holders (real-world cohort)",
     n_patients=0,
     key_finding_summary=(
