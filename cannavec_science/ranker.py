@@ -49,6 +49,7 @@ __all__ = [
     "score_candidates",
     "should_escalate",
     "has_design_inversion",
+    "low_lexical_confidence",
     "provenance_gate",
     "rank_candidates",
     "candidates_from_discovery",
@@ -500,6 +501,45 @@ def has_design_inversion(
     return False
 
 
+def low_lexical_confidence(
+    query: str,
+    candidates: Sequence[Candidate],
+    *,
+    min_query_coverage: float = 0.5,
+    min_candidates: int = 3,
+) -> bool:
+    """True when no candidate lexically covers enough of the query.
+
+    BM25 is a lexical signal, so it misses synonymy and phrasing differences —
+    a ``cbd`` query never matches a ``cannabidiol`` title, a ``seizure`` query
+    misses ``convulsion``. When even the best-covering candidate shares fewer
+    than ``min_query_coverage`` of the distinct query terms, the deterministic
+    relevance order is unreliable and the LLM's *semantic* judgement is the
+    more effective ranker — exactly where spending a call is worth it.
+
+    Only candidates that actually carry text (title/abstract) are considered:
+    if the shortlist is content-free there is nothing for the LLM to read
+    semantically either, so escalating would be wasteful and we do not.
+    """
+    cands = [c for c in candidates if (c.title or c.abstract)]
+    if len(cands) < min_candidates:
+        return False
+    q = set(_tokens(query))
+    if not q:
+        return False
+    best = 0.0
+    for c in cands:
+        doc = set(_tokens(f"{c.title} {c.abstract} {c.topic}"))
+        if not doc:
+            continue
+        cov = len(q & doc) / len(q)
+        if cov > best:
+            best = cov
+            if best >= min_query_coverage:
+                return False  # a confident lexical match exists
+    return best < min_query_coverage
+
+
 def provenance_gate(
     proposed: Sequence[str],
     allowed: set[str],
@@ -580,6 +620,7 @@ def rank_candidates(
     margin: float = 0.15,
     min_design_gap: float = 0.2,
     relevance_floor_frac: float = 0.25,
+    min_query_coverage: float = 0.5,
     now_year: Optional[int] = None,
     k1: float = 1.5,
     b: float = 0.75,
@@ -588,11 +629,14 @@ def rank_candidates(
 
     The deterministic score is always computed (it is the floor, the tail
     order, and the fallback). An LLM ``backend`` — if supplied — is consulted
-    only when the deterministic order is genuinely uncertain: either a
-    top-of-list near-tie (:func:`should_escalate`) or a design inversion, where
-    a still-relevant stronger-design paper is ranked below a weaker-design one
-    (:func:`has_design_inversion`). ``escalate=None`` auto-decides via those
-    two triggers; pass ``True``/``False`` to force. Whatever the backend
+    only when the deterministic order is genuinely uncertain, via three
+    triggers: a top-of-list near-tie (:func:`should_escalate`); a design
+    inversion, where a still-relevant stronger-design paper is ranked below a
+    weaker-design one (:func:`has_design_inversion`); or a weak lexical signal,
+    where no candidate covers enough of the query so BM25 is unreliable and the
+    LLM's semantic read is more effective (:func:`low_lexical_confidence`).
+    ``escalate=None`` auto-decides via those triggers; pass ``True``/``False``
+    to force. Whatever the backend
     returns is provenance-gated against the shortlist and retracted rows are
     pinned last, so accuracy never depends on the model behaving.
     """
@@ -619,6 +663,7 @@ def rank_candidates(
         if by_id[i].retraction_status != "retracted"
     ]
     nonret_scored = [(bd.identifier, bd.final) for bd in shortlist_nonret]
+    shortlist_nonret_cands = [by_id[bd.identifier] for bd in shortlist_nonret]
     llm_backed = getattr(backend, "name", "deterministic") != "deterministic"
 
     reason: Optional[str] = None
@@ -632,6 +677,12 @@ def rank_candidates(
                 relevance_floor_frac=relevance_floor_frac,
             ):
                 reason = "design inversion"
+            elif low_lexical_confidence(
+                query,
+                shortlist_nonret_cands,
+                min_query_coverage=min_query_coverage,
+            ):
+                reason = "weak lexical signal"
         do_escalate = reason is not None
     else:
         do_escalate = bool(escalate) and llm_backed

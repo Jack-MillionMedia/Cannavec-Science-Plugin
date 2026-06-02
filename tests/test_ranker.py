@@ -21,6 +21,7 @@ from cannavec_science.ranker import (  # noqa: E402
     ScoreBreakdown,
     candidates_from_discovery,
     has_design_inversion,
+    low_lexical_confidence,
     provenance_gate,
     rank_candidates,
     render_json,
@@ -204,6 +205,34 @@ class EscalationTests(unittest.TestCase):
         rows = [_sb("REVIEW", 2.0, 0.55), _sb("RCT", 1.0, 0.90)]
         self.assertFalse(has_design_inversion(rows))
 
+    # ── weak-lexical-signal trigger (BM25's synonymy blind spot) ────────
+    def test_low_lexical_confidence_on_synonymy_miss(self):
+        # "cbd" never lexically matches "cannabidiol" — BM25 is blind here.
+        cands = [
+            _c("A", title="Cannabidiol mechanisms", abstract="cannabidiol pharmacology"),
+            _c("B", title="Cannabidiol clinical overview", abstract="cannabidiol clinical"),
+            _c("C", title="Cannabidiol safety", abstract="cannabidiol safety"),
+        ]
+        self.assertTrue(low_lexical_confidence("cbd", cands))
+
+    def test_lexical_confident_when_terms_present(self):
+        cands = [
+            _c("A", title="Cannabidiol for epilepsy", abstract="cannabidiol epilepsy seizures"),
+            _c("B", title="Cannabidiol overview", abstract="cannabidiol"),
+            _c("C", title="Cannabidiol safety", abstract="cannabidiol"),
+        ]
+        self.assertFalse(low_lexical_confidence("cannabidiol epilepsy", cands))
+
+    def test_lexical_skips_content_free_candidates(self):
+        # Discovery-index-style rows (no title/abstract) → nothing for the LLM
+        # to read semantically, so escalating would be wasted.
+        bare = [_c(str(i), topic="x") for i in range(4)]
+        self.assertFalse(low_lexical_confidence("cbd epilepsy", bare))
+
+    def test_lexical_empty_query_is_false(self):
+        cands = [_c("A", title="Cannabidiol"), _c("B", title="THC"), _c("C", title="CBG")]
+        self.assertFalse(low_lexical_confidence("", cands))
+
     def test_pipeline_default_is_deterministic_no_escalation(self):
         cands = [_c("A", title="CBD pain"), _c("B", title="CBD sleep")]
         result = rank_candidates("cbd pain", cands, now_year=2026)
@@ -297,6 +326,24 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(result.escalation_reason, "design inversion")
         self.assertEqual(result.backend_used, "llm")
         self.assertEqual(_ranked_ids(result)[0], "MA")
+
+    def test_weak_lexical_signal_auto_escalates(self):
+        # "cbd" never lexically matches "cannabidiol", so BM25 is unreliable;
+        # the SR dominates on design (no top-tie, no inversion) but the LLM's
+        # semantic read is the effective ranker → escalate on weak lexical.
+        cands = [
+            _c("A", title="Cannabidiol mechanisms of action", abstract="cannabidiol pharmacology",
+               year=2024, study_types=("Systematic Review",)),
+            _c("B", title="Cannabidiol clinical overview", abstract="cannabidiol clinical",
+               year=2022, study_types=("Review",)),
+            _c("C", title="Cannabidiol safety review", abstract="cannabidiol safety",
+               year=2020, study_types=("Review",)),
+        ]
+        backend = _FakeBackend(order=["B", "A", "C"])
+        result = rank_candidates("cbd", cands, backend=backend, escalate=None, now_year=2026)
+        self.assertTrue(result.escalated)
+        self.assertEqual(result.escalation_reason, "weak lexical signal")
+        self.assertEqual(_ranked_ids(result)[0], "B")
 
     def test_llm_cannot_introduce_a_citation(self):
         # Backend tries to inject an identifier not in the candidate set.
