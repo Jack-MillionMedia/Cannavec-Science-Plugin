@@ -1068,6 +1068,27 @@ def _cmd_signal(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_affinity(args: argparse.Namespace) -> int:
+    """Cheng-Prusoff IC50→Ki binding-affinity conversion (spec 024)."""
+    from cannavec_science.binding import (
+        BindingError, binding_affinity, render_binding,
+    )
+    try:
+        result = binding_affinity(
+            args.ic50, args.ligand, args.kd,
+            unit=getattr(args, "unit", "nM"),
+            mode=getattr(args, "mode", "radioligand"),
+        )
+    except BindingError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(render_binding(result))
+    return 0
+
+
 def _cmd_meta(args: argparse.Namespace) -> int:
     """Pool per-study effect sizes into a meta-analysis (spec 011).
 
@@ -1660,6 +1681,31 @@ def _build_parser() -> argparse.ArgumentParser:
     sg.add_argument("--json", action="store_true",
                     help="Emit structured JSON instead of Markdown.")
     sg.set_defaults(func=_cmd_signal)
+
+    # affinity (spec 024 — Cheng-Prusoff IC50 → Ki)
+    af = sub.add_parser(
+        "affinity",
+        help=(
+            "Cheng-Prusoff IC50 → Ki conversion: turn an assay-dependent IC50 "
+            "into an assay-independent Ki + pKi so receptor affinities from "
+            "different papers compare. Deterministic, stdlib-only."
+        ),
+    )
+    af.add_argument("--ic50", type=float, required=True,
+                    help="Measured IC50 (same unit as --ligand and --kd).")
+    af.add_argument("--ligand", type=float, required=True,
+                    help="Radioligand [L] (radioligand mode) or substrate [S] "
+                         "(enzyme mode).")
+    af.add_argument("--kd", type=float, required=True,
+                    help="Radioligand Kd (radioligand mode) or Km (enzyme mode).")
+    af.add_argument("--unit", default="nM",
+                    help="Concentration unit: M / mM / uM / nM / pM (default nM).")
+    af.add_argument("--mode", default="radioligand",
+                    choices=["radioligand", "enzyme"],
+                    help="Competitive binding (radioligand) or enzyme inhibition.")
+    af.add_argument("--json", action="store_true",
+                    help="Emit structured JSON instead of Markdown.")
+    af.set_defaults(func=_cmd_affinity)
 
     # freshness-report
     fr2 = sub.add_parser(
