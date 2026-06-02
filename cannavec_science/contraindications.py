@@ -288,7 +288,7 @@ _REGISTRY: tuple[Contraindication, ...] = (
             ),
             ContraindicationCitation(
                 label="Gaston 2017 — CBD AE patterns in epilepsy trials",
-                pmid="28815401",
+                pmid="28782097",
                 year=2017,
             ),
         ),

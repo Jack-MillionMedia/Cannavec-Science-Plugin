@@ -312,7 +312,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
             ),
             InteractionCitation(
                 label="Gaston 2017 — CBD AE patterns in epilepsy trials",
-                pmid="28815401",
+                pmid="28782097",
                 year=2017,
             ),
         ),
@@ -477,7 +477,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Gaston 2017 — CBD AE patterns and AED interactions",
-                pmid="28815401",
+                pmid="28782097",
                 year=2017,
             ),
         ),
@@ -499,7 +499,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Gaston 2017 — CBD AE patterns and AED interactions",
-                pmid="28815401",
+                pmid="28782097",
                 year=2017,
             ),
         ),
@@ -521,7 +521,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Gaston 2017 — CBD AE patterns and AED interactions",
-                pmid="28815401",
+                pmid="28782097",
                 year=2017,
             ),
         ),
@@ -542,7 +542,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Gaston 2017 — CBD AE patterns and AED interactions",
-                pmid="28815401",
+                pmid="28782097",
                 year=2017,
             ),
         ),

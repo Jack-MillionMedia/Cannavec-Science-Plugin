@@ -162,9 +162,13 @@ def find_suspects(claims: dict[str, tuple[str, int, str]]) -> list[tuple]:
             suspects.append((pid, fname, ln, "NOT FOUND on PubMed", ""))
             continue
         tokens, first, yr, journal, title = info
-        nctx = _norm(ctx)
+        nctx_words = set(_norm(ctx).split())
         # Flag only when NONE of the paper's authors is named near the cite.
-        if tokens and not any(t in nctx for t in tokens):
+        # Match whole words, not substrings: a surname must not count as "named"
+        # merely because it appears *inside* an unrelated word (e.g. "Conti"
+        # within "discontinuation"). That substring blind spot once let a
+        # wrong PMID pass this audit, so the check is word-boundary now.
+        if tokens and not (tokens & nctx_words):
             suspects.append((
                 pid, fname, ln,
                 f"{first} et al. | {yr} {journal} | {title[:72]}",

@@ -189,11 +189,11 @@ _CISAR_2018 = EcbomeInhibitorCitation(
     pmid="30067909", year=2018,
 )
 _LONG_2009 = EcbomeInhibitorCitation(
-    label="Long JZ et al., Nat Chem Biol 2009, dual blockade of fatty "
+    label="Long JZ et al., Proc Natl Acad Sci USA 2009, dual blockade of fatty "
           "acid amide hydrolase and monoacylglycerol lipase produces "
           "augmented endocannabinoid anandamide signaling — JZL195 "
           "mechanism characterisation",
-    pmid="19429692", year=2009,
+    pmid="19918051", year=2009,
 )
 
 
