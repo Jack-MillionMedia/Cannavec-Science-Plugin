@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -326,12 +327,11 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(result.ranked[0].rationale, "most direct")
         self.assertEqual(result.escalation_reason, "forced")
 
-    def test_design_inversion_auto_escalates_and_expert_lifts_strong_design(self):
-        # A keyword-dense narrative review outscores a buried-but-relevant RCT
-        # and meta-analysis on BM25 — the exact case where an expert reranker
-        # should adjudicate. Auto-escalation must fire on "design inversion",
-        # not a top near-tie, and the (fake) expert lift pulls the strong
-        # designs back up.
+    def test_compression_lifts_meta_analysis_over_keyword_dense_review(self):
+        # Post-audit: sqrt compression makes the deterministic floor lead with
+        # evidence quality, so a keyword-dense narrative review no longer buries
+        # the meta-analysis — the floor now gets this right with NO LLM call
+        # (previously the review ranked #1 and only the LLM lift could fix it).
         cands = [
             _c("REV", title="Cannabidiol for epilepsy in Dravet syndrome: a practical guide",
                abstract="cannabidiol epilepsy dravet seizures cannabidiol epilepsy dravet seizures cannabidiol reduced",
@@ -347,17 +347,32 @@ class BackendIntegrationTests(unittest.TestCase):
             _c("GUIDE", title="Epilepsy treatment overview",
                abstract="epilepsy treatment overview narrative", year=2020, study_types=("Review",)),
         ]
-        query = "cannabidiol epilepsy dravet seizures"
-        # Deterministic floor buries the strong designs under the dense review.
-        det = rank_candidates(query, cands, now_year=2026)
-        self.assertEqual(_ranked_ids(det)[0], "REV")
-        # Auto-escalate with an expert backend that lifts MA/RCT above the review.
-        backend = _FakeBackend(order=["MA", "RCT", "REV", "GUIDE", "REV2"])
-        result = rank_candidates(query, cands, backend=backend, escalate=None, now_year=2026)
+        order = _ranked_ids(rank_candidates(
+            "cannabidiol epilepsy dravet seizures", cands, now_year=2026))
+        # The meta-analysis now outranks the keyword-dense narrative review.
+        self.assertLess(order.index("MA"), order.index("REV"))
+        self.assertIn(order[0], ("MA", "RCT"))  # a strong design leads
+
+    def test_design_inversion_trigger_wires_to_escalation(self):
+        # Compression resolves most inversions at the floor, so the inversion
+        # trigger now fires only on residual extreme cases. Patch the detector
+        # so this test pins the wiring (reason routing) independent of score
+        # tuning; has_design_inversion's own logic is covered by unit tests.
+        import cannavec_science.ranker as rk
+        cands = [
+            _c("P1", title="cannabis pain chronic", study_types=("Randomized Controlled Trial",), year=2020),
+            _c("P2", title="cannabis pain neuropathic", study_types=("Randomized Controlled Trial",), year=2020),
+            _c("P3", title="cannabis pain cancer", study_types=("Randomized Controlled Trial",), year=2020),
+        ]
+        backend = _FakeBackend(order=["P3", "P1", "P2"])
+        with mock.patch.object(rk, "should_escalate", return_value=False), \
+                mock.patch.object(rk, "has_design_inversion", return_value=True):
+            result = rank_candidates("cannabis pain", cands, backend=backend,
+                                     escalate=None, now_year=2026)
         self.assertTrue(result.escalated)
         self.assertEqual(result.escalation_reason, "design inversion")
         self.assertEqual(result.backend_used, "llm")
-        self.assertEqual(_ranked_ids(result)[0], "MA")
+        self.assertEqual(_ranked_ids(result)[0], "P3")
 
     def test_weak_lexical_signal_auto_escalates(self):
         # A semantic gap the canon map does NOT cover (ganja↔cannabis,

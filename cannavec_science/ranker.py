@@ -383,7 +383,15 @@ def score_candidates(
         dw, dl = _design_weight(c)
         rf = _recency_factor(c.year, now)
         xf = _RETRACTION_FACTOR.get(c.retraction_status, 1.0)
-        final = (_BASELINE + r) * dw * rf * xf
+        # Concave (sqrt) compression on the BM25 term: relevance establishes
+        # whether a paper is on-topic, but past "clearly relevant" extra keyword
+        # density yields diminishing returns, so study-design quality leads
+        # among comparably-relevant results. Without this, raw BM25 (range ~0–5)
+        # swamps the design weight (0.55–1.0) and an animal study out-keywords a
+        # meta-analysis — the production audit's residual defect. ``final`` keeps
+        # design × recency × retraction multiplicative; ``bm25`` is stored raw
+        # (uncompressed) for auditability.
+        final = (_BASELINE + math.sqrt(r)) * dw * rf * xf
         out[c.identifier] = ScoreBreakdown(
             identifier=c.identifier,
             bm25=round(r, 4),
