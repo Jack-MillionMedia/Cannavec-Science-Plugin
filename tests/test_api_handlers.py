@@ -12,6 +12,7 @@ import importlib.util
 import json
 import threading
 import unittest
+from unittest import mock
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -130,6 +131,103 @@ class HTTPRoundTripTests(unittest.TestCase):
         with _Server(mod.handler) as s:
             status, _ = s.request("OPTIONS", "/api/answer")
         self.assertEqual(status, 204)
+
+
+class DiscoverHandlerTests(unittest.TestCase):
+    """Phase-2 /api/discover — exercised with live.run_discovery monkeypatched
+    so no network is touched."""
+
+    def test_discover_get_returns_synthesis(self):
+        from cannavec_science import live
+        canned = {
+            "query": "cannabis melatonin",
+            "sources": {"pubmed": [{"pmid": "123", "title": "x"}]},
+            "synthesis": {"convergence": "WEAK"},
+        }
+        mod = _load("discover")
+        with mock.patch.object(live, "run_discovery", return_value=canned):
+            with _Server(mod.handler) as s:
+                status, data = s.request("GET", "/?query=cannabis%20melatonin")
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["synthesis"]["convergence"], "WEAK")
+
+    def test_discover_missing_query_is_400(self):
+        mod = _load("discover")
+        with _Server(mod.handler) as s:
+            status, data = s.request("GET", "/api/discover")
+        self.assertEqual(status, 400)
+        self.assertFalse(json.loads(data)["ok"])
+
+    def test_discover_refusal_is_422(self):
+        from cannavec_science import live
+        mod = _load("discover")
+        with mock.patch.object(
+            live, "run_discovery",
+            side_effect=live.DiscoverRefused("refused: synthesis route"),
+        ):
+            with _Server(mod.handler) as s:
+                status, data = s.request("GET", "/?query=make%20K2%20at%20home")
+        self.assertEqual(status, 422)
+        payload = json.loads(data)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["refused"])
+
+
+class AnswerAugmentHandlerTests(unittest.TestCase):
+    def test_augment_true_weaves_live_findings(self):
+        from cannavec_science import live
+
+        def _fake_augment(answer, **kw):
+            answer.add_live_finding(
+                label="Fresh hit", identifier="PMID 42",
+                source_tag="live_pubmed",
+            )
+            return 1
+
+        mod = _load("answer")
+        with mock.patch.object(live, "augment_answer", side_effect=_fake_augment):
+            with _Server(mod.handler) as s:
+                status, data = s.request(
+                    "GET", "/?question=CBD%20in%20Dravet%20syndrome&augment=true"
+                )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertEqual(payload["augmented"], 1)
+        self.assertEqual(len(payload["answer"]["live_findings"]), 1)
+
+    def test_default_answer_is_not_augmented(self):
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET", "/?question=CBD%20in%20Dravet%20syndrome"
+            )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertEqual(payload["augmented"], 0)
+
+
+class HealthLiveFlagTests(unittest.TestCase):
+    def test_live_discovery_true_when_key_set(self):
+        mod = _load("health")
+        with mock.patch.dict("os.environ", {"NCBI_API_KEY": "KEY"}):
+            with _Server(mod.handler) as s:
+                status, data = s.request("GET", "/api/health")
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertTrue(payload["live_discovery"])
+        self.assertEqual(payload["phase"], 2)
+
+    def test_live_discovery_false_when_key_absent(self):
+        mod = _load("health")
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with _Server(mod.handler) as s:
+                status, data = s.request("GET", "/api/health")
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertFalse(payload["live_discovery"])
+        self.assertEqual(payload["phase"], 1)
 
 
 if __name__ == "__main__":

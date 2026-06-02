@@ -55,6 +55,7 @@ from typing import Callable, Iterable, Optional, Protocol
 
 from cannavec_science._http import (
     TIMEOUT_SLOW,
+    append_ncbi_auth,
     crossref_contact,
     retry_urlopen,
     user_agent,
@@ -133,7 +134,7 @@ def default_pubmed_fetcher(url: str) -> str:
     :class:`cannavec_science._http.RetryableHTTPError`.
     """
     req = urllib.request.Request(
-        url,
+        append_ncbi_auth(url),
         headers={"User-Agent": user_agent("pubmed-verify")},
     )
     with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:

@@ -23,16 +23,22 @@
   <ul>
     <li><code>GET /api/health</code> — liveness &amp; capability probe</li>
     <li><code>GET /api/answer?question=...</code> — cited research brief (JSON;
-        add <code>&amp;format=markdown</code> for prose)</li>
+        add <code>&amp;format=markdown</code> for prose; add
+        <code>&amp;augment=true</code> to weave in live findings)</li>
     <li><code>POST /api/answer</code> — body <code>{"question":"..."}</code></li>
+    <li><code>GET /api/discover?query=...</code> — <strong>live</strong>
+        PubMed / ClinicalTrials.gov (+ opt-in ChEMBL / Europe PMC) fan-out
+        with a cross-source synthesis verdict <span class="muted">(Phase&nbsp;2)</span></li>
     <li><code>GET /api/rigor?text=...</code> — phytochemistry &amp;
         banned-pattern audit</li>
     <li><code>GET /api/registries</code> — curated-registry inventory</li>
   </ul>
-  <p>Example:</p>
-  <pre>curl "/api/answer?question=CBD evidence in Dravet syndrome&amp;format=markdown"</pre>
-  <p class="muted">Live primary-source discovery (PubMed / ChEMBL /
-  ClinicalTrials.gov) is Phase&nbsp;2 and requires an
-  <code>NCBI_API_KEY</code> environment variable.</p>
+  <p>Examples:</p>
+  <pre>curl "/api/answer?question=CBD evidence in Dravet syndrome&amp;format=markdown"
+curl "/api/discover?query=cannabis melatonin circadian&amp;sources=pubmed,ctgov"</pre>
+  <p class="muted">Live discovery (<code>/api/discover</code> and
+  <code>?augment=true</code>) authenticates to NCBI via the
+  <code>NCBI_API_KEY</code> environment variable. The curated
+  <code>/api/answer</code> path needs no key and works offline.</p>
 </body>
 </html>

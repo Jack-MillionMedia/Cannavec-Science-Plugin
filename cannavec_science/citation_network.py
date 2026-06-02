@@ -27,7 +27,12 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
+from cannavec_science._http import (
+    TIMEOUT_SLOW,
+    append_ncbi_auth,
+    retry_urlopen,
+    user_agent,
+)
 
 
 __all__ = [
@@ -205,7 +210,7 @@ CitationFetcher = Callable[[str], str]
 def default_citation_fetcher(url: str) -> str:
     """Production fetcher — polite User-Agent, slow timeout, bounded retry."""
     req = urllib.request.Request(
-        url,
+        append_ncbi_auth(url),
         headers={
             "User-Agent": user_agent("citation-network"),
             "Accept": "application/json",
