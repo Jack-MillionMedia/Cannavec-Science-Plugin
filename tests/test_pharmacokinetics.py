@@ -223,7 +223,7 @@ class RendererTests(unittest.TestCase):
         rows = all_pharmacokinetics_rows()
         md = render_markdown(rows)
         # Huestis 2005 PMID is the canonical reference.
-        self.assertIn("16142973", md)
+        self.assertIn("16596792", md)
 
 
 class IntegrationWithComposerTests(unittest.TestCase):

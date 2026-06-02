@@ -434,7 +434,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Hartman 2015 — Cannabis-alcohol co-use PK",
-                pmid="26041581",
+                pmid="23220273",
                 year=2015,
             ),
         ),

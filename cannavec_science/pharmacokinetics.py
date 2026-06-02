@@ -9,7 +9,7 @@ Constitution §IV (researcher-only) with primary citations per §I.
 Topic coverage:
 
 - ``inhaled_pk`` — Δ⁹-THC pharmacokinetics by inhaled route (smoked +
-  vaped). Huestis 2005 (PMID 16142973) is the canonical reference for
+  vaped). Huestis 2005 (PMID 16596792) is the canonical reference for
   rapid-onset PK; vaped data from Spindle 2018 (PMID 30646391).
 - ``oral_pk`` — Δ⁹-THC pharmacokinetics by oral route. Wall 1983
   (PMID 6309462) is the classic study; modern dronabinol PK is
@@ -23,7 +23,7 @@ Topic coverage:
   for why edibles produce a different subjective profile from
   smoked cannabis.
 - ``oromucosal_pk`` — nabiximols (Sativex) oromucosal PK. Karschner
-  2011 (PMID 21240010) for the absorption profile.
+  2011 (PMID 21078841) for the absorption profile.
 - ``distribution`` — plasma protein binding (~95-99%, dominated by
   lipoprotein-association rather than albumin), lipid sequestration in
   adipose tissue (long terminal half-life from slow release), and
@@ -31,7 +31,7 @@ Topic coverage:
   distribution reference.
 - ``detection_window`` — urine cannabinoid detection window. THC-COOH
   metabolite detectable for days-to-weeks after cessation depending on
-  chronicity of use; Huestis 1996 (PMID 8773290) is the classic
+  chronicity of use; Huestis 1996 (PMID 1320536) is the classic
   controlled-dose reference.
 
 Every row carries a `to_claim()` returning a typed
@@ -172,7 +172,7 @@ class PharmacokineticsRow:
 _HUESTIS_2005 = PharmacokineticsCitation(
     label="Huestis MA, Chem Biodivers 2005, human cannabinoid pharmacokinetics "
           "(canonical PK review)",
-    pmid="16142973", year=2005,
+    pmid="16596792", year=2005,
 )
 _HUESTIS_1992 = PharmacokineticsCitation(
     label="Huestis MA et al., J Anal Toxicol 1992, blood cannabinoids I — "
@@ -201,7 +201,7 @@ _BIRNBAUM_2019 = PharmacokineticsCitation(
 _KARSCHNER_2011 = PharmacokineticsCitation(
     label="Karschner EL et al., Clin Chem 2011, pharmacokinetics of "
           "Δ⁹-tetrahydrocannabinol after oromucosal Sativex administration",
-    pmid="21240010", year=2011,
+    pmid="21078841", year=2011,
 )
 _GARRETT_1977 = PharmacokineticsCitation(
     label="Garrett ER & Hunt CA, J Pharm Sci 1977, physicochemical "
@@ -212,7 +212,7 @@ _HUESTIS_1996 = PharmacokineticsCitation(
     label="Huestis MA et al., J Anal Toxicol 1996, characterization of the "
           "absorption phase of marijuana smoking — urine cannabinoid "
           "detection window",
-    pmid="8773290", year=1996,
+    pmid="1320536", year=1996,
 )
 _DEVINSKY_2018_LGS = PharmacokineticsCitation(
     label="Devinsky O et al., NEJM 2018, effect of cannabidiol on drop "

@@ -178,7 +178,7 @@ _DEZIECK_2017 = HyperemesisSyndromeCitation(
 _RICHARDS_2017 = HyperemesisSyndromeCitation(
     label="Richards JR et al., Ann Pharmacother 2017, treatment of "
           "cannabinoid hyperemesis syndrome — a systematic review",
-    pmid="28634640", year=2017,
+    pmid="28370228", year=2017,
 )
 _KIM_2018 = HyperemesisSyndromeCitation(
     label="Kim HS et al., BMJ Open 2018, cyclic vomiting presentations "

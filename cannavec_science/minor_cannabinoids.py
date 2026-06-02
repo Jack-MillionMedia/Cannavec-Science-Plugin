@@ -245,7 +245,7 @@ _DEVINSKY_CBDV_2018 = MinorCannabinoidCitation(
 )
 _DESPRES_2013 = MinorCannabinoidCitation(
     label="Borrelli F et al., Biochem Pharmacol 2013, CBC anti-inflammatory in colitis model",
-    pmid="22735542", year=2012,
+    pmid="23373571", year=2012,
 )
 _RUSSO_2018 = MinorCannabinoidCitation(
     label="Russo EB, Front Plant Sci 2018, minor-cannabinoid pharmacology synthesis",
