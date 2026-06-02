@@ -31,7 +31,7 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from audit_pmids import collect_claimed_pmids, find_suspects, _norm  # noqa: E402
+from audit_pmids import collect_claimed_pmids, find_suspects, _norm, _PKG  # noqa: E402
 
 _EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 _UA = {"User-Agent": "cannavec-resolve/1.0"}
@@ -99,9 +99,30 @@ def _esummary(ids: list[str]) -> dict:
     return _get(url).get("result", {})
 
 
-def candidates_for(ctx: str):
-    label = _label_text(ctx)
-    year = _claim_year(ctx, label)
+def _source_label(fname: str, ln: int) -> tuple[str, str]:
+    """Extract the full (multi-line) citation label + year from the source.
+
+    The audit's 6-line window mangles labels that start higher up; here we walk
+    upward from the pmid line to the citation's ``label=`` and concatenate its
+    quoted string segments, so the relevance query reflects the whole label.
+    """
+    path = os.path.join(_PKG, fname)
+    lines = open(path, encoding="utf-8").read().splitlines()
+    i = max(0, ln - 1)
+    start = i
+    for j in range(i, max(-1, i - 16), -1):
+        if re.search(r"(label|title|name|description)\s*=", lines[j]):
+            start = j
+            break
+    chunk = " ".join(lines[start:i + 1])
+    segs = [s for s in re.findall(r'"([^"]*)"', chunk)
+            if len(s) > 3 and not s.isdigit() and "/" not in s[:8]]
+    label = " ".join(segs) or chunk
+    return label, _claim_year(chunk, label)
+
+
+def candidates_for(fname: str, ln: int):
+    label, year = _source_label(fname, ln)
     try:
         ids = _esearch(_query(label, year))
     except (urllib.error.URLError, OSError):
@@ -129,8 +150,8 @@ def main() -> int:
     suspects = find_suspects(collect_claimed_pmids())
     print(f"\nGathering candidates for {len(suspects)} suspects "
           f"({'with' if _API_KEY else 'no'} NCBI_API_KEY)...\n")
-    for old_pmid, fname, ln, _real, ctx in suspects:
-        label, cands = candidates_for(ctx)
+    for old_pmid, fname, ln, _real, _ctx in suspects:
+        label, cands = candidates_for(fname, ln)
         print(f"cannavec_science/{fname}:{ln}  OLD={old_pmid}")
         print(f"  claim: {label[:96]}")
         if not cands:
