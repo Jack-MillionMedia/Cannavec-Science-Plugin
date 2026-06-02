@@ -110,8 +110,10 @@ class handler(BaseHTTPRequestHandler):
         question = (q.get("question") or [""])[0].strip()
         fmt = (q.get("format") or ["json"])[0]
         policy = (q.get("retraction_policy") or ["strict"])[0]
-        augment = self._truthy((q.get("augment") or ["false"])[0])
-        self._handle(question, fmt, policy, augment)
+        aug = q.get("augment")
+        augment = None if not aug else self._truthy(aug[0])
+        fallback = self._truthy((q.get("fallback") or ["true"])[0])
+        self._handle(question, fmt, policy, augment, fallback)
 
     def do_POST(self) -> None:
         try:
@@ -126,35 +128,50 @@ class handler(BaseHTTPRequestHandler):
         question = str(data.get("question", "")).strip()
         fmt = str(data.get("format", "json"))
         policy = str(data.get("retraction_policy", "strict"))
-        augment = self._truthy(data.get("augment", False))
-        self._handle(question, fmt, policy, augment)
+        augment = None if "augment" not in data else self._truthy(data.get("augment"))
+        fallback = self._truthy(data.get("fallback", True))
+        self._handle(question, fmt, policy, augment, fallback)
 
     def _handle(self, question: str, fmt: str, policy: str,
-                augment: bool = False) -> None:
+                augment: "bool | None" = None, fallback: bool = True) -> None:
+        """Compose the curated brief, then decide on live evidence.
+
+        Three modes:
+        - ``augment=true``  → always weave live findings (Phase 2, forced).
+        - default / ``fallback=true`` → **Phase 3 auto-fallback**: weave live
+          findings only when curated coverage is *thin* (novel question).
+        - ``augment=false`` or ``fallback=false`` → pure curated, no network.
+
+        Live findings are provisional and never promoted (§IX); the curated
+        brief always stands even if discovery is unavailable. Live data →
+        shorter edge cache.
+        """
         if not question:
             self._json(400, {"ok": False, "error": "missing 'question'"})
             return
         if policy not in ("strict", "badge"):
             policy = "strict"
+
+        n_live = 0
+        fallback_used = False
         try:
-            a = _compose(question, retraction_policy=policy)
+            from cannavec_science import live
+            if augment is True:
+                a = _compose(question, retraction_policy=policy)
+                n_live = live.augment_answer(a, max_results=5)
+            elif augment is False or not fallback:
+                a = _compose(question, retraction_policy=policy)
+            else:  # Phase 3 — auto-fallback when curated coverage is thin
+                a, fallback_used = live.answer_with_fallback(
+                    question, retraction_policy=policy, max_results=5,
+                )
+                n_live = len(a.live_findings)
         except Exception as exc:  # noqa: BLE001 — never leak a stack trace
             self._json(500, {"ok": False, "error": "internal error",
                              "detail": type(exc).__name__})
             return
 
-        # Phase 2 (opt-in): weave clearly-tagged, never-promoted live findings
-        # onto the curated brief (Constitution §IX). Best-effort — a refusal,
-        # an offline lane, or a missing NCBI_API_KEY leaves the curated answer
-        # intact. Live data → shorter edge cache.
-        n_live = 0
-        if augment:
-            try:
-                from cannavec_science import live
-                n_live = live.augment_answer(a, max_results=5)
-            except Exception:  # noqa: BLE001 — augmentation must never 500
-                n_live = 0
-
+        live_data = (augment is True) or fallback_used
         if fmt == "markdown":
             self._text(200, a.to_markdown())
         else:
@@ -162,5 +179,6 @@ class handler(BaseHTTPRequestHandler):
                 "ok": True,
                 "is_refusal": a.is_refusal,
                 "augmented": n_live,
+                "fallback_used": fallback_used,
                 "answer": a.to_dict(),
-            }, cache_seconds=3600 if augment else 86400)
+            }, cache_seconds=3600 if live_data else 86400)

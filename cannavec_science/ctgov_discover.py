@@ -158,6 +158,31 @@ class CTGovTrialRow:
 # ── Searcher ──────────────────────────────────────────────────────────
 
 
+# CT.gov free-text relevance is broad: a query like "cannabis insulin
+# metabolic syndrome" can return trials that match "insulin"/"metabolic" but
+# have nothing to do with cannabinoids. For a cannabis-science surface, the
+# CT.gov lane should only surface trials whose intervention / condition /
+# title is actually cannabinoid-related. This regex is the relevance gate.
+_CANNABIS_RELEVANCE_RE = re.compile(
+    r"cannab\w*|marij\w*|marih\w*|\bthc\b|\bthca\b|tetrahydrocannabinol|"
+    r"\bcbd\b|\bcbda\b|cannabidiol|\bcbn\b|cannabinol|\bcbg\b|cannabigerol|"
+    r"\bthcv\b|nabilone|nabiximols|dronabinol|epidiolex|epidyolex|sativex|"
+    r"endocannabinoid\w*|\bhemp\b",
+    re.IGNORECASE,
+)
+
+
+def _trial_is_cannabis_relevant(row: "CTGovTrialRow") -> bool:
+    """True if a trial's intervention / condition / title mentions a
+    cannabinoid — the per-source relevance filter for the CT.gov lane."""
+    haystack = " ".join(
+        [row.title or ""]
+        + list(row.intervention or ())
+        + list(row.condition or ())
+    )
+    return bool(_CANNABIS_RELEVANCE_RE.search(haystack))
+
+
 class CTGovSearcher:
     def __init__(self, *, fetcher: Optional[Fetcher] = None) -> None:
         self._fetcher = fetcher or default_ctgov_fetcher
@@ -173,8 +198,14 @@ class CTGovSearcher:
         status: Optional[str] = None,
         since: Optional[str] = None,
         max_results: int = 10,
+        cannabis_relevant_only: bool = False,
     ) -> list[CTGovTrialRow]:
         """Run a CT.gov search and return typed trial rows.
+
+        When ``cannabis_relevant_only`` is set, trials whose
+        intervention / condition / title do not mention a cannabinoid are
+        dropped — sharpening the lane for the cannabis-science surface so a
+        broad free-text match cannot surface unrelated trials.
 
         Raises DiscoverRefused on preflight refusal (no network call).
         Raises ValueError on invalid arguments.
@@ -204,6 +235,8 @@ class CTGovSearcher:
         studies = data.get("studies") or []
         rows = [_parse_study(s) for s in studies]
         rows = [r for r in rows if r is not None]
+        if cannabis_relevant_only:
+            rows = [r for r in rows if _trial_is_cannabis_relevant(r)]
         rows.sort(key=_row_sort_key)
         return rows[:max_results]
 

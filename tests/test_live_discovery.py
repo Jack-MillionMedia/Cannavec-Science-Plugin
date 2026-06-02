@@ -151,5 +151,89 @@ class AugmentAnswerTests(unittest.TestCase):
         self.assertEqual(len(a.live_findings), 0)
 
 
+class IsThinTests(unittest.TestCase):
+    def _fake(self, *, is_refusal=False, claims=(), highest=None):
+        import types
+        es = types.SimpleNamespace(highest_grade=highest) if highest else None
+        return types.SimpleNamespace(
+            is_refusal=is_refusal, claims=list(claims), evidence_summary=es,
+        )
+
+    def test_no_claims_is_thin(self):
+        self.assertTrue(live.is_thin(self._fake(claims=[])))
+
+    def test_refusal_is_never_thin(self):
+        self.assertFalse(live.is_thin(self._fake(is_refusal=True, claims=[])))
+
+    def test_unsupported_grade_is_thin(self):
+        from cannavec_science.evidence import EvidenceLevel
+        a = self._fake(claims=["x"], highest=EvidenceLevel.UNSUPPORTED)
+        self.assertTrue(live.is_thin(a))
+
+    def test_graded_claim_is_not_thin(self):
+        from cannavec_science.evidence import EvidenceLevel
+        a = self._fake(claims=["x"], highest=EvidenceLevel.B)
+        self.assertFalse(live.is_thin(a))
+
+    def test_real_curated_answer_is_not_thin(self):
+        a = compose_answer(
+            "How does chronic cannabis use alter insulin sensitivity in "
+            "metabolic syndrome?"
+        )
+        self.assertFalse(live.is_thin(a))
+
+
+class AnswerWithFallbackTests(unittest.TestCase):
+    _NOVEL = (
+        "What is the effect of cannabidiol on the tensile strength of "
+        "spider silk fibres?"
+    )
+
+    def test_curated_question_skips_fallback(self):
+        # A well-covered question must NOT trigger live discovery — the spy
+        # runner must never be called.
+        called = {"n": 0}
+
+        def _spy(query, since, n):
+            called["n"] += 1
+            return []
+
+        a, used = live.answer_with_fallback(
+            "How does chronic cannabis use alter insulin sensitivity in "
+            "metabolic syndrome?",
+            runners={"pubmed": _spy, "ctgov": _spy},
+        )
+        self.assertFalse(used)
+        self.assertEqual(called["n"], 0)
+        self.assertGreaterEqual(len(a.claims), 1)
+        self.assertEqual(len(a.live_findings), 0)
+
+    def test_novel_question_triggers_fallback(self):
+        rows = [_FakeHit(pmid="55555", title="A live frontier hit", year=2025)]
+        a, used = live.answer_with_fallback(
+            self._NOVEL,
+            sources=["pubmed"],
+            runners={"pubmed": _pubmed_runner(rows)},
+        )
+        # Confirm the question really is uncovered, then that fallback fired.
+        self.assertEqual(len(a.claims), 0)
+        self.assertTrue(used)
+        self.assertEqual(len(a.live_findings), 1)
+        # A clarifying note is added when the brief is built from live data.
+        self.assertTrue(any("Live discovery" in n for n in a.notes))
+
+    def test_novel_question_degrades_when_live_unavailable(self):
+        def _boom(query, since, n):
+            raise RuntimeError("offline")
+
+        a, used = live.answer_with_fallback(
+            self._NOVEL, sources=["pubmed"], runners={"pubmed": _boom}
+        )
+        # Fallback was attempted (used=True) but nothing attached, and the
+        # curated (empty) brief still returns without error.
+        self.assertTrue(used)
+        self.assertEqual(len(a.live_findings), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

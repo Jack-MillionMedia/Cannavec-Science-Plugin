@@ -14,16 +14,23 @@ using the `BaseHTTPRequestHandler` pattern (zero dependencies).
 | `/api/rigor` | GET/POST | none | Phytochemistry + banned-pattern audit of arbitrary text. |
 | `/api/registries` | GET | none | Curated-registry inventory (`?format=markdown`). |
 
-¹ `/api/answer?augment=true` opts into a best-effort live weave; it degrades
-to the curated brief if discovery is unavailable.
+¹ `/api/answer` **auto-falls-back** to live discovery when curated coverage is
+thin (no curated claim, or best grade Unsupported) — a novel question returns
+a cited, provisionally-graded brief from live primary sources with no flag.
+Force it with `augment=true`; disable it with `fallback=false`. Always
+best-effort: it degrades to the curated brief if discovery is unavailable, and
+live findings are never promoted to curated facts (§IX).
 
 ## Parameters
 
 - `/api/answer` — `question` (required), `format=json|markdown`,
-  `retraction_policy=strict|badge`, `augment=true|false`.
+  `retraction_policy=strict|badge`, `augment=true|false` (force/skip live),
+  `fallback=true|false` (default true — auto-fallback when thin). Response adds
+  `augmented` (live findings attached) and `fallback_used`.
 - `/api/discover` — `query` (required), `sources=pubmed,ctgov,chembl,europepmc`
   (default `pubmed,ctgov`), `max=<int>` (≤25), `since=YYYY-MM-DD`,
-  `format=json|markdown`.
+  `format=json|markdown`. The CT.gov lane is relevance-gated to cannabinoid
+  trials so a broad free-text query can't surface unrelated studies.
 
 ## Environment variables
 
