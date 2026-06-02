@@ -753,6 +753,21 @@ _GRADE_FRAME: "dict[EvidenceLevel, str]" = {
 }
 
 
+# Tokens too generic to signal topical alignment in the BLUF tie-break.
+_SHORT_ANSWER_STOPWORDS = frozenset({
+    "cannabis", "cannabinoid", "cannabinoids", "patients", "patient",
+    "evidence", "study", "studies", "human", "humans", "level", "effect",
+    "effects", "with", "from", "that", "this", "their", "have", "been",
+    "which", "while", "data", "than", "into", "also", "about", "after",
+})
+
+
+def _content_tokens(text: str) -> frozenset[str]:
+    """Lowercased content words (length ≥ 4, non-stopword) for overlap scoring."""
+    toks = re.findall(r"[a-zA-Z][a-zA-Z0-9-]{3,}", text.lower())
+    return frozenset(t for t in toks if t not in _SHORT_ANSWER_STOPWORDS)
+
+
 def _set_short_answer(a: Answer) -> None:
     """Populate the BLUF lead: one grade-honest bottom line at the top.
 
@@ -762,6 +777,12 @@ def _set_short_answer(a: Answer) -> None:
     ``add_claim`` time, so the lead cannot over-claim (§VII). No-ops on a
     refusal, when no claim is topically relevant, or when a caller already
     set ``short_answer``.
+
+    Selection key is ``(grade_rank, prompt_overlap)``: grade dominates (the
+    BLUF is always the strongest-evidence claim), but ties are broken toward
+    the claim most lexically aligned with the question — so an on-topic
+    endocrine/metabolic claim leads over a generic same-grade caution that
+    merely shares a population keyword.
     """
     if a.is_refusal or a.short_answer:
         return
@@ -770,7 +791,15 @@ def _set_short_answer(a: Answer) -> None:
         relevant = tuple(a.claims)
     if not relevant:
         return
-    top = max(relevant, key=lambda c: c.best_supportable_grade().rank)
+    prompt_tokens = _content_tokens(getattr(a, "prompt", "") or "")
+
+    def _key(c: Claim) -> tuple[int, int]:
+        return (
+            c.best_supportable_grade().rank,
+            len(prompt_tokens & _content_tokens(c.text)),
+        )
+
+    top = max(relevant, key=_key)
     grade = top.best_supportable_grade()
     frame = _GRADE_FRAME.get(grade, f"Level {grade.value}")
     cites = " ".join(
@@ -1113,6 +1142,10 @@ def compose_answer(
     matched_psychiatry_rows = detect_psychiatry_mention(prompt)
     matched_driving_rows = detect_driving_impairment_mention(prompt)
     matched_ptsd_rows = detect_ptsd_anxiety_sleep_mention(prompt)
+    # Spec 026 US1 / FR-026 — cannabis-endocrinology registry (metabolic,
+    # reproductive, thyroid, adrenal, somatotropic, skeletal axes).
+    from cannavec_science.endocrine import detect_endocrine_mention
+    matched_endocrine_rows = detect_endocrine_mention(prompt)
 
     a.add_trace("registry.populations", len(matched_population_rows))
     a.add_trace("registry.interactions", len(matched_interaction_rows))
@@ -1136,6 +1169,8 @@ def compose_answer(
     a.add_trace("registry.psychiatry", len(matched_psychiatry_rows))
     a.add_trace("registry.driving_impairment", len(matched_driving_rows))
     a.add_trace("registry.ptsd_anxiety_sleep", len(matched_ptsd_rows))
+    # Spec 026 — endocrinology trace counter.
+    a.add_trace("registry.endocrine", len(matched_endocrine_rows))
 
     # Citation attachment runs regardless of refusal — the population-
     # level evidence base exists whether or not Cannavec Science
@@ -1163,6 +1198,8 @@ def compose_answer(
         + list(matched_psychiatry_rows)
         + list(matched_driving_rows)
         + list(matched_ptsd_rows)
+        # Spec 026 — endocrinology row citations.
+        + list(matched_endocrine_rows)
     )
     for row in all_rows:
         _attach_citations_from_row(a, row)
@@ -1207,6 +1244,9 @@ def compose_answer(
         for row in matched_driving_rows:
             _attach_claim_safely(a, row, retraction_policy)
         for row in matched_ptsd_rows:
+            _attach_claim_safely(a, row, retraction_policy)
+        # Spec 026 US1 / FR-026 — endocrinology rows surface as typed claims.
+        for row in matched_endocrine_rows:
             _attach_claim_safely(a, row, retraction_policy)
 
         # Minor + major cannabinoids render as monograph sections.
@@ -1329,6 +1369,17 @@ def compose_answer(
                 "Cannabinoid biosynthesis pathway registry",
                 render_biosynth(matched_biosynth_rows).removeprefix(
                     "## Cannabinoid biosynthesis pathway registry\n"
+                ).strip(),
+            )
+        # Spec 026 US1 / FR-026 — endocrinology registry render.
+        if matched_endocrine_rows:
+            from cannavec_science.endocrine import (
+                render_markdown as render_endocrine,
+            )
+            a.add_section(
+                "Endocrinology registry",
+                render_endocrine(matched_endocrine_rows).removeprefix(
+                    "## Endocrinology registry\n"
                 ).strip(),
             )
     elif matched_minor_cb_rows or matched_major_cb_rows or matched_ecbome_rows:
