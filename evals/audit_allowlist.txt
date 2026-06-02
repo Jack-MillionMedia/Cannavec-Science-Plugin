@@ -1,0 +1,11 @@
+# Citation-audit allowlist  (read by evals/audit_pmids.py)
+#
+# PMIDs that the audit flags but that are CONFIRMED-CORRECT against PubMed —
+# cases the all-authors surname heuristic still cannot see, e.g.:
+#   * an author cited only by initials, or by a group/consortium name
+#   * a non-Latin-indexed surname that diacritic-folding cannot reconstruct
+#
+# One PMID per line; everything after "#" is a comment. Justify each entry
+# (verify at https://pubmed.ncbi.nlm.nih.gov/<PMID>/ before adding).
+#
+# (empty — add entries only after confirming a flag is a genuine false positive)

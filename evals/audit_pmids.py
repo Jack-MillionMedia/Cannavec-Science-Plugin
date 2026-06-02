@@ -2,23 +2,31 @@
 """Audit every PMID shipped by the curated registries against live PubMed.
 
 For each ``pmid="..."`` literal in ``cannavec_science/*.py`` this fetches the
-real PubMed record (NCBI E-utilities ``esummary``) and flags any whose real
-first-author surname does **not** appear next to the citation in the source —
-i.e. the identifier points at a different paper than the registry claims
-(the failure mode that shipped a rat breast-implant study as "Hjorthoj 2023").
+real PubMed record (NCBI E-utilities ``esummary``) and flags any where **none
+of the paper's authors** is named next to the citation in the source — i.e.
+the identifier points at a different paper than the registry claims (the
+failure mode that shipped a rat breast-implant study as "Hjorthoj 2023").
+
+Matching against *all* listed authors (not just the first) avoids false
+positives when a row cites a senior/last author (e.g. "Edery & Mechoulam").
 
 Why this exists: the unit suite is offline (injected fetchers), so a
 well-formed-but-wrong PMID passes every test. This is the online check that
 the curated identifiers actually resolve to the claimed papers. Stdlib only;
 needs network to NCBI. Synthetic retraction seeds (99000xxx) are skipped.
 
+Set ``NCBI_API_KEY`` to lift the rate limit to 10 req/s (retries on 429).
+PMIDs listed in ``evals/audit_allowlist.txt`` (one per line, ``#`` comments
+allowed) are skipped — for confirmed-correct citations the surname heuristic
+cannot see (e.g. an author cited by initials only).
+
 Run from anywhere inside the repo:
 
     python3 evals/audit_pmids.py
+    NCBI_API_KEY=xxxx python3 evals/audit_pmids.py
 
-Exit code is non-zero when any suspect is found, so it is CI-gateable.
-Some flags are expected false positives (a row that names a non-first author,
-or a diacritic spelling); confirm each against PubMed before editing data.
+Exit code is non-zero when any (non-allowlisted) suspect is found, so it is
+CI-gateable.
 """
 from __future__ import annotations
 
@@ -36,6 +44,30 @@ _PKG = os.path.join(
     "cannavec_science",
 )
 _PMID_RE = re.compile(r'pmid\s*=\s*["\'](\d{4,9})["\']')
+_API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
+_SLEEP = 0.11 if _API_KEY else 0.34
+_ALLOWLIST_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "audit_allowlist.txt"
+)
+
+
+def _load_allowlist() -> set[str]:
+    """PMIDs confirmed-correct but flagged by the surname heuristic.
+
+    One PMID per line; ``#`` comments allowed. Used for citations the heuristic
+    cannot confirm (e.g. an author cited only by initials, or a registry that
+    names a study by group rather than by any indexed author surname).
+    """
+    out: set[str] = set()
+    try:
+        with open(_ALLOWLIST_PATH, encoding="utf-8") as fh:
+            for line in fh:
+                tok = line.split("#", 1)[0].strip()
+                if tok.isdigit():
+                    out.add(tok)
+    except FileNotFoundError:
+        pass
+    return out
 
 
 def _norm(s: str) -> str:
@@ -66,14 +98,37 @@ def _esummary(ids: list[str]) -> dict:
         "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?"
         "db=pubmed&retmode=json&id=" + ",".join(ids)
     )
+    if _API_KEY:
+        url += "&api_key=" + _API_KEY
     req = urllib.request.Request(url, headers={"User-Agent": "cannavec-audit/1.0"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r).get("result", {})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r).get("result", {})
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 3:
+                time.sleep(1.0 * (attempt + 1))
+                continue
+            raise
+    return {}
+
+
+def _author_tokens(authors: list) -> set[str]:
+    """Normalised surname-ish tokens (len>=4) across *all* listed authors."""
+    toks: set[str] = set()
+    for a in authors:
+        for t in _norm(a.get("name", "")).split():
+            if len(t) >= 4:
+                toks.add(t)
+    return toks
 
 
 def find_suspects(claims: dict[str, tuple[str, int, str]]) -> list[tuple]:
+    allow = _load_allowlist()
     pmids = sorted(claims)
-    print(f"Auditing {len(pmids)} registry PMIDs against live PubMed...\n")
+    print(f"Auditing {len(pmids)} registry PMIDs against live PubMed"
+          f"{' (NCBI_API_KEY set)' if _API_KEY else ''}"
+          f"{f'; {len(allow)} allowlisted' if allow else ''}...\n")
     real: dict[str, tuple | None] = {}
     for k in range(0, len(pmids), 100):
         chunk = pmids[k:k + 100]
@@ -89,26 +144,30 @@ def find_suspects(claims: dict[str, tuple[str, int, str]]) -> list[tuple]:
                 real[pid] = None
             else:
                 real[pid] = (
-                    authors[0]["name"] if authors else "",
+                    _author_tokens(authors),
+                    authors[0]["name"] if authors else "?",
                     (rec.get("pubdate") or "")[:4],
                     rec.get("source", ""),
                     rec.get("title", ""),
                 )
-        time.sleep(0.34)  # be polite to NCBI (~3 req/s without an API key)
+        time.sleep(_SLEEP)
 
     suspects: list[tuple] = []
     for pid in pmids:
+        if pid in allow:
+            continue
         fname, ln, ctx = claims[pid]
         info = real.get(pid)
         if info is None:
             suspects.append((pid, fname, ln, "NOT FOUND on PubMed", ""))
             continue
-        first, yr, journal, title = info
-        surname = (_norm(first).split() or [""])[0]
-        if surname and surname not in _norm(ctx):
+        tokens, first, yr, journal, title = info
+        nctx = _norm(ctx)
+        # Flag only when NONE of the paper's authors is named near the cite.
+        if tokens and not any(t in nctx for t in tokens):
             suspects.append((
                 pid, fname, ln,
-                f"{first} | {yr} {journal} | {title[:72]}",
+                f"{first} et al. | {yr} {journal} | {title[:72]}",
                 ctx.strip()[-92:],
             ))
     return suspects
