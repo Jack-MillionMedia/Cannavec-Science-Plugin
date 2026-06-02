@@ -176,7 +176,7 @@ _LIVINGSTON_2020 = CultivationCitation(
 _TANNEY_2021 = CultivationCitation(
     label="Tanney CAS et al., Front Plant Sci 2021, cannabis glandular "
           "trichomes — a cellular metabolite factory",
-    pmid="34025682", year=2021,
+    pmid="34616415", year=2021,
 )
 _DE_MEIJER_2003 = CultivationCitation(
     label="de Meijer EPM et al., Genetics 2003, the inheritance of "
@@ -213,7 +213,7 @@ _TAURA_2007 = CultivationCitation(
     label="Taura F et al., FEBS Lett 2007, cannabidiolic-acid synthase, "
           "the chemotype-determining enzyme in the fiber-type Cannabis "
           "sativa",
-    pmid="17631292", year=2007,
+    pmid="17544411", year=2007,
 )
 _GROTENHERMEN_2003 = CultivationCitation(
     label="Grotenhermen F, Clin Pharmacokinet 2003, clinical "

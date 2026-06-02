@@ -883,7 +883,7 @@ _REGISTRY: tuple[AdverseEvent, ...] = (
                     "Blount 2020 — Vitamin E acetate in BAL fluid "
                     "associated with EVALI (NEJM)"
                 ),
-                pmid="31995731",
+                pmid="31860793",
                 doi="10.1056/NEJMoa1916433",
                 year=2020,
             ),

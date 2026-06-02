@@ -97,7 +97,7 @@ _DEVANE_1992 = EcbomeCitation(
 )
 _MECHOULAM_1995 = EcbomeCitation(
     label="Mechoulam R et al., Biochem Pharmacol 1995, 2-AG identification",
-    pmid="7544547", year=1995,
+    pmid="7605349", year=1995,
 )
 _DI_MARZO_2018 = EcbomeCitation(
     label="Di Marzo V et al., Nat Rev Drug Discov 2018, eCBome overview",
@@ -117,7 +117,7 @@ _CRAVATT_1996 = EcbomeCitation(
 )
 _LO_VERME_2005 = EcbomeCitation(
     label="Lo Verme J et al., Mol Pharmacol 2005, PEA via PPARα",
-    pmid="15860571", year=2005,
+    pmid="15465922", year=2005,
 )
 _OVERTON_2006 = EcbomeCitation(
     label="Overton HA et al., Cell Metab 2006, GPR119 as OEA receptor",

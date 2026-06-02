@@ -123,11 +123,23 @@ def _source_label(fname: str, ln: int) -> tuple[str, str]:
 
 def candidates_for(fname: str, ln: int):
     label, year = _source_label(fname, ln)
-    try:
-        ids = _esearch(_query(label, year))
-    except (urllib.error.URLError, OSError):
-        ids = []
-    time.sleep(_SLEEP)
+    surname = next(iter(re.findall(r"[A-ZÀ-ž][a-zÀ-ž'’\-]{2,}", label)), "")
+    # Author-anchored search first (robust, relevance-sorted); fall back to a
+    # relevance query on label terms. ANDing every label word is too strict and
+    # returns nothing, which is why most of round 1 came back "(none found)".
+    queries = []
+    if surname and year:
+        queries.append(f"{surname}[Author] AND {year}[pdat]")
+    queries.append(_query(label, year))
+    ids = []
+    for q in queries:
+        try:
+            ids = _esearch(q)
+        except (urllib.error.URLError, OSError):
+            ids = []
+        if ids:
+            break
+        time.sleep(_SLEEP)
     recs = _esummary(ids) if ids else {}
     time.sleep(_SLEEP)
     out = []

@@ -10,7 +10,7 @@ a **thirteenth primary-source live lane**:
   26103030), Stockings 2018 PAIN SR (PMID 30121596), Mücke 2018
   Cochrane neuropathic (PMID 29513392), Boehnke 2019 J Pain MMJ
   prospective cohort (PMID 31237829), Andreae 2015 IPD meta-analysis
-  (PMID 25840040), de Vita 2018 experimental-pain SR (PMID 30362962).
+  (PMID 25840040), de Vita 2018 experimental-pain SR (PMID 30422266).
 - **Cannabis-and-psychosis psychiatry** (≥ 6 rows): Di Forti 2019
   EU-GEI Lancet Psychiatry (PMID 30902669), Marconi 2016 Schizophr
   Bull dose-response SR (PMID 26884547), Vaucher 2018 Mendelian
@@ -26,7 +26,7 @@ a **thirteenth primary-source live lane**:
   Bondallaz 2016 Forensic Sci Int SR (PMID 27082781). The SCIENCE,
   not the LAW — per-se law surfaces remain in the parent plugin.
 - **PTSD / anxiety / sleep** (≥ 5 rows): Bonn-Miller 2021 PLOS One
-  PTSD smoked-cannabis cross-over RCT (PMID 33667097) with the
+  PTSD smoked-cannabis cross-over RCT (PMID 33730032) with the
   largely-negative primary endpoint honestly stated; Crippa 2011
   J Psychopharmacol CBD-SAD SPECT acute challenge (PMID 20829306);
   Bergamaschi 2011 Neuropsychopharm CBD-SAD public-speaking (PMID

@@ -286,7 +286,7 @@ _VALDEOLIVAS_2015 = MinorCannabinoidCitation(
 )
 _DEMEIJER_2003 = MinorCannabinoidCitation(
     label="de Meijer EPM et al., Genetics 2003, cannabinoid biosynthesis in Cannabis sativa",
-    pmid="12586722", year=2003,
+    pmid="12586720", year=2003,
 )
 
 
@@ -1536,7 +1536,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                             "Citti C et al., Sci Rep 2019, isolation + "
                             "pharmacology of THCP from Cannabis sativa FM2"
                         ),
-                        pmid="31876792", year=2019,
+                        pmid="31889124", year=2019,
                     ),
                 ),
             ),
@@ -1557,7 +1557,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                             "Citti C et al., Sci Rep 2019, isolation + "
                             "pharmacology of THCP"
                         ),
-                        pmid="31876792", year=2019,
+                        pmid="31889124", year=2019,
                     ),
                 ),
             ),
@@ -1587,7 +1587,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 citations=(
                     MinorCannabinoidCitation(
                         label="Citti C et al., Sci Rep 2019, in vivo tetrad data on THCP",
-                        pmid="31876792", year=2019,
+                        pmid="31889124", year=2019,
                     ),
                 ),
             ),
@@ -1649,7 +1649,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
         citations=(
             MinorCannabinoidCitation(
                 label="Citti C et al., Sci Rep 2019, THCP isolation + pharmacology",
-                pmid="31876792", year=2019,
+                pmid="31889124", year=2019,
             ),
         ),
     ),

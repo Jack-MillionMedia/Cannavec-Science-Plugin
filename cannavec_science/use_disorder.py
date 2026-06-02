@@ -15,16 +15,16 @@ Topic coverage:
   the merger of abuse + dependence into a single severity-graded
   disorder (≥ 2 of 11 = mild; ≥ 4 = moderate; ≥ 6 = severe).
 - ``screening_instrument`` — Cannabis Use Disorder Identification
-  Test – Revised (CUDIT-R). Adamson 2010 (PMID 20231083) developed
+  Test – Revised (CUDIT-R). Adamson 2010 (PMID 20347232) developed
   the 8-item cannabis-specific revision of the WHO AUDIT framework;
   modern protocols use the CUDIT-R as the screening tool.
 - ``withdrawal_scale`` — Cannabis Withdrawal Scale (CWS). Allsop 2011
-  (PMID 21652129) developed and validated the 19-item self-report
+  (PMID 21724338) developed and validated the 19-item self-report
   scale used in essentially every cannabis-withdrawal trial.
 - ``prevalence`` — CUD lifetime / 12-month prevalence. Hasin 2015
   (PMID 26502112) NESARC-III is the field-standard US population
   prevalence reference (~3% 12-month, ~6.3% lifetime under DSM-5).
-- ``heritability`` — CUD heritability. Verweij 2010 (PMID 20096023)
+- ``heritability`` — CUD heritability. Verweij 2010 (PMID 20402985)
   twin-and-family meta-analysis estimates broad-sense heritability
   ~0.51-0.59 for cannabis dependence (DSM-IV framework, comparable
   to other substance-use disorders).
@@ -164,13 +164,13 @@ _ADAMSON_2010 = UseDisorderCitation(
     label="Adamson SJ et al., Drug Alcohol Depend 2010, an improved brief "
           "measure of cannabis misuse — the Cannabis Use Disorders "
           "Identification Test-Revised (CUDIT-R)",
-    pmid="20231083", year=2010,
+    pmid="20347232", year=2010,
 )
 _ALLSOP_2011 = UseDisorderCitation(
     label="Allsop DJ et al., Drug Alcohol Depend 2011, the Cannabis "
           "Withdrawal Scale development — patterns and predictors of "
           "cannabis withdrawal and distress",
-    pmid="21652129", year=2011,
+    pmid="21724338", year=2011,
 )
 _HASIN_2015 = UseDisorderCitation(
     label="Hasin DS et al., JAMA Psychiatry 2015, prevalence of marijuana "
@@ -182,7 +182,7 @@ _VERWEIJ_2010 = UseDisorderCitation(
     label="Verweij KJ et al., Addiction 2010, genetic and environmental "
           "influences on cannabis use initiation and problematic use — "
           "a meta-analysis of twin studies",
-    pmid="20096023", year=2010,
+    pmid="20402985", year=2010,
 )
 _CHEN_2009 = UseDisorderCitation(
     label="Chen CY et al., Drug Alcohol Depend 2009, early-onset drug use "

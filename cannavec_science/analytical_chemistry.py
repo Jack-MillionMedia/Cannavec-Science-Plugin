@@ -188,7 +188,7 @@ _CITTI_2018 = AnalyticalChemistryCitation(
     label="Citti C et al., J Pharm Biomed Anal 2018, analytical "
           "considerations for cannabinoids in cannabis extracts and "
           "medicinal products",
-    pmid="29073592", year=2018,
+    pmid="28641906", year=2018,
 )
 _HAZEKAMP_2012 = AnalyticalChemistryCitation(
     label="Hazekamp A & Fischedick JT, Drug Test Anal 2012, cannabis — "
@@ -198,7 +198,7 @@ _HAZEKAMP_2012 = AnalyticalChemistryCitation(
 _LEWIS_2018 = AnalyticalChemistryCitation(
     label="Lewis MA et al., Planta Med 2018, Pharmacological foundations "
           "of cannabis chemovars",
-    pmid="29161730", year=2018,
+    pmid="29161743", year=2018,
 )
 _POMAHACOVA_2009 = AnalyticalChemistryCitation(
     label="Pomahacova B et al., Inhal Toxicol 2009, cannabis smoke "

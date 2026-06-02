@@ -207,7 +207,7 @@ class RegistryShapeTests(unittest.TestCase):
             "36810840",  # Frau & Melis 2023 prenatal THC dopamine
             "36539991",  # Ried 2022 RCT cannabis melatonin
             "31915861",  # Appiah-Kusi 2020 CBD cortisol RCT
-            "27567272",  # Sorensen 2017 CHS review
+            "28000146",  # Sorensen 2017 CHS review
             "19057531",  # Verty 2008 rimonabant BAT/UCP1
             "27186350",  # Reimann & Gribble 2016 incretin
         ):

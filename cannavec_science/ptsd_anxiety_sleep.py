@@ -11,7 +11,7 @@ backbone exists to make.
 Topic coverage:
 
 - ``ptsd_rct`` — Bonn-Miller 2021 PLOS One the-only-RCT in PTSD
-  (PMID 33667097). Cannabis pharmacotherapy in U.S. veterans with
+  (PMID 33730032). Cannabis pharmacotherapy in U.S. veterans with
   PTSD; primary endpoints were largely negative on Clinician-
   Administered PTSD Scale change. Often-cited as "evidence FOR
   cannabis in PTSD" but the primary read of the trial is far more
@@ -151,7 +151,7 @@ _BONN_MILLER_2021 = PtsdAnxietySleepCitation(
     label="Bonn-Miller MO et al., PLOS One 2021, the short-term impact of "
           "3 smoked cannabis preparations versus placebo on PTSD symptoms — "
           "a randomized cross-over clinical trial",
-    pmid="33667097", year=2021,
+    pmid="33730032", year=2021,
 )
 _CRIPPA_2011 = PtsdAnxietySleepCitation(
     label="Crippa JAS et al., Journal of Psychopharmacology 2011, neural "

@@ -37,7 +37,7 @@ Topic coverage:
   meta-analysis of inhaled cannabis for neuropathic pain (PMID
   25840040). 5 trials, NNT ≈ 5.6.
 - ``experimental_pain`` — de Vita 2018 J Pain experimental-pain SR
-  (PMID 30362962). Laboratory-pain (cold-pressor, heat-pain,
+  (PMID 30422266). Laboratory-pain (cold-pressor, heat-pain,
   electrical) cannabinoid effects in healthy volunteers — quantitative
   vs the clinical-trial literature.
 
@@ -204,7 +204,7 @@ _DEVITA_2018 = PainMedicineCitation(
     label="De Vita MJ et al., J Pain 2018, association of cannabinoid "
           "administration with experimental pain in healthy adults — "
           "systematic review and meta-analysis",
-    pmid="30362962", year=2018,
+    pmid="30422266", year=2018,
 )
 _NASEM_2017 = PainMedicineCitation(
     label="National Academies of Sciences, Engineering, and Medicine 2017, "

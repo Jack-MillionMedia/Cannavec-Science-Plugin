@@ -47,7 +47,7 @@ class RegistryShapeTests(unittest.TestCase):
             for c in r.citations if c.pmid
         }
         for p in (
-            "33667097",  # Bonn-Miller 2021 PTSD
+            "33730032",  # Bonn-Miller 2021 PTSD
             "20829306",  # Crippa 2011 CBD-SAD
             "21307846",  # Bergamaschi 2011 CBD-SAD
             "19897322",  # Bedi 2010 acute anxiety
@@ -162,7 +162,7 @@ class RendererTests(unittest.TestCase):
 
     def test_render_includes_bonn_miller_pmid(self):
         md = render_markdown(all_ptsd_anxiety_sleep_rows())
-        self.assertIn("33667097", md)
+        self.assertIn("33730032", md)
 
 
 class IntegrationWithComposerTests(unittest.TestCase):
@@ -171,7 +171,7 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "Bonn-Miller 2021 PTSD cannabis randomized controlled trial PLOS One"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("33667097", pmids)
+        self.assertIn("33730032", pmids)
 
 
 class BannedPatternPassTests(unittest.TestCase):

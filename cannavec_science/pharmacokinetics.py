@@ -15,7 +15,7 @@ Topic coverage:
   (PMID 6309462) is the classic study; modern dronabinol PK is
   consistent.
 - ``food_effect`` — CBD oral PK food effect. Birnbaum 2019 (PMID
-  31166007) showed a 4-5 fold AUC increase with high-fat meal, which
+  31247132) showed a 4-5 fold AUC increase with high-fat meal, which
   is now the FDA-recognised Epidiolex food-effect label.
 - ``active_metabolite`` — 11-OH-Δ⁹-THC active-metabolite PK. Wall
   1983 (PMID 6309462) established the equimolar-after-oral vs
@@ -196,7 +196,7 @@ _BIRNBAUM_2019 = PharmacokineticsCitation(
     label="Birnbaum AK et al., Epilepsia 2019, food effect on cannabidiol "
           "(CBD) oral pharmacokinetics — high-fat meal increases CBD AUC "
           "approximately 4-5 fold (Epidiolex label-supporting data)",
-    pmid="31166007", year=2019,
+    pmid="31247132", year=2019,
 )
 _KARSCHNER_2011 = PharmacokineticsCitation(
     label="Karschner EL et al., Clin Chem 2011, pharmacokinetics of "

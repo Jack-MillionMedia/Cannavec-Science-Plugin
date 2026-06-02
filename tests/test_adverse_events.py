@@ -108,7 +108,7 @@ class TestEvaliCoverage(unittest.TestCase):
         self.assertTrue(any("EVALI" in e for e in events),
                         f"expected EVALI row, got events={events}")
         pmids = {c.pmid for r in rows for c in r.citations}
-        self.assertIn("31995731", pmids)  # Blount 2020 NEJM
+        self.assertIn("31860793", pmids)  # Blount 2020 NEJM
 
     def test_vitamin_e_acetate_keyword_returns_evali(self) -> None:
         rows = detect_adverse_event_mention(

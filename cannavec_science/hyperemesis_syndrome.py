@@ -10,14 +10,14 @@ caution; v0.5 ships a curated registry under Constitution §IV
 Topic coverage:
 
 - ``diagnostic_criteria`` — Sorensen 2017 systematic review (PMID
-  27567272) and Allen 2004 original case series (PMID 15082584).
+  28000146) and Allen 2004 original case series (PMID 15082584).
   Cyclic vomiting + abdominal pain + compulsive hot bathing in a
   chronic heavy cannabis user; resolves with cessation.
 - ``rome_iv`` — Venkatesan 2019 (PMID 31480576) consensus criteria
   positioning CHS within the Rome IV functional GI disorder framework
   (a subtype of cyclic vomiting syndrome characterised by chronic
   cannabis exposure).
-- ``capsaicin_treatment`` — Dezieck 2017 (PMID 28215116) acute-phase
+- ``capsaicin_treatment`` — Dezieck 2017 (PMID 28494183) acute-phase
   topical capsaicin treatment with caveat that cessation remains
   the only definitive long-term resolution.
 - ``cyclic_vomiting_dx`` — CVS vs CHS differential and post-
@@ -151,7 +151,7 @@ _SORENSEN_2017 = HyperemesisSyndromeCitation(
     label="Sorensen CJ et al., J Med Toxicol 2017, cannabinoid hyperemesis "
           "syndrome — diagnosis, pathophysiology, and treatment (systematic "
           "review of 64 published case-series and case-reports)",
-    pmid="27567272", year=2017,
+    pmid="28000146", year=2017,
 )
 _ALLEN_2004 = HyperemesisSyndromeCitation(
     label="Allen JH et al., Gut 2004, cannabinoid hyperemesis — cyclical "
@@ -173,7 +173,7 @@ _VENKATESAN_2019 = HyperemesisSyndromeCitation(
 _DEZIECK_2017 = HyperemesisSyndromeCitation(
     label="Dezieck L et al., Clin Toxicol 2017, capsaicin cream for "
           "treatment of cannabinoid hyperemesis syndrome — case series",
-    pmid="28215116", year=2017,
+    pmid="28494183", year=2017,
 )
 _RICHARDS_2017 = HyperemesisSyndromeCitation(
     label="Richards JR et al., Ann Pharmacother 2017, treatment of "

@@ -240,7 +240,7 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "CBD epidiolex food effect AUC fivefold high fat meal"
         )
         text = a.to_markdown()
-        self.assertIn("31166007", text)
+        self.assertIn("31247132", text)
 
     def test_11_oh_thc_returns_active_metabolite_row(self):
         a = compose_answer("11-hydroxy-THC active metabolite oral dronabinol")

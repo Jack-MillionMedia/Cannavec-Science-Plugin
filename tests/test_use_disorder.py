@@ -191,7 +191,7 @@ class IntegrationWithComposerTests(unittest.TestCase):
     def test_cws_query_surfaces_allsop_2011(self):
         a = compose_answer("cannabis withdrawal syndrome assessment scale Allsop")
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("21652129", pmids)
+        self.assertIn("21724338", pmids)
 
     def test_volkow_2014_continues_to_fire_on_cud_query(self):
         # The existing v0.3 adverse-events Volkow CUD-risk row must
