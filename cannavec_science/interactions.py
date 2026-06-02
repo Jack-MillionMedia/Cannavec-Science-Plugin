@@ -256,8 +256,9 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
                 year=2018,
             ),
             InteractionCitation(
-                label="Damkier 2019 — CBD-warfarin INR case series",
-                doi="10.1111/bcpt.13345",
+                label="Damkier 2019 — warfarin–cannabis interaction (CBD/THC, INR case + review)",
+                pmid="30326170",
+                doi="10.1111/bcpt.13152",
                 year=2019,
             ),
         ),
