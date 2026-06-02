@@ -86,14 +86,71 @@ _CANONICAL = (
         "density?",
         EndocrineTopic.BONE_REMODELING,
     ),
+    # ── Spec 027 — second endocrine question wave ──────────────────────
+    (
+        "How does cannabis use influence the onset age and clinical "
+        "progression of autoimmune thyroiditis (Hashimoto's disease)?",
+        EndocrineTopic.AUTOIMMUNE_THYROIDITIS,
+    ),
+    (
+        "What role do exogenous cannabinoids play in modulating pancreatic "
+        "beta-cell apoptosis and survival in response to inflammatory "
+        "cytokines?",
+        EndocrineTopic.BETA_CELL_SURVIVAL,
+    ),
+    (
+        "How does maternal cannabis use alter the fetal endocannabinoid tone "
+        "and subsequent neuroendocrine development of the offspring?",
+        EndocrineTopic.PRENATAL_NEUROENDOCRINE,
+    ),
+    (
+        "Does long-term cannabis consumption affect the circadian rhythm of "
+        "melatonin secretion and associated metabolic homeostasis?",
+        EndocrineTopic.MELATONIN_CIRCADIAN,
+    ),
+    (
+        "What are the distinct impacts of isolated CBD versus full-spectrum "
+        "hemp extract on cortisol levels during acute stress testing?",
+        EndocrineTopic.CBD_FULLSPECTRUM_CORTISOL,
+    ),
+    (
+        "Does cannabis hyperemesis syndrome (CHS) trigger significant, acute "
+        "fluctuations in antidiuretic hormone (ADH) and electrolyte balance?",
+        EndocrineTopic.CHS_ADH_ELECTROLYTE,
+    ),
+    (
+        "How does the administration of CB1 receptor antagonists or inverse "
+        "agonists affect energy expenditure and uncoupling protein 1 (UCP1) "
+        "expression in brown adipose tissue?",
+        EndocrineTopic.CB1_ANTAGONIST_BAT,
+    ),
+    (
+        "To what degree does daily cannabis use alter the lipid profile, "
+        "specifically HDL, LDL, and very-low-density lipoprotein (VLDL) "
+        "synthesis in the liver?",
+        EndocrineTopic.LIPID_PROFILE,
+    ),
+    (
+        "Does localized cannabinoid receptor signaling within the "
+        "gastrointestinal tract modify the secretion of incretin hormones "
+        "like GLP-1 and GIP?",
+        EndocrineTopic.GI_INCRETIN,
+    ),
+    (
+        "How do different delivery methods (inhalation, ingestion, topical) "
+        "vary in their peak pharmacokinetic impact on serum testosterone and "
+        "luteinizing hormone (LH) levels?",
+        EndocrineTopic.DELIVERY_ROUTE_HPG,
+    ),
 )
 
 
 class RegistryShapeTests(unittest.TestCase):
-    def test_ten_rows_one_per_axis(self):
+    def test_twenty_rows_one_per_axis(self):
+        # Spec 026 shipped 10 endocrine axes; spec 027 added 10 more.
         rows = all_endocrine_rows()
-        self.assertEqual(len(rows), 10)
-        self.assertEqual(len({r.topic for r in rows}), 10)
+        self.assertEqual(len(rows), 20)
+        self.assertEqual(len({r.topic for r in rows}), 20)
 
     def test_every_row_has_primary_citation(self):
         for r in all_endocrine_rows():
@@ -144,6 +201,15 @@ class RegistryShapeTests(unittest.TestCase):
             "21631618",  # van Leeuwen 2011 TRAILS HPA
             "22940268",  # Lazenka 2012 CB1 desensitization
             "16407142",  # Ofek 2006 CB2 bone
+            # Spec 027 — second wave anchors.
+            "20191092",  # Nagarkatti 2009 CB2 immunomodulation (Hashimoto gap)
+            "34872800",  # González-Mariscal 2021 Abn-CBD β-cell
+            "36810840",  # Frau & Melis 2023 prenatal THC dopamine
+            "36539991",  # Ried 2022 RCT cannabis melatonin
+            "31915861",  # Appiah-Kusi 2020 CBD cortisol RCT
+            "27567272",  # Sorensen 2017 CHS review
+            "19057531",  # Verty 2008 rimonabant BAT/UCP1
+            "27186350",  # Reimann & Gribble 2016 incretin
         ):
             self.assertIn(pmid, all_pmids)
 
@@ -338,8 +404,94 @@ class InventoryTests(unittest.TestCase):
         )
         self.assertIn("endocrine", all_registry_groups())
         inv = build_inventory("endocrine")
-        # 10 curated rows in the inventory group.
         self.assertTrue(inv.groups)
+
+
+class FalseConfidenceRegressionTests(unittest.TestCase):
+    """Spec 027 — a research tool must not answer a DIFFERENT question with
+    false confidence. These pin the specific off-target failures found when
+    the spec-027 questions were first run against the system."""
+
+    def test_melatonin_secretion_does_not_surface_drug_interaction(self):
+        # "How does cannabis affect melatonin SECRETION" is endocrine
+        # physiology — it must NOT match the CBN×melatonin-supplement
+        # drug-interaction row.
+        from cannavec_science.interactions import detect_interaction_mention
+        rows = detect_interaction_mention(
+            "how does long-term cannabis use affect melatonin secretion and "
+            "circadian rhythm"
+        )
+        self.assertEqual(
+            rows, (),
+            msg="endogenous-melatonin question wrongly matched a drug "
+                "interaction",
+        )
+
+    def test_genuine_melatonin_supplement_interaction_still_fires(self):
+        # The guard must NOT break a real co-administration query.
+        from cannavec_science.interactions import detect_interaction_mention
+        rows = detect_interaction_mention(
+            "does CBN interact with melatonin supplement taken together at "
+            "bedtime"
+        )
+        self.assertTrue(
+            rows,
+            msg="legitimate CBN×melatonin interaction query stopped firing",
+        )
+
+    def test_melatonin_question_leads_with_secretion_evidence(self):
+        # End-to-end: the composed answer must lead with the melatonin
+        # secretion RCT, not an interaction claim.
+        a = compose_answer(
+            "Does long-term cannabis consumption affect the circadian rhythm "
+            "of melatonin secretion and associated metabolic homeostasis?"
+        )
+        self.assertIn("36539991", {c.pmid for c in a.citations if c.pmid})
+        self.assertIn("melatonin", (a.short_answer or "").lower())
+        # The off-target interaction PMID must not be the lead citation.
+        self.assertNotIn("interacts with", (a.short_answer or "").lower())
+
+    def test_hashimoto_leads_with_autoimmune_not_generic_thyroid(self):
+        # The Hashimoto's question must surface the autoimmune-specific
+        # (honest-gap) row, not only the generic HPT-function answer.
+        a = compose_answer(
+            "How does cannabis use influence the onset age and clinical "
+            "progression of autoimmune thyroiditis (Hashimoto's disease)?"
+        )
+        self.assertIn("autoimmun", (a.short_answer or "").lower())
+
+    def test_ucp1_question_leads_with_bat_thermogenesis(self):
+        # The UCP1/BAT question must lead with the rimonabant-BAT row, not a
+        # generic adipogenesis claim.
+        a = compose_answer(
+            "How does the administration of CB1 receptor antagonists or "
+            "inverse agonists affect energy expenditure and uncoupling "
+            "protein 1 (UCP1) expression in brown adipose tissue?"
+        )
+        sa = (a.short_answer or "").lower()
+        self.assertTrue("ucp1" in sa or "brown adipose" in sa)
+
+
+class HonestGapTests(unittest.TestCase):
+    """The honest-gap rows must say 'not directly studied' rather than
+    manufacture a confident off-target answer."""
+
+    def test_honest_gap_rows_signal_the_gap(self):
+        from cannavec_science.endocrine import find_endocrine_rows
+        for topic in ("autoimmune_thyroiditis", "chs_adh_electrolyte",
+                      "delivery_route_hpg"):
+            rows = find_endocrine_rows(topic)
+            self.assertTrue(rows, msg=f"{topic} missing")
+            text = rows[0].claim_text.lower()
+            # Each explicitly flags the absence of direct evidence.
+            self.assertTrue(
+                any(p in text for p in (
+                    "no direct", "no study", "not been", "unstudied",
+                    "evidence gap", "not directly", "secondary",
+                    "has not", "not a primary", "inference",
+                )),
+                msg=f"{topic} does not flag its evidence gap",
+            )
 
 
 if __name__ == "__main__":

@@ -1263,6 +1263,22 @@ def find_interactions(
 
 
 # Keyword index — used by detect_interaction_mention.
+# Partner-drug keywords that are ALSO endogenous molecules the body secretes.
+# See the endogenous-hormone guard in :func:`detect_interaction_mention`.
+_ENDOGENOUS_ALSO_DRUG_KW = frozenset({"melatonin"})
+_ENDOGENOUS_PHYSIOLOGY_CTX = re.compile(
+    r"\b(?:secret\w*|synthes\w*|production|levels?|rhythm|circadian|"
+    r"endogenous|biosynthesis|nocturnal|pineal|homeostasis)\b",
+    re.IGNORECASE,
+)
+_COADMIN_CTX = re.compile(
+    r"\b(?:interact\w*|co[- ]?admin\w*|concomitant\w*|combined\s+with|"
+    r"taken?\s+with|taking|supplement\w*|together\s+with|alongside|"
+    r"drug[- ]?drug|co[- ]?ingest\w*)\b",
+    re.IGNORECASE,
+)
+
+
 _PARTNER_KEYWORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(rf"\b{re.escape(kw)}\b", flags=re.IGNORECASE), partner)
     for kw, partner in [
@@ -1436,8 +1452,26 @@ def detect_interaction_mention(
     co-mentioned.
     """
     cannabinoids = _resolve_interaction_cannabinoids(text, cannabinoid_filter)
-    partners = {label for rx, label in _PARTNER_KEYWORDS
-                if rx.search(text)}
+    # Endogenous-hormone guard: a few partner-drug names are also molecules
+    # the body secretes (currently only "melatonin"). When the prompt frames
+    # such a molecule as an ENDOGENOUS analyte (its secretion / rhythm /
+    # synthesis) and NOT as a co-administered drug, an interaction-registry
+    # hit on the same-named drug is a false positive — the question "how does
+    # cannabis affect melatonin SECRETION" is endocrine physiology, not a
+    # cannabinoid×melatonin-supplement drug interaction. Suppress it so the
+    # registry never answers an endocrine question with an off-target
+    # interaction claim.
+    endo_physio = _ENDOGENOUS_PHYSIOLOGY_CTX.search(text) is not None
+    coadmin = _COADMIN_CTX.search(text) is not None
+    partners: set[str] = set()
+    for rx, label in _PARTNER_KEYWORDS:
+        m = rx.search(text)
+        if not m:
+            continue
+        if (endo_physio and not coadmin
+                and m.group(0).lower() in _ENDOGENOUS_ALSO_DRUG_KW):
+            continue
+        partners.add(label)
     if not cannabinoids or not partners:
         return ()
 

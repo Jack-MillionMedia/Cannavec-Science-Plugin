@@ -107,6 +107,17 @@ class EndocrineTopic:
     ADRENAL_HPA = "adrenal_hpa"
     RECEPTOR_DESENSITIZATION = "receptor_desensitization"
     BONE_REMODELING = "bone_remodeling"
+    # Spec 027 — second endocrine question wave.
+    AUTOIMMUNE_THYROIDITIS = "autoimmune_thyroiditis"
+    BETA_CELL_SURVIVAL = "beta_cell_survival"
+    PRENATAL_NEUROENDOCRINE = "prenatal_neuroendocrine"
+    MELATONIN_CIRCADIAN = "melatonin_circadian"
+    CBD_FULLSPECTRUM_CORTISOL = "cbd_fullspectrum_cortisol"
+    CHS_ADH_ELECTROLYTE = "chs_adh_electrolyte"
+    CB1_ANTAGONIST_BAT = "cb1_antagonist_bat"
+    LIPID_PROFILE = "lipid_profile"
+    GI_INCRETIN = "gi_incretin"
+    DELIVERY_ROUTE_HPG = "delivery_route_hpg"
 
 
 @dataclass(frozen=True)
@@ -744,6 +755,501 @@ _BONE_REMODELING = EndocrineRow(
 )
 
 
+# ══════════════════════════════════════════════════════════════════════
+# Spec 027 — second endocrine question wave (autoimmune thyroiditis, β-cell
+# survival, prenatal neuroendocrine programming, melatonin/circadian, CBD-
+# vs-full-spectrum cortisol, CHS-ADH/electrolytes, CB1-antagonist/BAT-UCP1,
+# lipid profile, GI incretins, delivery-route → HPG). Same honesty bar: the
+# grader caps each at Level C, and three of these (autoimmune thyroiditis,
+# CHS→ADH, delivery-route→HPG) are HONEST-GAP rows — the curated answer is
+# "no direct evidence; here is the mechanistic plausibility / indirect data"
+# rather than a confidently-wrong off-target match.
+# ══════════════════════════════════════════════════════════════════════
+
+_NAGARKATTI_2009 = EndocrineCitation(
+    label="Nagarkatti P, Pandey R, Rieder SA, Hegde VL, Nagarkatti M, Future "
+          "Med Chem 2009, cannabinoids as novel anti-inflammatory drugs "
+          "(CB2 immunomodulation / autoimmune-disease review)",
+    pmid="20191092", doi="10.4155/fmc.09.93", year=2009,
+)
+_GONZALEZ_MARISCAL_2021 = EndocrineCitation(
+    label="González-Mariscal I et al., Biomed Pharmacother 2021, abnormal "
+          "cannabidiol (Abn-CBD) ameliorates inflammation preserving "
+          "pancreatic beta cells in mouse models of experimental type 1 "
+          "diabetes and beta-cell damage (NOD + STZ mice)",
+    pmid="34872800", doi="10.1016/j.biopha.2021.112361", year=2021,
+)
+_FRAU_MELIS_2023 = EndocrineCitation(
+    label="Frau R, Melis M, J Neuroendocrinol 2023, sex-specific "
+          "susceptibility to psychotic-like states provoked by prenatal THC "
+          "exposure — mesolimbic dopamine, reversal by pregnenolone (review "
+          "of preclinical prenatal-cannabis neuroendocrine programming)",
+    pmid="36810840", doi="10.1111/jne.13240", year=2023,
+)
+_RIED_2022 = EndocrineCitation(
+    label="Ried K, Tamanna T, Matthews S, Sali A, J Sleep Res 2022, "
+          "medicinal cannabis (THC 10 mg/mL + CBD 15 mg/mL oil) improves "
+          "sleep in adults with insomnia — randomised double-blind placebo-"
+          "controlled crossover (n=29), midnight salivary melatonin endpoint",
+    pmid="36539991", doi="10.1111/jsr.13793", year=2022,
+)
+_APPIAH_KUSI_2020 = EndocrineCitation(
+    label="Appiah-Kusi E et al., Psychopharmacology 2020, effects of short-"
+          "term cannabidiol (600 mg/day) on response to social stress (TSST) "
+          "in subjects at clinical high risk of psychosis — RCT, serum "
+          "cortisol endpoint",
+    pmid="31915861", doi="10.1007/s00213-019-05442-6", year=2020,
+)
+_DAVIES_2021 = EndocrineCitation(
+    label="Davies C et al., Eur Arch Psychiatry Clin Neurosci 2021, altered "
+          "relationship between cortisol response to social stress and "
+          "mediotemporal function — exploratory cannabidiol RCT arm",
+    pmid="34480630", doi="10.1007/s00406-021-01318-z", year=2021,
+)
+_VERTY_2008 = EndocrineCitation(
+    label="Verty ANA, Allen AM, Oldfield BJ, Obesity (Silver Spring) 2008, "
+          "the effects of rimonabant (CB1 antagonist) on brown adipose "
+          "tissue in rat — BAT thermogenesis and UCP1, CNS-mediated",
+    pmid="19057531", doi="10.1038/oby.2008.509", year=2008,
+)
+_REIMANN_GRIBBLE_2016 = EndocrineCitation(
+    label="Reimann F, Gribble FM, J Diabetes Investig 2016, mechanisms "
+          "underlying glucose-dependent insulinotropic polypeptide (GIP) and "
+          "glucagon-like peptide-1 (GLP-1) secretion (enteroendocrine review; "
+          "CB1 agonists selectively inhibit GIP)",
+    pmid="27186350", doi="10.1111/jdi.12478", year=2016,
+)
+_MHALLA_2018 = EndocrineCitation(
+    label="Mhalla A et al., Tunis Med 2018, lipid profile in schizophrenia — "
+          "case-control study in which cannabis consumption was associated "
+          "with significantly lower triglycerides (secondary, confounded "
+          "finding)",
+    pmid="30324988", year=2018,
+)
+_SORENSEN_2017 = EndocrineCitation(
+    label="Sorensen CJ et al., J Med Toxicol 2017, cannabinoid hyperemesis "
+          "syndrome — diagnosis, pathophysiology, and treatment (systematic "
+          "review of 64 case series)",
+    pmid="27567272", doi="10.1007/s13181-016-0595-z", year=2017,
+)
+_VENKATESAN_2019 = EndocrineCitation(
+    label="Venkatesan T et al., Neurogastroenterol Motil 2019, ACG/CAPS "
+          "consensus on cannabinoid hyperemesis syndrome within the cyclic-"
+          "vomiting-syndrome spectrum",
+    pmid="31480576", doi="10.1111/nmo.13606", year=2019,
+)
+
+
+_AUTOIMMUNE_THYROIDITIS = EndocrineRow(
+    name="Cannabis & autoimmune thyroiditis (Hashimoto's) — an honest evidence gap",
+    topic=EndocrineTopic.AUTOIMMUNE_THYROIDITIS,
+    claim_text=(
+        "There is essentially NO direct human (or animal) evidence on whether "
+        "cannabis use changes the onset age or clinical progression of "
+        "autoimmune thyroiditis (Hashimoto's disease) specifically — a "
+        "targeted literature search returns no dedicated study, so any "
+        "quantified claim about Hashimoto's onset/progression would be "
+        "unsupported. What CAN be said is mechanistic and indirect: "
+        "cannabinoids are broadly immunomodulatory — CB2 (UniProt P34972; "
+        "HGNC CNR2) is expressed on immune cells, and Δ⁹-THC can trigger "
+        "T-cell and dendritic-cell apoptosis, downregulate pro-inflammatory "
+        "cytokines, and upregulate regulatory T cells, an largely "
+        "immunosuppressive / anti-inflammatory profile (Nagarkatti 2009 "
+        "review). That profile makes a modulatory effect on an organ-specific "
+        "autoimmune process such as Hashimoto's biologically plausible "
+        "(potentially dampening autoimmune attack), but plausibility is not "
+        "evidence: direction, magnitude, onset-age and progression effects in "
+        "thyroid autoimmunity are unstudied and must be flagged as a genuine "
+        "research gap, not inferred from the general immunology."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_NAGARKATTI_2009,),
+    study_design="no disease-specific study; general CB2 immunomodulation review",
+    key_finding_summary=(
+        "No direct Hashimoto's data; cannabinoids are broadly "
+        "immunosuppressive (CB2), making a modulatory effect plausible but "
+        "unproven"
+    ),
+    key_notes=(
+        "This is an HONEST-GAP row: the correct answer to the Hashimoto's "
+        "question is 'not directly studied', not a number — do not let a "
+        "generic thyroid-function answer stand in for the autoimmune "
+        "question.",
+        "General immunosuppression does not predict a specific autoimmune-"
+        "thyroiditis outcome; organ-specific autoimmunity can respond "
+        "differently from the systemic models Nagarkatti reviews.",
+    ),
+)
+
+
+_BETA_CELL_SURVIVAL = EndocrineRow(
+    name="Cannabinoids & pancreatic β-cell apoptosis under cytokine stress (González-Mariscal 2021)",
+    topic=EndocrineTopic.BETA_CELL_SURVIVAL,
+    claim_text=(
+        "In preclinical models, certain cannabinoids appear β-cell-protective "
+        "rather than toxic under inflammatory stress. González-Mariscal 2021 "
+        "showed that abnormal cannabidiol (Abn-CBD, an atypical synthetic "
+        "cannabinoid) reduced the severity of insulitis, lowered circulating "
+        "and intra-islet pro-inflammatory cytokines, decreased intra-islet "
+        "phospho-NF-κB and TXNIP, shifted the CD4/CD8 T-cell profile away "
+        "from pro-inflammatory, and significantly reduced islet-cell "
+        "apoptosis while improving glucose tolerance in NOD mice and "
+        "streptozotocin-challenged mice. Mechanistically this fits the wider "
+        "picture that endocannabinoid-system tone modulates cytokine-driven "
+        "β-cell death (CB1 (UniProt P21554; HGNC CNR1) signalling tends to be "
+        "pro-apoptotic/pro-inflammatory in islets, whereas CB2 (UniProt "
+        "P34972; HGNC CNR2) and atypical-cannabinoid signalling tend to be "
+        "protective). All of this is rodent / cell-level evidence with a "
+        "synthetic cannabinoid; it does NOT establish that smoked or ingested "
+        "cannabis protects human β-cells, and Δ⁹-THC's net islet effect is "
+        "less favourable than Abn-CBD's."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_GONZALEZ_MARISCAL_2021,),
+    study_design="mouse models (NOD autoimmune + STZ β-cell damage)",
+    key_finding_summary=(
+        "Abn-CBD reduced insulitis, islet cytokines and β-cell apoptosis "
+        "(mouse); CB2/atypical protective vs CB1 pro-apoptotic in islets"
+    ),
+    key_notes=(
+        "The protective signal is for a synthetic atypical cannabinoid "
+        "(Abn-CBD) in mice — not a green light for Δ⁹-THC or human cannabis; "
+        "CB1 activation is generally pro-apoptotic in islets.",
+        "No human trial has tested any cannabinoid for β-cell preservation; "
+        "this is early-stage target-validation evidence.",
+    ),
+)
+
+
+_PRENATAL_NEUROENDOCRINE = EndocrineRow(
+    name="Maternal cannabis, fetal endocannabinoid tone & offspring neuroendocrine development (Frau & Melis 2023)",
+    topic=EndocrineTopic.PRENATAL_NEUROENDOCRINE,
+    claim_text=(
+        "The endocannabinoid system has a well-characterised instructive role "
+        "in fetal neurodevelopment — CB1 (UniProt P21554; HGNC CNR1) "
+        "signalling guides "
+        "neural progenitor proliferation, migration and axon guidance — so "
+        "exogenous Δ⁹-THC crossing the placenta perturbs a developmentally "
+        "instructive signal at a sensitive window. In preclinical models, "
+        "prenatal THC exposure deranges mesolimbic dopamine-system "
+        "development and predisposes offspring to schizophrenia-relevant, "
+        "psychotic-like endophenotypes that emerge specifically on a 'second "
+        "hit' (stress or adolescent THC); the effect is sex-specific (male "
+        "offspring more affected) and is normalised by the neurosteroid "
+        "pregnenolone (Frau & Melis 2023). Human longitudinal cohorts "
+        "corroborate heightened psychopathology risk after maternal cannabis "
+        "use. Net: maternal cannabis lowers/disorders fetal endocannabinoid "
+        "tone and reprograms dopaminergic (and HPA/stress) neuroendocrine "
+        "trajectories in offspring — robust in animals, supported but "
+        "confounded in human observational data, and not quantifiable as a "
+        "dose-response from controlled human trials (which are ethically "
+        "impossible)."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_FRAU_MELIS_2023,),
+    study_design="preclinical review (prenatal-THC rodent models) + human longitudinal context",
+    key_finding_summary=(
+        "Prenatal Δ⁹-THC disorders fetal ECS-guided mesolimbic dopamine "
+        "development → sex-specific psychotic-like phenotypes on a second hit "
+        "(animal); pregnenolone reverses"
+    ),
+    key_notes=(
+        "Human evidence is observational and confounded (polysubstance use, "
+        "socioeconomics); the mechanistic causal detail comes from animal "
+        "models.",
+        "Effects are most evident as latent vulnerability unmasked by later "
+        "stress or THC, not as an unconditional deficit — and are sex-"
+        "specific.",
+    ),
+)
+
+
+_MELATONIN_CIRCADIAN = EndocrineRow(
+    name="Cannabis, melatonin secretion & circadian/metabolic rhythm (Ried 2022 RCT)",
+    topic=EndocrineTopic.MELATONIN_CIRCADIAN,
+    claim_text=(
+        "Direct human data are limited but suggestive. In a randomised "
+        "double-blind placebo-controlled crossover trial in adults with "
+        "insomnia (Ried 2022, n=29), a Δ⁹-THC (10 mg/mL) + CBD (15 mg/mL) oil "
+        "raised midnight salivary melatonin by ~30% versus a ~20% decline on "
+        "placebo (p=0.035), alongside improved sleep — i.e. cannabis "
+        "constituents can acutely shift the melatonin rhythm upward. Older "
+        "human work likewise reported that smoked Δ⁹-THC could increase "
+        "nocturnal plasma melatonin. This contrasts with the broader concern "
+        "that chronic, late-night use can disrupt circadian timing and, via "
+        "CB1 (UniProt P21554; HGNC CNR1) effects on the suprachiasmatic clock "
+        "and on appetite/energy-balance circuits, degrade glucose handling "
+        "and weight regulation. The "
+        "evidence is a small RCT plus mechanistic inference: a single short "
+        "trial cannot establish chronic circadian or metabolic consequences, "
+        "and effects likely depend on dose, timing, THC:CBD ratio and "
+        "tolerance."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.JOURNAL_RCT,
+    citations=(_RIED_2022,),
+    study_design="small randomised double-blind placebo-controlled crossover (n=29)",
+    key_finding_summary=(
+        "One small RCT: THC+CBD oil raised midnight melatonin ~30% vs placebo "
+        "(p=0.035); chronic circadian/metabolic effects not established"
+    ),
+    key_notes=(
+        "A single small crossover RCT on an insomnia population does not "
+        "generalise to chronic-use circadian disruption — the long-term and "
+        "metabolic limb of the question is mechanistic inference, not data.",
+        "Acute melatonin elevation (sleep aid) and chronic circadian "
+        "disruption are not contradictory: timing and chronicity matter.",
+    ),
+)
+
+
+_CBD_FULLSPECTRUM_CORTISOL = EndocrineRow(
+    name="Isolated CBD vs full-spectrum extract on the acute cortisol stress response (Appiah-Kusi 2020)",
+    topic=EndocrineTopic.CBD_FULLSPECTRUM_CORTISOL,
+    claim_text=(
+        "Isolated CBD has direct human evidence of blunting the acute "
+        "cortisol stress response: in an RCT using the Trier Social Stress "
+        "Test, 600 mg/day CBD for one week produced an intermediate cortisol "
+        "reactivity between healthy controls and placebo-treated clinical-"
+        "high-risk patients (Appiah-Kusi 2020; companion analysis Davies "
+        "2021), and earlier work (Zuardi and colleagues) showed CBD "
+        "attenuates cortisol. The specific head-to-head the question asks — "
+        "isolated CBD VERSUS full-spectrum hemp extract on cortisol during "
+        "acute stress testing — has NOT been done: no controlled study "
+        "compares an isolate to a matched full-spectrum extract at equivalent "
+        "CBD dose on a cortisol endpoint. The 'entourage' rationale (minor "
+        "cannabinoids/terpenes modifying the response) is a hypothesis, and "
+        "any full-spectrum residual Δ⁹-THC would, if anything, tend to RAISE "
+        "acute cortisol (opposing CBD), so the net direction of a full-"
+        "spectrum extract is not predictable from the isolate data. Clinical "
+        "superiority of full-spectrum over isolate for cortisol is unproven."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.JOURNAL_RCT,
+    citations=(_APPIAH_KUSI_2020, _DAVIES_2021),
+    study_design="CBD RCTs (TSST cortisol); no isolate-vs-full-spectrum head-to-head",
+    key_finding_summary=(
+        "Isolated CBD (600 mg) blunts/normalises TSST cortisol (RCT); no "
+        "controlled isolate-vs-full-spectrum comparison exists"
+    ),
+    key_notes=(
+        "The comparative half of the question is unstudied — do not assert a "
+        "full-spectrum advantage; full-spectrum THC could oppose CBD's "
+        "cortisol-lowering.",
+        "CBD cortisol RCTs are in clinical-high-risk / anxiety samples, not "
+        "healthy general population — generalisability is limited.",
+    ),
+)
+
+
+_CHS_ADH_ELECTROLYTE = EndocrineRow(
+    name="Cannabinoid hyperemesis syndrome, ADH & electrolytes — secondary, not a primary endocrine effect",
+    topic=EndocrineTopic.CHS_ADH_ELECTROLYTE,
+    claim_text=(
+        "Cannabinoid hyperemesis syndrome (CHS) — cyclic severe vomiting in "
+        "chronic cannabis users, relieved by hot showers and by cessation "
+        "(Sorensen 2017; Venkatesan 2019) — does cause electrolyte "
+        "disturbances and volume depletion, but these are the EXPECTED "
+        "SECONDARY consequence of protracted vomiting and dehydration "
+        "(hypokalaemia, hypochloraemic metabolic alkalosis, prerenal acute "
+        "kidney injury, and a secondary rise in antidiuretic hormone / "
+        "vasopressin driven by hypovolaemia and nausea), NOT evidence of a "
+        "primary cannabinoid action on ADH secretion. There is essentially "
+        "no study measuring a direct cannabinoid effect on ADH/vasopressin in "
+        "CHS, so a claim of CHS 'triggering significant acute ADH "
+        "fluctuations' as a primary endocrine mechanism is unsupported — the "
+        "fluctuations are physiologically appropriate responses to vomiting "
+        "and hypovolaemia. The clinically important point is real: CHS "
+        "episodes warrant electrolyte and volume monitoring."
+    ),
+    claim_type=ClaimType.SAFETY,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_SORENSEN_2017, _VENKATESAN_2019),
+    study_design="CHS systematic review + consensus; no primary ADH/vasopressin study",
+    key_finding_summary=(
+        "CHS electrolyte/volume disturbance is secondary to vomiting + "
+        "dehydration (with appropriate hypovolaemic ADH rise); no primary "
+        "cannabinoid-ADH effect demonstrated"
+    ),
+    key_notes=(
+        "HONEST-GAP row: distinguish a SECONDARY ADH/electrolyte response to "
+        "vomiting from a PRIMARY cannabinoid effect on ADH — only the former "
+        "is supported.",
+        "Clinically, CHS dehydration and AKI are well documented; the "
+        "endocrine framing (ADH) is reactive physiology, not a cannabinoid "
+        "secretagogue effect.",
+    ),
+)
+
+
+_CB1_ANTAGONIST_BAT = EndocrineRow(
+    name="CB1 antagonists/inverse agonists, brown-adipose thermogenesis & UCP1 (Verty 2008)",
+    topic=EndocrineTopic.CB1_ANTAGONIST_BAT,
+    claim_text=(
+        "Blocking CB1 (UniProt P21554; HGNC CNR1) increases energy "
+        "expenditure partly via brown adipose tissue (BAT) thermogenesis. In "
+        "rats, chronic rimonabant (a CB1 antagonist/inverse agonist, "
+        "10 mg/kg for 21 days) produced sustained weight loss despite only a "
+        "transient drop in food intake, with a marked rise in interscapular "
+        "BAT temperature and a corresponding increase in uncoupling protein 1 "
+        "(UCP1) mRNA and protein; surgically denervating the BAT attenuated "
+        "both the temperature rise and the weight loss, showing the effect is "
+        "substantially CNS-mediated (sympathetic drive to BAT) rather than a "
+        "purely local adipocyte action (Verty 2008). This is the "
+        "physiological mirror image of CB1 AGONISM (which promotes lipogenesis "
+        "and energy storage). The evidence is robust preclinically; the "
+        "human translation is cautionary, because the CB1-antagonist drug "
+        "class (rimonabant) was withdrawn for psychiatric adverse effects, so "
+        "central CB1 blockade is not a usable human therapy despite the clear "
+        "BAT/UCP1 energetics."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_VERTY_2008,),
+    study_design="rodent mechanistic study (telemetry BAT temperature, UCP1, BAT denervation)",
+    key_finding_summary=(
+        "CB1 antagonist (rimonabant) raised BAT thermogenesis + UCP1 and "
+        "energy expenditure in rats, CNS/sympathetically mediated"
+    ),
+    key_notes=(
+        "Rodent evidence; the human CB1-antagonist class (rimonabant) was "
+        "withdrawn for depression/suicidality — the energetics are real but "
+        "central CB1 blockade is not a viable human therapy.",
+        "Peripherally-restricted CB1 antagonists are under investigation "
+        "precisely to capture this metabolic benefit without CNS harm.",
+    ),
+)
+
+
+_LIPID_PROFILE = EndocrineRow(
+    name="Daily cannabis use & the lipid profile (HDL/LDL/VLDL) — inconsistent human evidence",
+    topic=EndocrineTopic.LIPID_PROFILE,
+    claim_text=(
+        "Human evidence on cannabis and the lipid profile is inconsistent and "
+        "mostly cross-sectional/secondary, so no confident HDL/LDL/VLDL "
+        "direction can be asserted. Two forces pull opposite ways: "
+        "mechanistically, CB1 (UniProt P21554; HGNC CNR1) activation promotes "
+        "hepatic lipogenesis and VLDL/triglyceride synthesis (which would "
+        "WORSEN lipids), yet cannabis users are cross-sectionally leaner with "
+        "lower fasting insulin, which tends to associate with a more "
+        "favourable profile. Reported human associations are mixed — for "
+        "example, one case-control cohort found cannabis use associated with "
+        "significantly LOWER triglycerides (Mhalla 2018, a secondary, "
+        "confounded finding in a psychiatric sample), while other surveys show "
+        "little consistent effect on HDL or LDL. No dedicated, adequately-"
+        "powered prospective study has tested daily cannabis on hepatic VLDL "
+        "synthesis or a full fasting lipid panel, so the honest answer is "
+        "'inconsistent / understudied', with a mechanistic expectation that "
+        "the direct hepatic CB1 effect (pro-lipogenic) is partly offset by "
+        "the leaner metabolic phenotype of users."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_VETTOR_2009, _MHALLA_2018),
+    study_design="mechanistic review + secondary cross-sectional association (mixed evidence)",
+    key_finding_summary=(
+        "Inconsistent human data; CB1 is pro-lipogenic (↑VLDL) yet users are "
+        "leaner — opposing forces; no dedicated lipid trial"
+    ),
+    key_notes=(
+        "Do not assert a clean HDL/LDL/VLDL direction — the human literature "
+        "is mixed and confounded by tobacco co-use, diet and adiposity.",
+        "The pro-lipogenic CB1 mechanism (↑VLDL/TG) and the lean-user "
+        "epidemiology genuinely conflict; that tension IS the answer.",
+    ),
+)
+
+
+_GI_INCRETIN = EndocrineRow(
+    name="Gut cannabinoid signalling & incretin (GLP-1 / GIP) secretion (Reimann & Gribble 2016)",
+    topic=EndocrineTopic.GI_INCRETIN,
+    claim_text=(
+        "Localised endocannabinoid/CB1 signalling in the gastrointestinal "
+        "tract modulates incretin secretion from enteroendocrine cells. In "
+        "the enteroendocrine-physiology literature (Reimann & Gribble 2016), "
+        "CB1 (UniProt P21554; HGNC CNR1) agonists have been shown to "
+        "selectively INHIBIT glucose-dependent insulinotropic polypeptide "
+        "(GIP) secretion from K-cells, while the lipid-sensing receptor "
+        "GPR119 (a target shared by some endocannabinoid-like mediators such "
+        "as oleoylethanolamide) PROMOTES glucagon-like peptide-1 (GLP-1) "
+        "release from L-cells. Thus the endocannabinoidome can push incretin "
+        "tone in opposite directions depending on the receptor and ligand: "
+        "CB1 tone tends to blunt GIP, whereas GPR119/PPARα-type signalling "
+        "augments GLP-1. This is mechanistic/physiological evidence "
+        "(rodent + cell models, human enteroendocrine biology); the net "
+        "effect of smoked or ingested cannabis on human postprandial GLP-1 "
+        "and GIP has not been characterised in a dedicated clinical study."
+    ),
+    claim_type=ClaimType.MECHANISM,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_REIMANN_GRIBBLE_2016,),
+    study_design="enteroendocrine mechanism review (rodent + cell + human gut biology)",
+    key_finding_summary=(
+        "CB1 agonism selectively inhibits GIP; GPR119 (endocannabinoid-like "
+        "ligands) promotes GLP-1 — receptor-dependent, opposite directions"
+    ),
+    key_notes=(
+        "The incretin effect is receptor-specific (CB1↓GIP vs GPR119↑GLP-1) "
+        "— a blanket 'cannabis changes incretins' statement is too coarse.",
+        "No human cannabis-exposure study measures postprandial GLP-1/GIP; "
+        "this is target-level physiology, not clinical pharmacology.",
+    ),
+)
+
+
+_DELIVERY_ROUTE_HPG = EndocrineRow(
+    name="Delivery route (inhaled/oral/topical) and effects on testosterone / LH — PK is known, the HPG endpoint is not route-resolved",
+    topic=EndocrineTopic.DELIVERY_ROUTE_HPG,
+    claim_text=(
+        "Route of administration sharply changes Δ⁹-THC pharmacokinetics: "
+        "inhalation gives a rapid, high plasma peak (Cmax within minutes, "
+        "bioavailability ~10-35%); oral ingestion gives a delayed, lower, "
+        "prolonged peak (Tmax 1-3 h) with a large first-pass conversion to "
+        "the active 11-OH-THC metabolite; topical/transdermal application of "
+        "non-permeation-enhanced cannabinoids produces little to no systemic "
+        "absorption. From those PK facts it FOLLOWS that any "
+        "hypothalamic-pituitary-gonadal effect would track systemic exposure "
+        "— inhaled and oral routes can engage the HPG axis (the broader "
+        "literature links cannabis to lowered LH and inconsistent "
+        "testosterone), whereas a truly topical, non-systemic application "
+        "would not be expected to move serum testosterone or LH. HOWEVER, no "
+        "study has actually MEASURED route-resolved peak effects on serum "
+        "testosterone and LH, so the route-versus-hormone comparison is an "
+        "inference from pharmacokinetics, not a directly demonstrated "
+        "dose-by-route endocrine result — that specific comparison is a "
+        "genuine evidence gap."
+    ),
+    claim_type=ClaimType.PHARMACOKINETIC,
+    evidence_level=EvidenceLevel.C,
+    source_tier=SourceTier.SINGLE_ARM_OR_MECH,
+    citations=(_PAYNE_2019, _BROWN_DOBS_2002),
+    study_design="route PK (established) + HPG-hormone literature; no route-resolved hormone study",
+    key_finding_summary=(
+        "Route sets systemic exposure (inhaled>oral>>topical≈0); HPG effects "
+        "track exposure, but no study measures route-resolved testosterone/LH"
+    ),
+    key_notes=(
+        "HONEST-GAP row: PK-by-route is well established and HPG suppression "
+        "is documented, but their PRODUCT (route → peak testosterone/LH) is "
+        "inferred, not measured.",
+        "Topical/transdermal cannabinoids are largely non-systemic, so a "
+        "meaningful HPG effect from a topical is mechanistically unlikely.",
+    ),
+)
+
+
 _REGISTRY: tuple[EndocrineRow, ...] = (
     _METABOLIC_INSULIN,
     _ADIPOGENESIS_LEPTIN,
@@ -755,6 +1261,17 @@ _REGISTRY: tuple[EndocrineRow, ...] = (
     _ADRENAL_HPA,
     _RECEPTOR_DESENSITIZATION,
     _BONE_REMODELING,
+    # Spec 027 — second endocrine question wave.
+    _AUTOIMMUNE_THYROIDITIS,
+    _BETA_CELL_SURVIVAL,
+    _PRENATAL_NEUROENDOCRINE,
+    _MELATONIN_CIRCADIAN,
+    _CBD_FULLSPECTRUM_CORTISOL,
+    _CHS_ADH_ELECTROLYTE,
+    _CB1_ANTAGONIST_BAT,
+    _LIPID_PROFILE,
+    _GI_INCRETIN,
+    _DELIVERY_ROUTE_HPG,
 )
 
 
@@ -863,6 +1380,94 @@ _TOPIC_KEYWORDS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"skeletal|bone\s+loss"
         ),
     ),
+    # ── Spec 027 — second wave ──────────────────────────────────────────
+    (
+        EndocrineTopic.AUTOIMMUNE_THYROIDITIS,
+        _topic_rx(
+            r"hashimoto\w*|autoimmune\s+thyroid\w*|thyroid\s+autoimmun\w*|"
+            r"thyroiditis|graves[\s']*\s*disease|thyroid\s+peroxidase|"
+            r"anti[- ]?tpo|thyroid\s+autoantibod\w*"
+        ),
+    ),
+    (
+        EndocrineTopic.BETA_CELL_SURVIVAL,
+        _topic_rx(
+            r"beta[- ]?cell\w*|β[- ]?cell\w*|islet\w*|insulitis|"
+            r"insulin[- ]?secreting|pancreatic\s+(?:beta|β)"
+        ),
+    ),
+    (
+        EndocrineTopic.PRENATAL_NEUROENDOCRINE,
+        _topic_rx(
+            r"maternal|prenatal|in\s*utero|fetal|foetal|offspring|"
+            r"gestational|perinatal|neurodevelopment\w*|"
+            r"neuroendocrine\s+develop\w*"
+        ),
+    ),
+    (
+        EndocrineTopic.MELATONIN_CIRCADIAN,
+        _topic_rx(
+            r"melatonin|circadian|suprachiasmatic|pineal\b"
+        ),
+    ),
+    (
+        EndocrineTopic.CHS_ADH_ELECTROLYTE,
+        _topic_rx(
+            r"(?:hyperemesis|cannabinoid\s+hyperemesis|\bchs\b)[\s\S]{0,90}"
+            r"(?:\badh\b|antidiuretic|vasopressin|electrolyte\w*|sodium|"
+            r"hyponatr\w*|dehydrat\w*)|"
+            r"(?:\badh\b|antidiuretic|vasopressin|electrolyte\w*|hyponatr\w*)"
+            r"[\s\S]{0,90}(?:hyperemesis|\bchs\b)"
+        ),
+    ),
+    (
+        EndocrineTopic.CB1_ANTAGONIST_BAT,
+        _topic_rx(
+            r"ucp1|uncoupling\s+protein|brown\s+adipose|brown\s+fat|"
+            r"thermogen\w*"
+        ),
+    ),
+    (
+        EndocrineTopic.LIPID_PROFILE,
+        _topic_rx(
+            r"lipid\s+profile|\bhdl\b|\bldl\b|\bvldl\b|cholesterol|"
+            r"triglycerid\w*|dyslipid\w*|lipogenesis|lipoprotein"
+        ),
+    ),
+    (
+        EndocrineTopic.GI_INCRETIN,
+        _topic_rx(
+            r"incretin\w*|glp[- ]?1|\bgip\b|glucagon[- ]?like\s+peptide|"
+            r"enteroendocrine"
+        ),
+    ),
+    # CBD-vs-full-spectrum cortisol: needs BOTH the comparison framing AND a
+    # cortisol endpoint (so it does not hijack every full-spectrum question
+    # nor every cortisol question — those route to ADRENAL_HPA).
+    (
+        EndocrineTopic.CBD_FULLSPECTRUM_CORTISOL,
+        re.compile(
+            r"(?=[\s\S]*(?:full[- ]?spectrum|isolate\b|isolated\s+cbd|"
+            r"cbd\s+isolate|broad[- ]?spectrum|hemp\s+extract))"
+            r"(?=[\s\S]*cortisol)",
+            re.IGNORECASE,
+        ),
+    ),
+    # Delivery-route → testosterone/LH: keyed on (route × gonadal hormone)
+    # WITHOUT requiring an explicit cannabinoid token — the canonical prompt
+    # ("inhalation, ingestion, topical … testosterone and LH") names no
+    # cannabinoid, which is exactly why the cannabis-context detectors stayed
+    # silent. Route-vocabulary + a gonadal hormone is specific enough.
+    (
+        EndocrineTopic.DELIVERY_ROUTE_HPG,
+        re.compile(
+            r"(?=[\s\S]*(?:inhalation|inhaled|ingestion|ingested|edible\w*|"
+            r"smoked|vaporiz\w*|vaporis\w*|sublingual|oromucosal|topical|"
+            r"transdermal|route\s+of\s+administration|delivery\s+method\w*))"
+            r"(?=[\s\S]*(?:testosterone|luteinizing|luteinising|\blh\b))",
+            re.IGNORECASE,
+        ),
+    ),
 )
 
 
@@ -923,6 +1528,36 @@ _TOPIC_DISPLAY_NAMES = {
     ),
     EndocrineTopic.BONE_REMODELING: (
         "Bone — osteoblast/osteoclast & BMD (Ofek 2006)"
+    ),
+    EndocrineTopic.AUTOIMMUNE_THYROIDITIS: (
+        "Autoimmune thyroiditis / Hashimoto's — evidence gap (Nagarkatti 2009)"
+    ),
+    EndocrineTopic.BETA_CELL_SURVIVAL: (
+        "Pancreatic β-cell apoptosis & cytokines (González-Mariscal 2021)"
+    ),
+    EndocrineTopic.PRENATAL_NEUROENDOCRINE: (
+        "Maternal cannabis & offspring neuroendocrine development (Frau 2023)"
+    ),
+    EndocrineTopic.MELATONIN_CIRCADIAN: (
+        "Melatonin secretion & circadian/metabolic rhythm (Ried 2022 RCT)"
+    ),
+    EndocrineTopic.CBD_FULLSPECTRUM_CORTISOL: (
+        "Isolated CBD vs full-spectrum on acute cortisol (Appiah-Kusi 2020)"
+    ),
+    EndocrineTopic.CHS_ADH_ELECTROLYTE: (
+        "CHS, ADH & electrolytes — secondary, not primary (Sorensen 2017)"
+    ),
+    EndocrineTopic.CB1_ANTAGONIST_BAT: (
+        "CB1 antagonist → BAT thermogenesis & UCP1 (Verty 2008)"
+    ),
+    EndocrineTopic.LIPID_PROFILE: (
+        "Cannabis & lipid profile (HDL/LDL/VLDL) — inconsistent (Vettor/Mhalla)"
+    ),
+    EndocrineTopic.GI_INCRETIN: (
+        "Gut cannabinoid signalling & incretins GLP-1/GIP (Reimann 2016)"
+    ),
+    EndocrineTopic.DELIVERY_ROUTE_HPG: (
+        "Delivery route → testosterone/LH — PK known, endpoint not resolved"
     ),
 }
 
