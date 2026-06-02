@@ -221,7 +221,7 @@ _THOMAS_2005 = MinorCannabinoidCitation(
 )
 _RIEDEL_2009 = MinorCannabinoidCitation(
     label="Riedel G et al., Br J Pharmacol 2009, THCV reduces food intake in mice",
-    pmid="19422089", year=2009,
+    pmid="19378378", year=2009,
 )
 _JADOON_2016 = MinorCannabinoidCitation(
     label="Jadoon KA et al., Diabetes Care 2016, THCV in type 2 diabetes",
@@ -237,7 +237,7 @@ _HILL_2012 = MinorCannabinoidCitation(
 )
 _HILL_2013 = MinorCannabinoidCitation(
     label="Hill AJ et al., Br J Pharmacol 2013, CBDV mechanism review",
-    pmid="23425285", year=2013,
+    pmid="23902406", year=2013,
 )
 _DEVINSKY_CBDV_2018 = MinorCannabinoidCitation(
     label="Devinsky O et al., Epilepsia 2018, CBDV Phase II adult focal epilepsy (negative)",

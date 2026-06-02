@@ -188,7 +188,7 @@ _MURRAY_2017 = PsychiatryCitation(
     label="Murray RM et al., Lancet Psychiatry 2017, cannabis-associated "
           "psychosis — neural substrate and clinical impact (narrative "
           "review)",
-    pmid="27986841", year=2017,
+    pmid="27717258", year=2017,
 )
 
 

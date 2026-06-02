@@ -341,7 +341,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Sachse-Seeboth 2009 — CYP2C9 polymorphism and THC PK",
-                pmid="19444221",
+                pmid="19005461",
                 year=2009,
             ),
             InteractionCitation(

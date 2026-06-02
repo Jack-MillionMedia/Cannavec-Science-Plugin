@@ -29,7 +29,7 @@ Topic coverage:
   ~0.51-0.59 for cannabis dependence (DSM-IV framework, comparable
   to other substance-use disorders).
 - ``age_of_onset`` — telescoping effect / adolescent-onset risk.
-  Chen 2009 (PMID 19166934) for the telescoping effect; Hall &
+  Chen 2009 (PMID 19022584) for the telescoping effect; Hall &
   Degenhardt 2009 (PMID 19837255) for adolescent-onset dependence-
   trajectory data.
 
@@ -187,7 +187,7 @@ _VERWEIJ_2010 = UseDisorderCitation(
 _CHEN_2009 = UseDisorderCitation(
     label="Chen CY et al., Drug Alcohol Depend 2009, early-onset drug use "
           "and risk for drug dependence problems",
-    pmid="19166934", year=2009,
+    pmid="19022584", year=2009,
 )
 _HALL_DEGENHARDT_2009 = UseDisorderCitation(
     label="Hall W & Degenhardt L, Lancet 2009, adverse health effects of "

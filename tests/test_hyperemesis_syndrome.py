@@ -157,7 +157,7 @@ class IntegrationWithComposerTests(unittest.TestCase):
             "cannabinoid hyperemesis syndrome compulsive hot bathing"
         )
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("15082584", pmids)
+        self.assertIn("15479672", pmids)
 
     def test_capsaicin_query_returns_dezieck_2017(self):
         a = compose_answer(

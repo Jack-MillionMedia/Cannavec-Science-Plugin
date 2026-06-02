@@ -10,7 +10,7 @@ caution; v0.5 ships a curated registry under Constitution §IV
 Topic coverage:
 
 - ``diagnostic_criteria`` — Sorensen 2017 systematic review (PMID
-  28000146) and Allen 2004 original case series (PMID 15082584).
+  28000146) and Allen 2004 original case series (PMID 15479672).
   Cyclic vomiting + abdominal pain + compulsive hot bathing in a
   chronic heavy cannabis user; resolves with cessation.
 - ``rome_iv`` — Venkatesan 2019 (PMID 31241819) consensus criteria
@@ -157,7 +157,7 @@ _ALLEN_2004 = HyperemesisSyndromeCitation(
     label="Allen JH et al., Gut 2004, cannabinoid hyperemesis — cyclical "
           "hyperemesis in association with chronic cannabis abuse (original "
           "9-case series naming the syndrome)",
-    pmid="15082584", year=2004,
+    pmid="15479672", year=2004,
 )
 _SIMONETTO_2012 = HyperemesisSyndromeCitation(
     label="Simonetto DA et al., Mayo Clin Proc 2012, cannabinoid "
