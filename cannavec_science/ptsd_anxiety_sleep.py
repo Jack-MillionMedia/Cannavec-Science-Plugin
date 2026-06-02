@@ -181,6 +181,11 @@ _WALSH_2017 = PtsdAnxietySleepCitation(
           "review of preclinical and clinical studies",
     pmid="32603954", year=2020,
 )
+_VELZEBOER_2022 = PtsdAnxietySleepCitation(
+    label="Velzeboer R et al., Sleep 2022, cannabis dosing and "
+          "administration for sleep — a systematic review",
+    pmid="36107800", year=2022,
+)
 
 
 # ── Registry rows ──────────────────────────────────────────────────────
@@ -321,12 +326,16 @@ _WALSH_SLEEP = PtsdAnxietySleepRow(
         "syndrome, REM-sleep behaviour disorder, and narcolepsy — but "
         "stressed the need for larger, rigorously controlled, longer-term "
         "trials. It is an essential primary-source corrective to "
-        "marketing-implied 'cannabis for sleep' framings."
+        "marketing-implied 'cannabis for sleep' framings. A second "
+        "systematic review (Velzeboer et al. 2022, Sleep; 31 studies) "
+        "converged on the same verdict — sleep benefits were inconsistent "
+        "and concentrated in pain-related sleep disturbance, with "
+        "heterogeneity precluding specific dosing recommendations."
     ),
     claim_type=ClaimType.CLINICAL_EFFICACY,
     evidence_level=EvidenceLevel.A,
     source_tier=SourceTier.SR_FLAGSHIP,
-    citations=(_WALSH_2017,),
+    citations=(_WALSH_2017, _VELZEBOER_2022),
     indication="Sleep (across formulations)",
     key_finding_summary=(
         "Limited and inconclusive evidence; some short-term signals "
