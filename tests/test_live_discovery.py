@@ -281,6 +281,19 @@ class AnswerWithFallbackTests(unittest.TestCase):
         self.assertTrue(used)
         self.assertEqual(len(a.live_findings), 0)
 
+    def test_no_live_match_adds_honest_note(self):
+        # Fallback runs but the live lanes find nothing → an honest note that
+        # points the user at the focused-keyword path.
+        a, used = live.answer_with_fallback(
+            self._NOVEL, sources=["pubmed"],
+            runners={"pubmed": _pubmed_runner([])},
+        )
+        self.assertTrue(used)
+        self.assertEqual(len(a.live_findings), 0)
+        self.assertTrue(
+            any("no precise primary-source match" in n for n in a.notes)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

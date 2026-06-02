@@ -251,11 +251,15 @@ class PubMedSearcher:
     def _build_esearch_url(
         self, query: str, since: Optional[str], retmax: int
     ) -> str:
+        # Best-match relevance for an open search (a research tool wants the
+        # most relevant papers, not merely the newest); chronological only
+        # when a date floor is set, where recency is the point.
+        sort = "date" if since is not None else "relevance"
         parts = [
             _PUBMED_ESEARCH_URL,
             f"&term={urllib.parse.quote(query)}",
             f"&retmax={retmax}",
-            "&sort=date",
+            f"&sort={sort}",
         ]
         if since is not None:
             # NCBI expects YYYY/MM/DD with slashes; we accept dashes

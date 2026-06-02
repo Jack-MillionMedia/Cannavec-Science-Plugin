@@ -387,5 +387,26 @@ class TestSortRetractedLast(unittest.TestCase):
         self.assertEqual(hits[-1].retraction_status, "retracted")
 
 
+class EsearchSortTests(unittest.TestCase):
+    """A research tool wants best-match relevance for an open search, and
+    chronological order only when a date floor is set."""
+
+    def _esearch_url(self, **search_kw) -> str:
+        esearch = _stub_fetcher(_make_esearch_fixture(["10000001"]))
+        esummary = _stub_fetcher(
+            _make_esummary_fixture([_make_esummary_record("10000001")])
+        )
+        PubMedSearcher(
+            esearch_fetcher=esearch, esummary_fetcher=esummary
+        ).search("CBD dry eye", max_results=1, **search_kw)
+        return esearch.calls[0]
+
+    def test_open_search_sorts_by_relevance(self) -> None:
+        self.assertIn("sort=relevance", self._esearch_url())
+
+    def test_dated_search_sorts_by_date(self) -> None:
+        self.assertIn("sort=date", self._esearch_url(since="2020-01-01"))
+
+
 if __name__ == "__main__":
     unittest.main()

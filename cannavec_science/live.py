@@ -323,4 +323,15 @@ def answer_with_fallback(
             "primary-source findings (provisional, unverified; NOT curated "
             "facts). Verify each identifier before citing.",
         )
+    elif not answer.live_findings and not had_claims:
+        # Fallback ran but found no precise primary-source match. Be honest
+        # and point the user at the focused-keyword path — robustly turning a
+        # full natural-language question into a precise query is a concept-
+        # extraction task the deterministic backbone does not attempt.
+        answer.notes = answer.notes + (
+            "0 curated claims and live discovery found no precise primary-"
+            "source match for this phrasing. Try the discover surface with "
+            "focused keywords (the cannabinoid + the condition/target, e.g. "
+            "'cannabidiol dry eye' rather than a full sentence).",
+        )
     return answer, True
