@@ -73,3 +73,10 @@ jobs:
         # Same contract as the PMID audit: a wrong accession (points at a
         # different protein) fails; an unfetchable one is inconclusive.
         run: python3 evals/audit_uniprot.py
+      - name: Claim-support audit (does the cited paper support the claim?)
+        # High-recall flagger: soft verdicts (UNVERIFIED/WEAK) print a review
+        # queue but do NOT fail; only a direction CONTRADICTION (abstract asserts
+        # the opposite of the claim) fails the build. Network-resilient.
+        env:
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+        run: python3 evals/audit_claim_support.py
