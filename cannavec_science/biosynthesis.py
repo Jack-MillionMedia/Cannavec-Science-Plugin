@@ -18,8 +18,8 @@ Topic coverage:
 - ``prenyltransferase`` — geranyl pyrophosphate transferase (CBGAS /
   GOT / prenyltransferase) couples olivetolic acid + GPP →
   cannabigerolic acid (CBGA), the common precursor for all
-  downstream cannabinoid acids. Page 2011 (PMID 21896800) is the
-  primary characterisation paper.
+  downstream cannabinoid acids. Fellermeier & Zenk 1998 (PMID 9607329)
+  is the primary characterisation paper for this prenyltransferase step.
 - ``acid_synthase`` — THCA synthase (Sirikantaramas 2004 PMID 15190053)
   and CBDA synthase (Taura 1996 PMID 8632416) are FAD-dependent
   oxidocyclases that catalyse the divergent cyclisation of CBGA into
