@@ -395,7 +395,7 @@ _REGISTRY: tuple[Contraindication, ...] = (
         ),
         citations=(
             ContraindicationCitation(
-                label="Hartman 2015 — Cannabis effects on driving (review)",
+                label="Hartman & Huestis 2013 Clin Chem — cannabis effects on driving skills (review)",
                 pmid="23220273",
                 year=2015,
             ),
@@ -599,7 +599,7 @@ _REGISTRY: tuple[Contraindication, ...] = (
         ),
         citations=(
             ContraindicationCitation(
-                label="Hartman 2015 — Cannabis effects on driving (review)",
+                label="Hartman & Huestis 2013 Clin Chem — cannabis effects on driving skills (review)",
                 pmid="23220273",
                 year=2015,
             ),
