@@ -79,6 +79,14 @@ from cannavec_science.contraindications import build_claim as build_claim_for_co
 from cannavec_science.interactions import build_claim as build_claim_for_interaction
 from cannavec_science.populations import build_claim as build_claim_for_population
 from cannavec_science.answer import compose_answer
+from cannavec_science.ranker import (
+    Candidate,
+    DeterministicRanker,
+    RankResult,
+    RankedCandidate,
+    rank_candidates,
+    rank_discovery_result,
+)
 
 __all__ = [
     "__version__",
@@ -95,4 +103,12 @@ __all__ = [
     "build_claim_for_interaction",
     "build_claim_for_population",
     "compose_answer",
+    # Candidate ranker (cost-efficient retrieve-then-rerank; the optional
+    # LLM lift lives in cannavec_science.ranker_llm).
+    "Candidate",
+    "DeterministicRanker",
+    "RankResult",
+    "RankedCandidate",
+    "rank_candidates",
+    "rank_discovery_result",
 ]
