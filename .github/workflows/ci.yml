@@ -6,8 +6,14 @@ name: CI
 #   * citation-audit — the ONLINE guard the offline suite cannot provide: it
 #                      checks that every curated PMID still resolves to the paper
 #                      its label claims (evals/audit_pmids.py). A well-formed but
-#                      wrong PMID passes all offline tests, so this runs weekly
-#                      (and on demand) against live PubMed.
+#                      wrong PMID passes all offline tests, so this gates every
+#                      PR (and runs weekly) against live PubMed. A PMID that
+#                      cannot be fetched is inconclusive, never a false failure.
+#
+# Note: the offline `tests` job also runs tests/test_citation_integrity_guard.py
+# — a denylist of identifiers confirmed wrong in the past, enforced with zero
+# network so it can never silently fail to run. citation-audit is the online
+# net for *new* mistakes; the guard is the always-on floor for known ones.
 
 on:
   push:
@@ -41,11 +47,17 @@ jobs:
         run: python3 -m unittest discover -s tests
 
   citation-audit:
-    # Online integrity guard. Scheduled + manual only (kept off per-push to
-    # stay polite to NCBI and avoid PR-time network flakiness). Add an
+    # Online integrity gate. Runs on every PR (so a wrong identifier blocks
+    # merge — mark this check "required" in branch protection to enforce it),
+    # plus a weekly full sweep and on demand. PR-time network flakiness is no
+    # longer a problem: an unfetchable PMID is reported inconclusive, not a
+    # suspect, so only a genuine wrong-paper mismatch fails the build. Add an
     # NCBI_API_KEY repo secret to lift the rate limit; the job still runs
     # without it, just slower.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
