@@ -16,12 +16,12 @@ a **thirteenth primary-source live lane**:
   Bull dose-response SR (PMID 26884547), Vaucher 2018 Mendelian
   randomization Mol Psychiatry (PMID 29039420), Bhattacharyya 2009
   acute-THC fMRI Arch Gen Psychiatry (PMID 19996036), Hjorthøj 2023
-  Danish national-register cohort (PMID 36402143), Murray 2017
+  Danish national-register cohort (PMID 37140715), Murray 2017
   Lancet Psychiatry narrative review.
 - **Driving-impairment science** (≥ 5 rows): Compton 2017 NHTSA
   Virginia Beach case-control crash-risk (DOT HS 812 411), Hartman
   2015 Clin Chem plasma-THC dose-response (PMID 25371545), Marcotte
-  2022 JAMA Psychiatry driving-simulator RCT (PMID 35138350),
+  2022 JAMA Psychiatry driving-simulator RCT (PMID 35080588),
   Brubacher 2022 NEJM BC post-legalization cohort (PMID 35081282),
   Bondallaz 2016 Forensic Sci Int SR (PMID 27082781). The SCIENCE,
   not the LAW — per-se law surfaces remain in the parent plugin.

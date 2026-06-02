@@ -25,8 +25,8 @@ Topic coverage:
   acute-THC fMRI (PMID 19996036). Healthy-volunteer acute Δ⁹-THC
   challenge produces transient psychotomimetic symptoms with
   measurable prefrontal-cortex BOLD changes.
-- ``national_cohort`` — Hjorthøj 2023 Lancet Psychiatry national-
-  register study (PMID 36402143). Population-level attributable-
+- ``national_cohort`` — Hjorthøj 2023 Psychological Medicine national-
+  register study (PMID 37140715). Population-level attributable-
   fraction analysis using Danish national health registers.
 - ``review_lancet`` — Murray 2017 Lancet Psychiatry narrative review
   of cannabis-and-psychosis evidence (PMID 28935667 or analogous).
@@ -179,10 +179,10 @@ _BHATTACHARYYA_2009 = PsychiatryCitation(
     pmid="19996036", year=2009,
 )
 _HJORTHOJ_2023 = PsychiatryCitation(
-    label="Hjorthøj C et al., Lancet Psychiatry 2023, association between "
+    label="Hjorthøj C et al., Psychological Medicine 2023, association between "
           "cannabis use disorder and schizophrenia stronger in young males "
           "than in females — Danish national register analysis",
-    pmid="36402143", year=2023,
+    pmid="37140715", year=2023,
 )
 _MURRAY_2017 = PsychiatryCitation(
     label="Murray RM et al., Lancet Psychiatry 2017, cannabis-associated "
@@ -349,10 +349,10 @@ _BHATTACHARYYA_ACUTE_THC = PsychiatryRow(
 
 
 _HJORTHOJ_REGISTER = PsychiatryRow(
-    name="Hjorthøj 2023 Lancet Psychiatry — Danish national-register CUD & schizophrenia",
+    name="Hjorthøj 2023 Psychological Medicine — Danish national-register CUD & schizophrenia",
     topic=PsychiatryTopic.NATIONAL_COHORT,
     claim_text=(
-        "Hjorthøj et al. 2023 Lancet Psychiatry analysed Danish national "
+        "Hjorthøj et al. 2023 Psychological Medicine analysed Danish national "
         "health register data (~7 million individuals) on cannabis use "
         "disorder (ICD-coded clinical CUD diagnosis) and subsequent "
         "schizophrenia incidence. The Hjorthøj finding was that the "

@@ -20,6 +20,10 @@ from cannavec_science.__main__ import (
     _classify_identifier,
     _cmd_verify,
 )
+from cannavec_science.pubmed_verify import (
+    VerificationResult,
+    VerificationVerdict,
+)
 
 
 # ── Identifier classification ─────────────────────────────────────────
@@ -295,6 +299,72 @@ class UnknownIdentifierTests(unittest.TestCase):
         # Spec US5 acceptance scenario 4 — every accepted shape is named.
         for shape in ("PMID", "DOI", "NCT", "ChEMBL", "UniProt"):
             self.assertIn(shape, msg)
+
+
+# ── PMID verify verdict handling (fail-closed) ────────────────────────
+
+
+def _mk_result(verdict, **kw):
+    return VerificationResult(identifier="28538134", verdict=verdict, **kw)
+
+
+class PMIDVerifyVerdictTests(unittest.TestCase):
+    """The PMID verify path must branch on the typed verdict and fail
+    CLOSED: a network/transport failure is UNVERIFIED (non-zero), never a
+    PASS (Constitution §I — a citation is trustworthy only once the upstream
+    record is confirmed). Regression for the fail-open where any truthy
+    result rendered PASS and author/year always showed '?'.
+    """
+
+    def _run(self, result, *, json_mode=False):
+        args = argparse.Namespace(
+            identifier="28538134", json=json_mode, no_citation_network=True,
+        )
+        with patch(
+            "cannavec_science.pubmed_verify.verify_pmid", return_value=result,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_verify(args)
+        return rc, buf.getvalue()
+
+    def test_match_renders_pass_with_author_and_year(self):
+        rc, out = self._run(_mk_result(
+            VerificationVerdict.MATCH,
+            actual_first_author="Devinsky", actual_year=2017,
+            journal="N Engl J Med", title="Trial of Cannabidiol...",
+            retraction_status="clean",
+        ))
+        self.assertEqual(rc, 0)
+        self.assertIn("PASS", out)
+        # Field-name regression: author/year now render (were always '?').
+        self.assertIn("Devinsky", out)
+        self.assertIn("2017", out)
+
+    def test_network_error_is_unverified_not_pass(self):
+        rc, out = self._run(_mk_result(
+            VerificationVerdict.NETWORK_ERROR,
+            notes=("network error: HTTPError: HTTP Error 403: Forbidden",),
+        ))
+        self.assertNotEqual(rc, 0)            # fail closed
+        self.assertIn("UNVERIFIED", out)
+        self.assertNotIn("PASS", out)
+
+    def test_not_found_is_fail_not_pass(self):
+        rc, out = self._run(_mk_result(VerificationVerdict.NOT_FOUND))
+        self.assertEqual(rc, 1)
+        self.assertIn("FAIL", out)
+        self.assertNotIn("PASS", out)
+
+    def test_network_error_json_marks_unverified(self):
+        rc, out = self._run(
+            _mk_result(VerificationVerdict.NETWORK_ERROR, notes=("boom",)),
+            json_mode=True,
+        )
+        self.assertNotEqual(rc, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "UNVERIFIED")
+        self.assertNotIn("PASS", json.dumps(payload))
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ Topic coverage:
   Provides the methodologically rigorous plasma-concentration
   framework that per-se thresholds reference (but cannot endorse
   causally given the long detection window).
-- ``simulator_rct`` — Marcotte 2022 JAMA Psychiatry (PMID 35138350)
+- ``simulator_rct`` — Marcotte 2022 JAMA Psychiatry (PMID 35080588)
   randomized double-blind placebo-controlled simulator-driving RCT.
   Acute Δ⁹-THC dose-dependently impaired driving-performance composite
   score (DSC) up to ~3-4 h post-smoking; impairment persisted longer
@@ -188,7 +188,7 @@ _MARCOTTE_2022 = DrivingImpairmentCitation(
     label="Marcotte TD et al., JAMA Psychiatry 2022, driving performance "
           "and cannabis users' perception of safety — double-blind placebo-"
           "controlled randomized driving-simulator trial",
-    pmid="35138350", year=2022,
+    pmid="35080588", year=2022,
 )
 _BRUBACHER_2022 = DrivingImpairmentCitation(
     label="Brubacher JR et al., New England Journal of Medicine 2022, "
