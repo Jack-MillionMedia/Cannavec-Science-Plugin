@@ -240,8 +240,10 @@ _HILL_2013 = MinorCannabinoidCitation(
     pmid="23902406", year=2013,
 )
 _DEVINSKY_CBDV_2018 = MinorCannabinoidCitation(
-    label="Devinsky O et al., Epilepsia 2018, CBDV Phase II adult focal epilepsy (negative)",
-    pmid="29446035", year=2018,
+    label="Brodie MJ et al., Cannabis Cannabinoid Res 2021, Phase 2 RCT of "
+          "cannabidivarin (GWP42006) add-on therapy in adults with "
+          "inadequately-controlled focal seizures (negative primary endpoint)",
+    pmid="33998885", year=2021,
 )
 _DESPRES_2013 = MinorCannabinoidCitation(
     label="Borrelli F et al., Biochem Pharmacol 2013, CBC anti-inflammatory in colitis model",
@@ -274,7 +276,7 @@ _STOUT_2014 = MinorCannabinoidCitation(
 )
 _NAVARRO_2018 = MinorCannabinoidCitation(
     label="Navarro G et al., Biochem Pharmacol 2018, CBG selective α2-adrenoceptor agonism",
-    pmid="29940156", year=2018,
+    pmid="29977202", year=2018,
 )
 _BORRELLI_2013 = MinorCannabinoidCitation(
     label="Borrelli F et al., Biochem Pharmacol 2013, CBG anti-inflammatory in IBD model",

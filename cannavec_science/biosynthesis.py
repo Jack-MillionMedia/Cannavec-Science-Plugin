@@ -173,11 +173,10 @@ _GAGNE_2012 = BiosynthesisCitation(
     pmid="22802619", year=2012,
 )
 _PAGE_2011 = BiosynthesisCitation(
-    label="Page JE & Boubakir Z, Phytochemistry 2011, aromatic "
-          "prenyltransferase from Cannabis (CBGAS / GOT) — biosynthesis "
-          "of cannabigerolic acid by a soluble bacterial enzyme; "
-          "comparative work establishing the plant pathway PT step",
-    pmid="21896800", year=2011,
+    label="Fellermeier M & Zenk MH, FEBS Lett 1998, prenylation of "
+          "olivetolate by a hemp transferase (GOT) yields cannabigerolic "
+          "acid — the first committed step of cannabinoid biosynthesis",
+    pmid="9607329", year=1998,
 )
 _SIRIKANTARAMAS_2004 = BiosynthesisCitation(
     label="Sirikantaramas S et al., J Biol Chem 2004, the gene controlling "
