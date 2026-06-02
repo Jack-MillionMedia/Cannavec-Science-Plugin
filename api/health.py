@@ -37,6 +37,15 @@ class handler(BaseHTTPRequestHandler):
             payload["version"] = getattr(cannavec_science, "__version__", "unknown")
             payload["phase"] = 2 if live_ready else 1
             payload["live_discovery"] = live_ready
+            # Ranking capability probe: the deterministic cross-source ranker is
+            # always available (stdlib); the LLM rerank lift needs the optional
+            # ``anthropic`` package deployed AND an ``ANTHROPIC_API_KEY`` set.
+            import importlib.util
+            payload["ranking"] = True
+            payload["llm_rerank"] = (
+                importlib.util.find_spec("anthropic") is not None
+                and bool(os.environ.get("ANTHROPIC_API_KEY"))
+            )
             payload["curated_registries"] = len(groups)
             payload["registry_names"] = list(groups)
             payload["endpoints"] = ["/api/answer", "/api/discover", "/api/rigor",

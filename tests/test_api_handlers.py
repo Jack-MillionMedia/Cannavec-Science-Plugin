@@ -90,6 +90,10 @@ class HTTPRoundTripTests(unittest.TestCase):
         payload = json.loads(data)
         self.assertEqual(payload["status"], "ok")
         self.assertGreaterEqual(payload["curated_registries"], 21)
+        # Ranking capability probe: deterministic ranking always on; the LLM
+        # rerank flag reflects whether anthropic + a key are deployed.
+        self.assertTrue(payload["ranking"])
+        self.assertIn("llm_rerank", payload)
 
     def test_answer_get_json(self):
         mod = _load("answer")
@@ -174,6 +178,42 @@ class DiscoverHandlerTests(unittest.TestCase):
         payload = json.loads(data)
         self.assertFalse(payload["ok"])
         self.assertTrue(payload["refused"])
+
+    def test_discover_includes_deterministic_ranking_by_default(self):
+        from cannavec_science import live
+        canned = {
+            "query": "cbd epilepsy",
+            "sources": {"pubmed": [
+                {"pmid": "1", "title": "Cannabidiol for epilepsy: a systematic review",
+                 "year": 2022, "pubtypes": ["Systematic Review"],
+                 "retraction_status": "clean"},
+                {"pmid": "2", "title": "A case report on hop brewing chemistry",
+                 "year": 2005, "pubtypes": ["Case Reports"],
+                 "retraction_status": "clean"},
+            ]},
+            "synthesis": {"convergence": "WEAK"},
+        }
+        mod = _load("discover")
+        with mock.patch.object(live, "run_discovery", return_value=canned):
+            with _Server(mod.handler) as s:
+                status, data = s.request("GET", "/?query=cbd%20epilepsy")
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertIn("ranking", payload)
+        self.assertEqual(payload["ranking"]["backend_used"], "deterministic")
+        ids = [r["identifier"] for r in payload["ranking"]["ranked"]]
+        self.assertEqual(ids[0], "1")  # the on-topic SR outranks the off-topic case report
+
+    def test_discover_rank_false_omits_ranking(self):
+        from cannavec_science import live
+        canned = {"query": "x", "sources": {"pubmed": [{"pmid": "1", "title": "x"}]},
+                  "synthesis": {"convergence": "WEAK"}}
+        mod = _load("discover")
+        with mock.patch.object(live, "run_discovery", return_value=canned):
+            with _Server(mod.handler) as s:
+                status, data = s.request("GET", "/?query=x&rank=false")
+        self.assertEqual(status, 200)
+        self.assertNotIn("ranking", json.loads(data))
 
 
 class AnswerAugmentHandlerTests(unittest.TestCase):

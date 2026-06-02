@@ -10,8 +10,17 @@ Request
 ``GET  /api/discover?query=...&sources=pubmed,ctgov&max=10&since=YYYY-MM-DD``
 ``POST /api/discover``  body ``{"query":"...","sources":["pubmed"],"max":10}``
 
+Ranking (cross-source) is on by default — a free, offline, deterministic
+re-ordering of the fanned-out hits by relevance + study design + recency, with
+retracted papers sunk to the bottom. Disable with ``rank=false``. The optional
+LLM lift (``rerank=true``, model via ``rerank_model``) fires only when the
+deterministic order is genuinely uncertain and degrades silently to the
+deterministic order if the ``anthropic`` package or ``ANTHROPIC_API_KEY`` is
+not present — so the discover response always stands.
+
 Response → ``{"ok": true, "query", "sources": {<src>: [rows]|{"error"}},
-              "synthesis": {...convergence verdict...}}``
+              "synthesis": {...convergence verdict...},
+              "ranking": {...ranked candidates + escalation_reason...}}``
 
 Safety: the query passes the §V discover preflight before any network call;
 a refused query returns HTTP 422 with the reason. Per-lane failures degrade
@@ -32,9 +41,56 @@ if _REPO_ROOT not in sys.path:
 
 _ALLOWED_ORIGIN = os.environ.get("CANNAVEC_ALLOWED_ORIGIN", "*")
 
+# Default model for the opt-in LLM rerank (Sonnet 4.6 — accuracy-equivalent to
+# Opus for a bounded rerank at lower cost). Override per request with
+# ``rerank_model``; requires the ``anthropic`` package + ``ANTHROPIC_API_KEY``.
+_DEFAULT_RERANK_MODEL = "claude-sonnet-4-6"
 
-def _markdown(result: dict) -> str:
+
+def _maybe_rank(query, result, *, rank, rerank, rerank_model, max_results):
+    """Rank the fanned-out candidates across sources, or return ``None``.
+
+    Deterministic by default (free, offline, additive). ``rerank`` adds the LLM
+    lift, which auto-fires only on a genuine ranking uncertainty and degrades to
+    the deterministic order on any failure. Ranking never fails the response:
+    any unexpected error here returns ``None`` and the fan-out still stands.
+    """
+    if not rank:
+        return None
+    try:
+        from cannavec_science.ranker import (
+            candidates_from_discovery, rank_candidates,
+        )
+        cands = candidates_from_discovery(result)
+        if not cands:
+            return None
+        backend = None
+        if rerank:
+            from cannavec_science.ranker_llm import LLMReranker
+            backend = LLMReranker(model=rerank_model)
+        return rank_candidates(
+            query, cands, backend=backend, top_k=max(1, int(max_results or 10)),
+        ).to_dict()
+    except Exception:  # noqa: BLE001 — ranking is additive, never fatal
+        return None
+
+
+def _markdown(result: dict, ranking: dict | None = None) -> str:
     lines = [f"## Live discovery — {result.get('query', '')}", ""]
+    if ranking and ranking.get("ranked"):
+        reason = ranking.get("escalation_reason")
+        backend = ranking.get("backend_used", "deterministic")
+        tag = f"LLM rerank — {reason}" if ranking.get("escalated") else "deterministic"
+        lines.append(f"### Ranked candidates ({tag})")
+        for r in ranking["ranked"][:10]:
+            star = " ★" if r.get("reordered_by_llm") else ""
+            flag = "" if r.get("retraction_status") == "clean" else f" ⚠ {r.get('retraction_status')}"
+            title = (r.get("title") or "").strip()
+            lines.append(
+                f"{r.get('rank')}.{star} `{r.get('identifier')}`{flag} "
+                f"{title}".rstrip()
+            )
+        lines.append("")
     for src in sorted(result.get("sources", {})):
         val = result["sources"][src]
         if isinstance(val, dict) and "error" in val:
@@ -106,7 +162,11 @@ class handler(BaseHTTPRequestHandler):
             max_results = int((q.get("max") or ["10"])[0])
         except (TypeError, ValueError):
             max_results = 10
-        self._handle(query, sources, max_results, since, fmt)
+        rank = (q.get("rank") or ["true"])[0].strip().lower() != "false"
+        rerank = (q.get("rerank") or ["false"])[0].strip().lower() == "true"
+        rerank_model = (q.get("rerank_model") or [_DEFAULT_RERANK_MODEL])[0]
+        self._handle(query, sources, max_results, since, fmt,
+                     rank, rerank, rerank_model)
 
     def do_POST(self) -> None:
         try:
@@ -128,9 +188,14 @@ class handler(BaseHTTPRequestHandler):
             max_results = int(data.get("max", 10))
         except (TypeError, ValueError):
             max_results = 10
-        self._handle(query, sources or None, max_results, since, fmt)
+        rank = bool(data.get("rank", True))
+        rerank = bool(data.get("rerank", False))
+        rerank_model = str(data.get("rerank_model") or _DEFAULT_RERANK_MODEL)
+        self._handle(query, sources or None, max_results, since, fmt,
+                     rank, rerank, rerank_model)
 
-    def _handle(self, query, sources, max_results, since, fmt) -> None:
+    def _handle(self, query, sources, max_results, since, fmt,
+                rank=True, rerank=False, rerank_model=_DEFAULT_RERANK_MODEL) -> None:
         if not query:
             self._json(400, {"ok": False, "error": "missing 'query'"})
             return
@@ -156,7 +221,15 @@ class handler(BaseHTTPRequestHandler):
                              "detail": type(exc).__name__})
             return
 
+        ranking = _maybe_rank(
+            query, result, rank=rank, rerank=rerank,
+            rerank_model=rerank_model, max_results=max_results,
+        )
+
         if fmt == "markdown":
-            self._text(200, _markdown(result))
+            self._text(200, _markdown(result, ranking))
         else:
-            self._json(200, {"ok": True, **result})
+            out = {"ok": True, **result}
+            if ranking is not None:
+                out["ranking"] = ranking
+            self._json(200, out)

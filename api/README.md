@@ -31,6 +31,15 @@ live findings are never promoted to curated facts (§IX).
   (default `pubmed,ctgov`), `max=<int>` (≤25), `since=YYYY-MM-DD`,
   `format=json|markdown`. The CT.gov lane is relevance-gated to cannabinoid
   trials so a broad free-text query can't surface unrelated studies.
+  **Ranking:** `rank=true|false` (default `true`) adds a cross-source **Ranked
+  candidates** block — a free, offline, deterministic re-ordering by relevance
+  + study design + recency, with retracted papers sunk to the bottom.
+  `rerank=true` (default `false`) adds the optional LLM lift, which fires only
+  when the deterministic order is genuinely uncertain and degrades silently to
+  the deterministic order if `anthropic`/`ANTHROPIC_API_KEY` is absent;
+  `rerank_model` (default `claude-sonnet-4-6`) selects the model. The ranking
+  block carries `escalation_reason` (`top near-tie` | `design inversion` |
+  `weak lexical signal` | `forced`) so you can see *why* the LLM was consulted.
 
 ## Environment variables
 
@@ -39,6 +48,13 @@ live findings are never promoted to curated facts (§IX).
 | `CANNAVEC_ALLOWED_ORIGIN` | recommended | CORS allow-origin (default `*` — set to your site before public launch). |
 | `NCBI_API_KEY` | for live | Authenticates NCBI E-utilities (raises rate limit 3→10 req/s, fixes shared-IP `403`). Live discovery degrades gracefully without it. |
 | `NCBI_EMAIL` | optional | NCBI etiquette contact, sent alongside the key. |
+| `ANTHROPIC_API_KEY` | for `rerank=true` | Enables the optional LLM rerank lift. Also requires adding `anthropic` to `requirements.txt` (the stdlib-only default deployment does **not** bundle it). Without both, `rerank=true` degrades silently to deterministic ranking. |
+
+> **Enabling the LLM rerank on Vercel** is a deliberate opt-in (it adds a
+> non-stdlib dependency, against the Constitution §X stdlib-only default): add
+> `anthropic>=0.40` to `requirements.txt`, set `ANTHROPIC_API_KEY` in the
+> Vercel project env, and redeploy. Verify with `GET /api/health` →
+> `"llm_rerank": true`. Deterministic ranking needs none of this.
 
 ## Notes
 
