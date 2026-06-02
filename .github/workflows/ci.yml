@@ -80,3 +80,11 @@ jobs:
         env:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
         run: python3 evals/audit_claim_support.py
+      - name: Audit curated DOIs against Crossref
+        # Resolves every curated DOI; a DOI that 404s or resolves to a paper
+        # matching neither the author nor the title at the cite fails. This is
+        # the only audit that verifies the non-PubMed DOIs (JACS, JSTOR, NASEM).
+        run: python3 evals/audit_dois.py
+      - name: Audit curated ChEMBL ids against ChEMBL
+        # A ChEMBL id that 404s or resolves to a different compound fails.
+        run: python3 evals/audit_chembl.py
