@@ -234,7 +234,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
             ),
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -273,7 +273,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
             TerpeneCitation(
@@ -316,7 +316,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -352,7 +352,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
             TerpeneCitation(
@@ -395,7 +395,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -428,7 +428,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -460,7 +460,7 @@ _TERPENE_REGISTRY: tuple[Terpene, ...] = (
         citations=(
             TerpeneCitation(
                 label="Russo EB, Br J Pharmacol 2011, terpenes and the entourage effect",
-                pmid="20925516",
+                pmid="21749363",
                 year=2011,
             ),
         ),
@@ -606,7 +606,7 @@ def entourage_effect_note() -> str:
     commercially over-claimed.
     """
     return (
-        "**Entourage effect hypothesis** (Russo 2011, PMID 20925516): "
+        "**Entourage effect hypothesis** (Russo 2011, PMID 21749363): "
         "Terpenes may modulate cannabinoid effects via receptor-level "
         "interactions. This hypothesis has mechanistic support at the "
         "in-vitro level for β-caryophyllene (CB2 agonism) and linalool "

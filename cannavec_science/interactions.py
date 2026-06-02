@@ -346,7 +346,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
             ),
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
         ),
@@ -407,7 +407,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
             InteractionCitation(
@@ -616,7 +616,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
             InteractionCitation(
@@ -672,7 +672,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
         ),
@@ -699,7 +699,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
             InteractionCitation(
@@ -731,7 +731,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Stout 2014 — Cannabinoid PK and drug interactions review",
-                pmid="24329521",
+                pmid="24160757",
                 year=2014,
             ),
         ),

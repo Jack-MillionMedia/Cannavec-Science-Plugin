@@ -270,7 +270,7 @@ _KARNIOL_1975 = MinorCannabinoidCitation(
 # `pending verification` / search-URL re-introduction.
 _STOUT_2014 = MinorCannabinoidCitation(
     label="Stout SM & Cimino NM, Drug Metab Rev 2014, cannabinoid PK and drug interactions",
-    pmid="24329521", year=2014,
+    pmid="24160757", year=2014,
 )
 _NAVARRO_2018 = MinorCannabinoidCitation(
     label="Navarro G et al., Biochem Pharmacol 2018, CBG selective α2-adrenoceptor agonism",

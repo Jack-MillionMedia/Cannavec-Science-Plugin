@@ -219,7 +219,7 @@ _GAONI_1964 = AnalyticalChemistryCitation(
 _HILLIG_MAHLBERG_2004 = AnalyticalChemistryCitation(
     label="Hillig KW & Mahlberg PG, Am J Bot 2004, chemotaxonomic analysis "
           "of cannabinoid variation in Cannabis (Cannabaceae)",
-    pmid="21652340", year=2004,
+    pmid="21653452", year=2004,
 )
 _LEGHISSA_2018 = AnalyticalChemistryCitation(
     label="Leghissa A et al., J Sep Sci 2018, the imperatives and "

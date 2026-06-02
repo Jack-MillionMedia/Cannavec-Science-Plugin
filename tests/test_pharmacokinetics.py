@@ -247,7 +247,7 @@ class IntegrationWithComposerTests(unittest.TestCase):
         self.assertFalse(a.is_refusal)
         # The Wall 1983 PMID should appear in the citation set.
         pmids = {c.pmid for c in a.citations if c.pmid}
-        self.assertIn("6311559", pmids)
+        self.assertIn("6309462", pmids)
 
 
 if __name__ == "__main__":

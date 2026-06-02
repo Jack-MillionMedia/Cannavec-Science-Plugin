@@ -133,7 +133,7 @@ _HUANG_2002 = EcbomeCitation(
 )
 _KACZOCHA_2009 = EcbomeCitation(
     label="Kaczocha M et al., PNAS 2009, FABP5/FABP7 as anandamide transporters",
-    pmid="19505913", year=2009,
+    pmid="19307565", year=2009,
 )
 _PERTWEE_2010 = EcbomeCitation(
     label="Pertwee RG et al., Pharmacol Rev 2010, IUPHAR cannabinoid receptors",

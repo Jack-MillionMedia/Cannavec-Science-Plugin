@@ -11,7 +11,7 @@ Constitution §IV (researcher-only) with primary citations per §I.
 Topic coverage:
 
 - ``dsm5_criteria`` — DSM-5 cannabis use disorder framework. Hasin
-  2013 (PMID 23537606) is the field-standard publication describing
+  2013 (PMID 23903334) is the field-standard publication describing
   the merger of abuse + dependence into a single severity-graded
   disorder (≥ 2 of 11 = mild; ≥ 4 = moderate; ≥ 6 = severe).
 - ``screening_instrument`` — Cannabis Use Disorder Identification
@@ -30,7 +30,7 @@ Topic coverage:
   to other substance-use disorders).
 - ``age_of_onset`` — telescoping effect / adolescent-onset risk.
   Chen 2009 (PMID 19166934) for the telescoping effect; Hall &
-  Degenhardt 2009 (PMID 19836820) for adolescent-onset dependence-
+  Degenhardt 2009 (PMID 19837255) for adolescent-onset dependence-
   trajectory data.
 
 Each row carries `to_claim()` returning a typed Claim, identifier-
@@ -158,7 +158,7 @@ class UseDisorderRow:
 _HASIN_2013 = UseDisorderCitation(
     label="Hasin DS et al., Am J Psychiatry 2013, DSM-5 criteria for "
           "substance use disorders — recommendations and rationale",
-    pmid="23537606", year=2013,
+    pmid="23903334", year=2013,
 )
 _ADAMSON_2010 = UseDisorderCitation(
     label="Adamson SJ et al., Drug Alcohol Depend 2010, an improved brief "
@@ -192,12 +192,12 @@ _CHEN_2009 = UseDisorderCitation(
 _HALL_DEGENHARDT_2009 = UseDisorderCitation(
     label="Hall W & Degenhardt L, Lancet 2009, adverse health effects of "
           "non-medical cannabis use",
-    pmid="19836820", year=2009,
+    pmid="19837255", year=2009,
 )
 _BUDNEY_2004 = UseDisorderCitation(
     label="Budney AJ et al., Am J Psychiatry 2004, review of the validity "
           "and significance of cannabis withdrawal syndrome",
-    pmid="15569892", year=2004,
+    pmid="15514394", year=2004,
 )
 _VOLKOW_2014 = UseDisorderCitation(
     label="Volkow ND et al., NEJM 2014, adverse health effects of marijuana "

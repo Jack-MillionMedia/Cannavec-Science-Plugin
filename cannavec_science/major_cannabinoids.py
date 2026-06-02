@@ -63,7 +63,7 @@ _DEVINSKY_2018_LGS = MinorCannabinoidCitation(
 )
 _WHITING_2015 = MinorCannabinoidCitation(
     label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
-    pmid="26408728", year=2015,
+    pmid="26103030", year=2015,
 )
 _MUCKE_2018 = MinorCannabinoidCitation(
     label="Mücke 2018 — Cannabis-based medicines for chronic neuropathic pain (Cochrane SR)",
@@ -89,7 +89,7 @@ _GROTENHERMEN_2003 = MinorCannabinoidCitation(
 )
 _TAYLOR_2018 = MinorCannabinoidCitation(
     label="Taylor 2018 — Phase 1 PK of CBD oral solution in healthy adults",
-    pmid="30156216", year=2018,
+    pmid="30374683", year=2018,
 )
 
 

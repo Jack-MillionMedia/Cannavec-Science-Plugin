@@ -386,7 +386,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
             ),
             PopulationCitation(
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
-                pmid="26408728",
+                pmid="26103030",
                 year=2015,
                 role="systematic_review",
             ),
@@ -432,7 +432,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
         citations=(
             PopulationCitation(
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
-                pmid="26408728",
+                pmid="26103030",
                 year=2015,
             ),
         ),
@@ -453,7 +453,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
         citations=(
             PopulationCitation(
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
-                pmid="26408728",
+                pmid="26103030",
                 year=2015,
             ),
         ),

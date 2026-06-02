@@ -59,7 +59,7 @@ class RegistryShapeTests(unittest.TestCase):
         for pmid in (
             "30902669",  # Di Forti 2019 EU-GEI
             "26884547",  # Marconi 2016 SR
-            "29039420",  # Vaucher 2018 MR
+            "28115737",  # Vaucher 2018 MR
         ):
             self.assertIn(pmid, all_pmids)
 

@@ -10,15 +10,15 @@ Topic coverage:
 
 - ``inhaled_pk`` — Δ⁹-THC pharmacokinetics by inhaled route (smoked +
   vaped). Huestis 2005 (PMID 16142973) is the canonical reference for
-  rapid-onset PK; vaped data from Spindle 2018 (PMID 30357265).
+  rapid-onset PK; vaped data from Spindle 2018 (PMID 30646391).
 - ``oral_pk`` — Δ⁹-THC pharmacokinetics by oral route. Wall 1983
-  (PMID 6311559) is the classic study; modern dronabinol PK is
+  (PMID 6309462) is the classic study; modern dronabinol PK is
   consistent.
 - ``food_effect`` — CBD oral PK food effect. Birnbaum 2019 (PMID
   31166007) showed a 4-5 fold AUC increase with high-fat meal, which
   is now the FDA-recognised Epidiolex food-effect label.
 - ``active_metabolite`` — 11-OH-Δ⁹-THC active-metabolite PK. Wall
-  1983 (PMID 6311559) established the equimolar-after-oral vs
+  1983 (PMID 6309462) established the equimolar-after-oral vs
   ~10%-after-inhaled AUC ratio — the first-pass-effect explanation
   for why edibles produce a different subjective profile from
   smoked cannabis.
@@ -184,13 +184,13 @@ _WALL_1983 = PharmacokineticsCitation(
     label="Wall ME et al., Clin Pharmacol Ther 1983, metabolism, "
           "disposition, and kinetics of Δ⁹-tetrahydrocannabinol in men and "
           "women",
-    pmid="6311559", year=1983,
+    pmid="6309462", year=1983,
 )
 _SPINDLE_2018 = PharmacokineticsCitation(
     label="Spindle TR et al., JAMA Netw Open 2018, acute effects of smoked "
           "and vaporized cannabis in healthy adults who infrequently use "
           "cannabis",
-    pmid="30357265", year=2018,
+    pmid="30646391", year=2018,
 )
 _BIRNBAUM_2019 = PharmacokineticsCitation(
     label="Birnbaum AK et al., Epilepsia 2019, food effect on cannabidiol "

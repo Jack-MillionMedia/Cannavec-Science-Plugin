@@ -14,8 +14,8 @@ a **thirteenth primary-source live lane**:
 - **Cannabis-and-psychosis psychiatry** (≥ 6 rows): Di Forti 2019
   EU-GEI Lancet Psychiatry (PMID 30902669), Marconi 2016 Schizophr
   Bull dose-response SR (PMID 26884547), Vaucher 2018 Mendelian
-  randomization Mol Psychiatry (PMID 29039420), Bhattacharyya 2009
-  acute-THC fMRI Arch Gen Psychiatry (PMID 19996036), Hjorthøj 2023
+  randomization Mol Psychiatry (PMID 28115737), Bhattacharyya 2009
+  acute-THC fMRI Arch Gen Psychiatry (PMID 19349314), Hjorthøj 2023
   Danish national-register cohort (PMID 37140715), Murray 2017
   Lancet Psychiatry narrative review.
 - **Driving-impairment science** (≥ 5 rows): Compton 2017 NHTSA

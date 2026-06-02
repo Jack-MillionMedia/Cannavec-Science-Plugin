@@ -311,12 +311,12 @@ class TestComposeAnswerIntegration(unittest.TestCase):
 
         # CBN-specific anchors must be present:
         # PMID 17828291 (Pertwee 2008) is the receptor-pharmacology
-        # anchor; PMID 24329521 (Stout & Cimino 2014) is the
+        # anchor; PMID 24160757 (Stout & Cimino 2014) is the
         # CYP3A4 PK / drug-interaction anchor. Both come from the
         # minor-cannabinoid registry.
         self.assertIn("17828291", cite_pmids,
                       "CBN sleep answer missing Pertwee 2008 anchor")
-        self.assertIn("24329521", cite_pmids,
+        self.assertIn("24160757", cite_pmids,
                       "CBN sleep answer missing Stout 2014 PK anchor")
 
         # Devinsky/Dravet (PMID 28538134) must NOT appear — it has

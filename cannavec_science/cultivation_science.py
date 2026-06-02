@@ -7,7 +7,7 @@ chemotype geneticist, or systematic-botany researcher asks about.
 Topic coverage:
 
 - ``light_spectrum`` — UV-B (280-315 nm) effect on cannabinoid
-  biosynthesis. The canonical Lydon 1987 (PMID 3621052) study
+  biosynthesis. The canonical Lydon 1987 (PMID 3628508) study
   established the THC-content response to UV-B; modern phytochrome /
   photosystem work refines the spectrum-dependence.
 - ``trichome_biology`` — glandular trichomes are the primary site of
@@ -16,7 +16,7 @@ Topic coverage:
   glandular trichomes; Tanney 2021 review of the secretory cell
   biology.
 - ``synthase_genetics`` — THCA-synthase / CBDA-synthase / CBCA-synthase
-  allelic dominance. de Meijer 2003 (PMID 12663552) Genetics paper
+  allelic dominance. de Meijer 2003 (PMID 12586720) Genetics paper
   established the single-locus segregation model; Onofri 2015 and
   van Bakel 2011 expanded the molecular picture.
 - ``botanical_taxonomy`` — Cannabis sativa as one species (Small &
@@ -160,7 +160,7 @@ _LYDON_1987 = CultivationCitation(
     label="Lydon J et al., Photochem Photobiol 1987, UV-B radiation effects "
           "on photosynthesis, growth, and cannabinoid production of two "
           "Cannabis sativa chemotypes",
-    pmid="3621052", year=1987,
+    pmid="3628508", year=1987,
 )
 _MAGAGNINI_2018 = CultivationCitation(
     label="Magagnini G et al., Med Cannabis Cannabinoids 2018, the effect "
@@ -181,7 +181,7 @@ _TANNEY_2021 = CultivationCitation(
 _DE_MEIJER_2003 = CultivationCitation(
     label="de Meijer EPM et al., Genetics 2003, the inheritance of "
           "chemical phenotype in Cannabis sativa L.",
-    pmid="12663552", year=2003,
+    pmid="12586720", year=2003,
 )
 _ONOFRI_2015 = CultivationCitation(
     label="Onofri C et al., Phytochemistry 2015, sequence heterogeneity "
