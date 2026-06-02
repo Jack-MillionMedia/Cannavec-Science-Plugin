@@ -1,6 +1,6 @@
 ---
 name: cannabis-evidence-synthesis
-description: Quantitative evidence-synthesis & robustness playbook for cannabis research. Auto-activate when pooling studies, computing or interpreting a meta-analysis, judging heterogeneity, rating GRADE certainty of a pooled body, appraising whether a single trial's "significant" result is robust, or screening a drug-event pair for a pharmacovigilance signal. Routes the question to the right deterministic `python3 -m cannavec_science` subcommand (meta / fragility / signal) — every tool named here is implemented in `cannavec_science/` and unit-tested; none is LLM judgement.
+description: Quantitative evidence-synthesis & robustness playbook for cannabis research. Auto-activate when pooling studies, computing or interpreting a meta-analysis, judging heterogeneity, rating GRADE certainty of a pooled body, appraising whether a single trial's "significant" result is robust, screening a drug-event pair for a pharmacovigilance signal, or comparing receptor-binding affinities across papers. Routes the question to the right deterministic `python3 -m cannavec_science` subcommand (meta / fragility / signal / affinity) — every tool named here is implemented in `cannavec_science/` and unit-tested; none is LLM judgement.
 version: 1.0.0
 ---
 
@@ -118,6 +118,21 @@ Returns the PRR and ROR (with CIs), a Yates χ², and the MHRA/Evans signal verd
 it is not an incidence, a risk, or proof of harm, and the gates withhold the
 verdict on sparse counts (a high PRR from one or two reports is not a signal).
 Report it as a lead for investigation, never as established risk.
+
+### "Are these receptor affinities from different papers comparable?"
+
+A raw **IC50** is assay-dependent (it shifts with the radioligand concentration
+and Kd), so two papers' IC50 values for the same cannabinoid at CB1 are **not**
+comparable. Convert each to an assay-independent **Ki** before ranking:
+
+```bash
+python3 -m cannavec_science affinity --ic50 10 --ligand 1 --kd 2 --unit nM
+```
+
+Returns Ki + pKi (and the correction factor). Always compare cannabinoid binding
+on Ki / pKi, never on raw IC50; report the receptor with its UniProt accession
+(§VI). Use `--mode enzyme` for competitive enzyme inhibition ([S]/Km). This is
+in-vitro binding — never a dose or a clinical inference.
 
 ## Interpretation discipline
 

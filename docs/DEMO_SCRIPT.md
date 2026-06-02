@@ -519,3 +519,81 @@ inhibition, NOT to on-target FAAH biology" and cites van Esbroeck 2017
 Kerbrat 2016. A researcher who walks away with that single
 disambiguation has more pharmacological grounding than 90% of the
 press coverage of the Rennes disaster.
+
+## Quantitative evidence-synthesis & robustness toolkit (specs 011–024)
+
+The deepest cut for a methodologist audience. Every command below is
+deterministic stdlib Python — no LLM in the path, byte-identical on
+re-run — and serves one of the four expert personas the product is
+built to multiply: scientific reviewer, trialist, toxicologist,
+pharmacologist. The unifying message: **with few studies, refuse to
+overstate precision.**
+
+The skill `cannabis-evidence-synthesis` teaches Claude to route a
+question to the right command in this block.
+
+### The reviewer — pool, diagnose, and GRADE a body of evidence
+
+```bash
+# Random-effects pool with heterogeneity, a prediction interval, and the
+# full GRADE Summary-of-Findings (certainty → relative → absolute → NNT).
+python3 -m cannavec_science meta studies.json --measure RR \
+    --certainty --baseline-risk 0.40
+
+# Why is I² high? Explain it with a continuous moderator (meta-regression),
+# and use Hartung-Knapp throughout for the few-studies penalty.
+python3 -m cannavec_science meta studies.json --measure SMD \
+    --moderator-key dose --knha
+```
+
+What to notice:
+
+- **GRADE imprecision now has two criteria (spec 018).** A pool whose CI
+  excludes the null can still be downgraded if its total enrolment is below
+  the **Optimal Information Size** — the confidence-laundering a CI-only
+  check misses. An underpowered SMD pool that read "High ⊕⊕⊕⊕" before now
+  reads "Moderate" with the reason `below OIS`.
+- **HKSJ vs DerSimonian-Laird (spec 021).** With `--knha`, a k=3 pool whose
+  DL CI reads a tight `[0.40, 0.68]` surfaces an honest `[0.30, 0.92]`.
+- **Meta-regression self-flags small k (spec 020):** under ~10 studies per
+  covariate it prints `CAUTION … treat as exploratory`.
+
+### The toxicologist — pool a rate, screen for a signal
+
+```bash
+# Pooled adverse-event incidence (single-arm, Freeman-Tukey — valid at
+# 0%/100% where a logit pool fails).
+python3 -m cannavec_science meta rates.json --measure prop
+
+# Is this drug-event pair a disproportionality signal in the spontaneous
+# reports? PRR + ROR + Yates chi-square + MHRA/Evans criterion.
+python3 -m cannavec_science signal --drug-event 25 --drug-other 1000 \
+    --other-event 70 --other-other 9000
+```
+
+What to notice: the signal verdict **withholds** on sparse counts (a PRR of
+9 from one report is not a signal), and every result states that
+disproportionality is **hypothesis-generating, not causal** (spec 023).
+
+### The trialist — is that "significant" result robust?
+
+```bash
+python3 -m cannavec_science fragility --events-t 8 --n-t 100 \
+    --events-c 20 --n-c 100
+```
+
+The **Fragility Index** (spec 022): how many patient outcomes would have to
+flip to lose significance. A headline trial with `--events-t 1 --n-t 50
+--events-c 9 --n-c 50` returns **FI = 1** — a single patient carries the
+entire claim.
+
+### The pharmacologist — make affinities comparable
+
+```bash
+python3 -m cannavec_science affinity --ic50 10 --ligand 1 --kd 2 --unit nM
+```
+
+**Cheng-Prusoff** (spec 024): a raw IC50 is assay-dependent, so two papers'
+cannabinoid IC50 values at CB1 are not comparable. The conversion to Ki +
+pKi puts them on one axis — always compare cannabinoid binding on Ki, never
+on raw IC50, and report the receptor with its UniProt accession (§VI).
