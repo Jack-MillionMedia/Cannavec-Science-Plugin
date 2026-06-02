@@ -1027,6 +1027,47 @@ def _cmd_source_health(args: argparse.Namespace) -> int:
     return 1 if any_down else 0
 
 
+def _cmd_fragility(args: argparse.Namespace) -> int:
+    """Fragility Index of a single 2×2 trial (spec 022)."""
+    from cannavec_science.fragility import (
+        FragilityError, fragility_index, render_fragility,
+    )
+    try:
+        result = fragility_index(
+            args.events_t, args.n_t, args.events_c, args.n_c,
+            alpha=getattr(args, "alpha", 0.05),
+        )
+    except FragilityError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(render_fragility(result))
+    # A non-significant result is a clean, expected outcome — exit 0.
+    return 0
+
+
+def _cmd_signal(args: argparse.Namespace) -> int:
+    """Pharmacovigilance disproportionality / signal detection (spec 023)."""
+    from cannavec_science.disproportionality import (
+        DisproportionalityError, disproportionality, render_disproportionality,
+    )
+    try:
+        result = disproportionality(
+            args.drug_event, args.drug_other,
+            args.other_event, args.other_other,
+        )
+    except DisproportionalityError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(render_disproportionality(result))
+    return 0
+
+
 def _cmd_meta(args: argparse.Namespace) -> int:
     """Pool per-study effect sizes into a meta-analysis (spec 011).
 
@@ -1049,6 +1090,12 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         render_trim_fill,
         subgroup_analysis,
         trim_and_fill,
+        proportion_meta_analyze,
+        render_proportion,
+        meta_regression,
+        render_meta_regression,
+        hksj_interval,
+        render_hksj,
     )
 
     try:
@@ -1059,6 +1106,41 @@ def _cmd_meta(args: argparse.Namespace) -> int:
 
     measure = (getattr(args, "measure", None) or spec.get("measure") or "generic")
     confidence = float(getattr(args, "confidence", 0.95) or 0.95)
+
+    # Single-arm proportion meta-analysis (spec 019): a structurally different
+    # surface — pooled rates carry no comparator — handled before the
+    # comparative OR/RR/MD/SMD pipeline.
+    if str(measure).strip().upper() in ("PFT", "PROP", "PROPORTION"):
+        try:
+            prop_effects = effects_from_records(
+                spec.get("studies", []), measure="PFT")
+            presult = proportion_meta_analyze(prop_effects, confidence=confidence)
+        except KeyError as exc:
+            print(f"[error] study missing required field: {exc}", file=sys.stderr)
+            return 2
+        except MetaAnalysisError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
+        p_egger = None
+        if getattr(args, "diagnostics", False):
+            try:
+                p_egger = egger_test(prop_effects)
+            except MetaAnalysisError:
+                p_egger = None
+        if getattr(args, "json", False):
+            payload = presult.to_dict()
+            if getattr(args, "diagnostics", False):
+                payload["egger"] = (
+                    p_egger.to_dict() if p_egger is not None
+                    else {"note": "Egger's test requires at least 3 studies"}
+                )
+            print(json.dumps(payload, indent=2, default=str))
+        else:
+            print(render_proportion(presult))
+            if p_egger is not None:
+                print("")
+                print(render_egger(p_egger))
+        return 0
 
     try:
         effects = effects_from_records(spec.get("studies", []), measure=measure)
@@ -1097,6 +1179,36 @@ def _cmd_meta(args: argparse.Namespace) -> int:
                     effects, measure=measure_arg, confidence=confidence)
             except MetaAnalysisError:
                 subgroups = None
+
+    # Hartung-Knapp-Sidik-Jonkman interval for the pooled estimate (spec 021).
+    # --knha doubles as "use Hartung-Knapp throughout" — for the pool here and
+    # for the meta-regression slope below.
+    hksj = None
+    if getattr(args, "knha", False):
+        try:
+            hksj = hksj_interval(result)
+        except MetaAnalysisError:
+            hksj = None
+
+    # Meta-regression on a continuous moderator (spec 020). Each study record
+    # must carry a numeric field named by --moderator-key.
+    metareg = None
+    mod_key = getattr(args, "moderator_key", None)
+    if mod_key:
+        records = spec.get("studies", [])
+        try:
+            mod_vals = [float(r[mod_key]) for r in records]
+        except (KeyError, TypeError, ValueError):
+            print(f"[error] meta-regression: every study needs a numeric "
+                  f"{mod_key!r} field", file=sys.stderr)
+            return 2
+        try:
+            metareg = meta_regression(
+                effects, mod_vals, moderator_name=mod_key,
+                confidence=confidence, knha=getattr(args, "knha", False))
+        except MetaAnalysisError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            return 2
 
     # Absolute effects & NNT (spec 015). CLI --baseline-risk overrides any
     # spec {"baseline": {...}} block. Ratio measures only — a continuous
@@ -1149,6 +1261,10 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             risk_of_bias=getattr(args, "risk_of_bias", "not-serious"),
             indirectness=getattr(args, "indirectness", "not-serious"),
             egger=egger,
+            # One control rate, two GRADE uses: absolute effect + OIS
+            # imprecision (spec 018).
+            baseline_risk=baseline_risk,
+            pooling_sd=getattr(args, "pooling_sd", None),
         )
 
     if getattr(args, "json", False):
@@ -1172,6 +1288,10 @@ def _cmd_meta(args: argparse.Namespace) -> int:
             payload["certainty"] = certainty.to_dict()
         if abs_effect is not None:
             payload["absolute_effect"] = abs_effect.to_dict()
+        if hksj is not None:
+            payload["hksj"] = hksj.to_dict()
+        if metareg is not None:
+            payload["meta_regression"] = metareg.to_dict()
         print(json.dumps(payload, indent=2, default=str))
     else:
         print(render_markdown(result))
@@ -1193,6 +1313,12 @@ def _cmd_meta(args: argparse.Namespace) -> int:
         if abs_effect is not None:
             print("")
             print(render_absolute(abs_effect))
+        if hksj is not None:
+            print("")
+            print(render_hksj(hksj))
+        if metareg is not None:
+            print("")
+            print(render_meta_regression(metareg))
     return 0
 
 
@@ -1408,21 +1534,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Pool per-study effect sizes into a fixed-effect + DerSimonian-"
             "Laird random-effects meta-analysis with heterogeneity (Q, I², "
-            "τ²) and a GRADE inconsistency verdict. Deterministic, stdlib-only."
+            "τ²) and a GRADE inconsistency verdict — comparative (OR/RR/MD/SMD) "
+            "or single-arm rates (--measure prop, Freeman-Tukey). "
+            "Deterministic, stdlib-only."
         ),
     )
     m.add_argument(
         "spec",
         help=(
-            'JSON file: {"measure": "OR|RR|MD|SMD|generic", "studies": [...]}. '
-            "Each study carries a primary-source identifier (pmid/doi/nct/"
-            "chembl/uniprot/url) per §I and either a 2×2 table, continuous "
-            "arm summaries, or precomputed yi/vi."
+            'JSON file: {"measure": "OR|RR|MD|SMD|prop|generic", "studies": '
+            '[...]}. Each study carries a primary-source identifier (pmid/doi/'
+            "nct/chembl/uniprot/url) per §I and either a 2×2 table, continuous "
+            "arm summaries, a single-arm {events, n} rate (prop), or "
+            "precomputed yi/vi."
         ),
     )
     m.add_argument(
         "--measure", default=None,
-        help="Override the spec's measure: OR | RR | MD | SMD | generic.",
+        help=("Override the spec's measure: OR | RR | MD | SMD | prop | "
+              "generic. 'prop' pools single-arm rates (Freeman-Tukey)."),
     )
     m.add_argument("--confidence", type=float, default=0.95,
                    help="Confidence level for CIs (default 0.95).")
@@ -1430,6 +1560,16 @@ def _build_parser() -> argparse.ArgumentParser:
                    help=("Append robustness diagnostics (spec 012): Egger's "
                          "small-study-effects test and a leave-one-out "
                          "sensitivity analysis."))
+    m.add_argument("--moderator-key", default=None,
+                   help=("Meta-regression (spec 020): the numeric study-record "
+                         "field to regress the effect on (e.g. dose, year, "
+                         "baseline severity). Reports slope, R², and residual "
+                         "heterogeneity."))
+    m.add_argument("--knha", action="store_true",
+                   help=("Use Hartung-Knapp throughout (recommended for few "
+                         "studies): a modified-HKSJ CI for the pooled estimate "
+                         "(spec 021) and the Knapp-Hartung t-test for the "
+                         "meta-regression slope (spec 020)."))
     # Absolute effects & NNT (spec 015) — ratio measures only.
     m.add_argument("--baseline-risk", type=float, default=None,
                    help=("Assumed comparator (control) risk in (0,1). When set "
@@ -1458,6 +1598,11 @@ def _build_parser() -> argparse.ArgumentParser:
     m.add_argument("--evidence-base", choices=["rct", "observational"],
                    default="rct",
                    help="Starting certainty: RCT body → High, observational → Low.")
+    m.add_argument("--pooling-sd", type=float, default=None,
+                   help=("Pooling SD for an MD pool, used only to size the "
+                         "GRADE Optimal Information Size imprecision criterion "
+                         "(spec 018). RR/OR pools use --baseline-risk; an SMD "
+                         "pool needs neither."))
     m.add_argument("--risk-of-bias",
                    choices=["not-serious", "serious", "very-serious"],
                    default="not-serious",
@@ -1469,6 +1614,52 @@ def _build_parser() -> argparse.ArgumentParser:
     m.add_argument("--json", action="store_true",
                    help="Emit structured JSON instead of Markdown.")
     m.set_defaults(func=_cmd_meta)
+
+    # fragility (spec 022 — single-trial robustness)
+    fg = sub.add_parser(
+        "fragility",
+        help=(
+            "Fragility Index of one 2×2 trial: the minimum number of "
+            "non-event→event flips in the fewer-event arm that turns a "
+            "significant result (two-sided Fisher's exact) non-significant. "
+            "Deterministic, stdlib-only."
+        ),
+    )
+    fg.add_argument("--events-t", type=int, required=True,
+                    help="Events in the treatment arm.")
+    fg.add_argument("--n-t", type=int, required=True,
+                    help="Treatment arm size.")
+    fg.add_argument("--events-c", type=int, required=True,
+                    help="Events in the control arm.")
+    fg.add_argument("--n-c", type=int, required=True,
+                    help="Control arm size.")
+    fg.add_argument("--alpha", type=float, default=0.05,
+                    help="Significance threshold (default 0.05).")
+    fg.add_argument("--json", action="store_true",
+                    help="Emit structured JSON instead of Markdown.")
+    fg.set_defaults(func=_cmd_fragility)
+
+    # signal (spec 023 — pharmacovigilance disproportionality)
+    sg = sub.add_parser(
+        "signal",
+        help=(
+            "Pharmacovigilance disproportionality for a drug-event pair: PRR + "
+            "ROR (with CIs) and the MHRA/Evans signal criterion, from a 2×2 of "
+            "spontaneous-report counts. Hypothesis-generating, not causal. "
+            "Deterministic, stdlib-only."
+        ),
+    )
+    sg.add_argument("--drug-event", type=int, required=True,
+                    help="a: reports with this drug AND this event.")
+    sg.add_argument("--drug-other", type=int, required=True,
+                    help="b: reports with this drug AND other events.")
+    sg.add_argument("--other-event", type=int, required=True,
+                    help="c: reports with other drugs AND this event.")
+    sg.add_argument("--other-other", type=int, required=True,
+                    help="d: reports with other drugs AND other events.")
+    sg.add_argument("--json", action="store_true",
+                    help="Emit structured JSON instead of Markdown.")
+    sg.set_defaults(func=_cmd_signal)
 
     # freshness-report
     fr2 = sub.add_parser(

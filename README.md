@@ -13,8 +13,17 @@ effect sizes into fixed/random-effects estimates with heterogeneity (Q, I²,
 and `--diagnostics` robustness checks — Egger's small-study-effects test
 (→ GRADE publication bias), a leave-one-out sensitivity analysis, **subgroup
 analysis** (Cochrane Q_between), and **Duval–Tweedie trim-and-fill** — all
-feeding the grade machinery.
-1,658 unit tests green at HEAD; 188 eval prompts
+feeding the grade machinery, and `--certainty` rates the pooled body on the
+GRADE ⊕-scale with **both** imprecision criteria (CI-vs-null **and** the
+Optimal Information Size, spec 018). `--measure prop` additionally pools
+**single-arm rates** (adverse-event incidence, prevalence) with the
+Freeman-Tukey double-arcsine transform (spec 019), defined even at 0 % / 100 %;
+`--moderator-key K` runs a **meta-regression** on a continuous moderator (spec
+020); and `--knha` adds a modified **Hartung-Knapp-Sidik-Jonkman** interval
+(spec 021) — the modern-recommended random-effects CI that, with the prediction
+interval and the OIS, forms a three-part refusal to overstate precision when
+studies are few.
+1,825 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty curated science registries
 with ≥ 215 total rows; thirteen live-discovery lanes.
 
@@ -139,7 +148,9 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
-| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|generic] [--diagnostics] [--json]` | Pool per-study effect sizes (specs 011–014) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment. Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
+| `fragility --events-t A --n-t N --events-c C --n-c M [--alpha] [--json]` | **Fragility Index** of one 2×2 trial (spec 022): the minimum number of non-event→event flips in the fewer-event arm that turns a significant result (two-sided Fisher's exact) non-significant. Exposes a "significant" finding that hangs on one or two patients. Stdlib-only; a non-significant result is surfaced honestly. |
+| `signal --drug-event a --drug-other b --other-event c --other-other d [--json]` | **Pharmacovigilance disproportionality** (spec 023): PRR + ROR (with CIs) and a Yates χ² from a spontaneous-report 2×2, with the MHRA/Evans signal criterion (PRR ≥ 2, χ² ≥ 4, a ≥ 3). Hypothesis-generating, not causal — stated on every result; the gates refuse to fire on sparse counts. |
+| `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|prop\|generic] [--diagnostics] [--certainty] [--moderator-key K] [--json]` | Pool per-study effect sizes (specs 011–020) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment; `--certainty` adds the GRADE ⊕ rating (with the spec 018 Optimal-Information-Size imprecision criterion); `--measure prop` pools **single-arm rates** (Freeman–Tukey double-arcsine, spec 019 — incidence/prevalence, valid at 0 %/100 %); `--moderator-key K [--knha]` runs a **meta-regression** on a continuous moderator (spec 020 — slope, R², residual heterogeneity); `--knha` also adds a modified **Hartung–Knapp–Sidik–Jonkman** interval (spec 021 — the modern-recommended random-effects CI, never narrower than DL). Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
 etiquette) to fan out across the 13 lanes concurrently. Result ordering
@@ -261,13 +272,20 @@ A Summary-of-Findings table reports an effect *and how much to trust it*. Add
 ⊕-scale, routing the five downgrade domains through the **same**
 `evidence._downgrade` ladder the evidence-profile table uses. It is honest
 about which domains it can and cannot compute: **inconsistency** (the I²
-verdict), **imprecision** (the pooled 95% CI crossing the null — the same
-crossing that makes the NNT span ∞), and **publication bias** (Egger, under
-`--diagnostics`, with the `k ≥ 10` honesty) are *computed*; **risk of bias**
-and **indirectness** are taken as reviewer inputs (`--risk-of-bias`,
-`--indirectness`) and tagged as such, never fabricated (§II). The starting
-grade is the body design (`--evidence-base rct|observational` → High / Low).
-Together with `--baseline-risk` this is the full GRADEpro deliverable:
+verdict), **imprecision** (**both** GRADE criteria, spec 018 — the pooled 95% CI
+crossing the null *and* the **Optimal Information Size**: a pool whose total
+enrolment falls short of a single adequately powered trial is downgraded even
+when its CI looks tight, the confidence-laundering a CI-only check misses), and
+**publication bias** (Egger, under `--diagnostics`, with the `k ≥ 10` honesty)
+are *computed*; **risk of bias** and **indirectness** are taken as reviewer
+inputs (`--risk-of-bias`, `--indirectness`) and tagged as such, never fabricated
+(§II). The OIS is sized from the pooled effect and the assumed control rate
+(`--baseline-risk` for RR/OR; an SMD pool needs nothing; `--pooling-sd` for MD)
+by composing the same Cohen-1988 / Fleiss-1981 calculators the `--power-calc`
+scaffolder uses — so one control rate drives both the absolute effect and the
+imprecision verdict. The starting grade is the body design (`--evidence-base
+rct|observational` → High / Low). Together with `--baseline-risk` this is the
+full GRADEpro deliverable:
 
 ```
 ### GRADE certainty of evidence
@@ -278,7 +296,7 @@ Together with `--baseline-risk` this is the full GRADEpro deliverable:
 | Risk of bias     | serious     | −1 | reviewer-assessed             |
 | Inconsistency    | not serious | —  | computed (I²=0%)              |
 | Indirectness     | not serious | —  | reviewer-assessed             |
-| Imprecision      | not serious | —  | computed (pooled 95% CI vs null) |
+| Imprecision      | not serious | —  | computed (pooled 95% CI vs null; OIS 605/202 (meets)) |
 | Publication bias | not assessed| —  | not assessed (run --diagnostics) |
 ```
 
@@ -296,6 +314,39 @@ outcomes, each with its `studies`, `measure`, optional `baseline`, and the
 reviewer-assessed GRADE domains; everything else reuses the spec 011/015/016
 backbone (no new statistics). A study without a primary-source identifier
 refuses the whole section — a brief never carries an unanchored pooled number.
+
+**Pool a single-arm rate (`meta --measure prop`, spec 019).** Not every question
+is a contrast. A toxicologist pooling adverse-event *incidence*, or an
+epidemiologist pooling *prevalence*, needs a rate — not an odds ratio. `meta
+--measure prop` pools single-arm counts with the **Freeman-Tukey double-arcsine**
+transform (defined at 0 % and 100 %, where a logit pool fails), reusing the same
+fixed/random pooling, heterogeneity, prediction-interval, and GRADE-inconsistency
+machinery, then back-transforms to a rate via the Miller-1978 inverse:
+
+```
+## Single-arm proportion meta-analysis (Freeman-Tukey)
+- **Studies (k):** 4
+- **Pooled rate (random):** 40.2% (95% CI 29.1% to 51.7%)
+- **Heterogeneity:** Q = 11.95 (df 3), I² = 75%, τ² = 0.0411
+- **95% prediction interval:** 2.7% to 86.8% (plausible rate in a new setting)
+- **GRADE inconsistency:** serious — I² = 75% …
+```
+
+The sidecar is single-arm `{events, n}` rows, each §I-anchored; the footnote
+states plainly that a pooled rate **carries no comparator — it is not a treatment
+effect**, so the surface can never be read as an efficacy claim.
+
+**Explain the heterogeneity (`meta --moderator-key K`, spec 020).** When I² is
+high, the next question is *why*. Subgroup analysis (`--diagnostics`) splits it by
+a categorical label; **meta-regression** explains it with a *continuous*
+moderator — does the effect scale with THC dose, drift with study year, or track
+baseline severity? `--moderator-key dose` regresses each study's effect on its
+`dose` field (random-effects WLS with DerSimonian-Laird residual τ²), reporting
+the slope, its CI and test, **R²** (the share of between-study variance the
+moderator explains), and the residual heterogeneity left over. `--knha` selects
+the Knapp-Hartung t for the slope (the modern default for few studies). It is
+honest about thin evidence: under ~10 studies per covariate the block carries a
+`CAUTION … treat as exploratory` line, never a falsely firm trend.
 
 ### What v0.6 ships
 
