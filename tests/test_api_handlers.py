@@ -47,6 +47,7 @@ class _Server:
         conn.request(method, path, body=body, headers=headers)
         resp = conn.getresponse()
         data = resp.read()
+        self.last_headers = {k.lower(): v for k, v in resp.getheaders()}
         conn.close()
         return resp.status, data
 
@@ -228,6 +229,13 @@ class HealthLiveFlagTests(unittest.TestCase):
         payload = json.loads(data)
         self.assertFalse(payload["live_discovery"])
         self.assertEqual(payload["phase"], 1)
+
+    def test_health_is_never_cached(self):
+        # A liveness probe must always reflect the running deployment.
+        mod = _load("health")
+        with _Server(mod.handler) as s:
+            s.request("GET", "/api/health")
+            self.assertEqual(s.last_headers.get("cache-control"), "no-store")
 
 
 if __name__ == "__main__":
