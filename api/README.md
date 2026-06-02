@@ -50,14 +50,17 @@ live findings are never promoted to curated facts (§IX).
 | `CANNAVEC_ALLOWED_ORIGIN` | recommended | CORS allow-origin (default `*` — set to your site before public launch). |
 | `NCBI_API_KEY` | for live | Authenticates NCBI E-utilities (raises rate limit 3→10 req/s, fixes shared-IP `403`). Live discovery degrades gracefully without it. |
 | `NCBI_EMAIL` | optional | NCBI etiquette contact, sent alongside the key. |
-| `ANTHROPIC_API_KEY` | for `rerank=true` | Enables the optional LLM rerank lift. The `anthropic` package is bundled (`requirements.txt`), so this key is the only thing to set. Without it, `rerank=true` degrades silently to deterministic ranking — at zero cost. |
+| `ANTHROPIC_API_KEY` | for `rerank=true` | Enables the optional LLM rerank lift. The `anthropic` SDK is installed by the uv-based Vercel build via the `rerank` dependency group in `pyproject.toml`, so this key is the only thing to set. Without it, `rerank=true` degrades silently to deterministic ranking — at zero cost. |
 
 > **Enabling the LLM rerank on Vercel:** set `ANTHROPIC_API_KEY` in the Vercel
-> project env and redeploy — that's it (the `anthropic` package is already in
-> `requirements.txt`). Verify with `GET /api/health` → `"llm_rerank": true`.
-> The Cannavec **core** stays stdlib-only (Constitution §X): `anthropic` is
-> imported lazily by `ranker_llm` only, exclusively when `rerank=true` and the
-> key is present. Deterministic ranking (the default) needs none of this.
+> project env and redeploy — that's it. Verify with `GET /api/health` →
+> `"anthropic_installed": true, "anthropic_key_set": true, "llm_rerank": true`.
+> Note: Vercel's Python builder uses **uv** and installs from `pyproject.toml`
+> (the `rerank` dependency group), **not** `requirements.txt`. The Cannavec
+> **core** stays stdlib-only (Constitution §X): `anthropic` is never a runtime
+> dependency of the package (`pip install cannavec-science` pulls nothing) and
+> is imported lazily by `ranker_llm` only, when `rerank=true` and the key is
+> present. Deterministic ranking (the default) needs none of this.
 
 ## Notes
 

@@ -1,13 +1,10 @@
-# Cannavec Science core is stdlib-only (Constitution §X). The core engine, the
-# curated registries, and live discovery import NOTHING outside the Python
-# standard library (urllib for network), and that is load-bearing — none of the
-# evidence/safety backbone depends on a third-party package.
+# Cannavec Science core is stdlib-only (Constitution §X) — the importable
+# engine, curated registries, and live discovery import nothing outside the
+# Python standard library. There are intentionally no runtime requirements here.
 #
-# The single dependency below is the OPTIONAL LLM-rerank layer only. It is
-# imported lazily by cannavec_science.ranker_llm, exclusively when a discover
-# request passes rerank=true AND an ANTHROPIC_API_KEY is set. The deterministic
-# ranker, and every other endpoint, run identically whether or not it is
-# installed; if the key is absent, rerank degrades silently to the deterministic
-# order. It lives here (rather than being unbundled) so the LLM lift can be
-# enabled on Vercel by setting one env var, with no code change.
-anthropic>=0.105.0
+# NOTE: Vercel's Python builder uses `uv` and installs from pyproject.toml, NOT
+# this file (see the deploy build log). The one optional dependency — the
+# anthropic SDK for the LLM-rerank lift — is therefore declared in pyproject.toml
+# (the `rerank` dependency group, installed by uv on the deployment). Editing
+# this file does NOT change what Vercel installs. To use the rerank lift
+# elsewhere: `pip install cannavec-science[rerank]`, or `uv sync`.

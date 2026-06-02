@@ -40,11 +40,31 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
-# Stdlib-only by constitution. No `pip install` required to run.
+# Stdlib-only by constitution (§X). No `pip install` required to run, and the
+# importable core never imports a third-party package. The single optional
+# dependency (the LLM-rerank SDK) is declared OUT of this list, in the uv
+# dependency group below, so `pip install cannavec-science` stays dependency-
+# free while the uv-based Vercel build still installs it for the deployed lift.
 dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+
+# Optional LLM-rerank layer (cannavec_science.ranker_llm), imported lazily and
+# only when /api/discover is called with rerank=true AND ANTHROPIC_API_KEY is
+# set. Installable explicitly with `pip install cannavec-science[rerank]`.
+rerank = ["anthropic>=0.105.0"]
+
+# uv (which Vercel's Python builder uses — see the deploy log "Installing
+# required dependencies from pyproject.toml / uv.lock") installs these
+# dependency groups by default. Vercel reads pyproject.toml, NOT
+# requirements.txt, so this is what actually puts the rerank SDK on the
+# deployment; the deterministic ranker needs none of it.
+[dependency-groups]
+rerank = ["anthropic>=0.105.0"]
+
+[tool.uv]
+default-groups = ["rerank"]
 
 [project.urls]
 Homepage = "https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin"
