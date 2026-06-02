@@ -203,9 +203,11 @@ _REGISTRY: tuple[PGxRecord, ...] = (
                 year=2009,
             ),
             PGxCitation(
-                label="Stott 2013 — Cannabis pharmacokinetics review",
-                doi="10.2217/fca.13.87",
-                year=2013,
+                label="Stout 2014 — cannabinoids as substrates/inhibitors/inducers "
+                      "of human drug-metabolising enzymes (systematic review)",
+                pmid="24160757",
+                doi="10.3109/03602532.2013.849268",
+                year=2014,
             ),
         ),
     ),
@@ -235,9 +237,11 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         ),
         citations=(
             PGxCitation(
-                label="Stott 2013 — Cannabis pharmacokinetics review",
-                doi="10.2217/fca.13.87",
-                year=2013,
+                label="Stout 2014 — cannabinoids as substrates/inhibitors/inducers "
+                      "of human drug-metabolising enzymes (systematic review)",
+                pmid="24160757",
+                doi="10.3109/03602532.2013.849268",
+                year=2014,
             ),
         ),
     ),

@@ -60,6 +60,7 @@ _WRONG_DOIS = {
     "10.1038/clpt.2008.229": "10.1038/clpt.2008.213",  # was Pollock geriatric-psychopharm editorial, not Sachse-Seeboth
     "10.1111/nmo.13606": "10.1111/nmo.13604",          # one-digit-off Venkatesan 2019 DOI
     "10.1080/13880200902749229": "10.3109/08958370902748559",  # wrong DOI for Pomahacova 2009 (Inhal Toxicol)
+    "10.2217/fca.13.87": "10.3109/03602532.2013.849268",        # phantom "Stott 2013 review"; re-anchored to Stout 2014 (PMID 24160757)
 }
 
 # ChEMBL ids that shipped resolving to the wrong compound or an invalid id

@@ -69,3 +69,7 @@ jobs:
         env:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
         run: python3 evals/audit_pmids.py
+      - name: Audit curated UniProt accessions against live UniProt
+        # Same contract as the PMID audit: a wrong accession (points at a
+        # different protein) fails; an unfetchable one is inconclusive.
+        run: python3 evals/audit_uniprot.py
