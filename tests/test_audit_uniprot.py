@@ -84,5 +84,20 @@ class UniProtAuditLogic(unittest.TestCase):
         self.assertEqual(inconclusive, 1)
 
 
+class UniProtCollection(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.claims = audit_uniprot.collect_accessions()
+
+    def test_real_receptor_accession_collected(self) -> None:
+        self.assertIn("P21554", self.claims)   # CB1, cited in real prose
+
+    def test_comment_example_accession_not_collected(self) -> None:
+        # Q9NYW2 (TAS2R8) appears ONLY in the rigor_checks identifier-token
+        # comment as a shape example; it is not a citation and must not be
+        # audited (this was a live-CI false positive on 2026-06-02).
+        self.assertNotIn("Q9NYW2", self.claims)
+
+
 if __name__ == "__main__":
     unittest.main()

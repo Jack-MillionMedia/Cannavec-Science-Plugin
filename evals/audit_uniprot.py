@@ -72,6 +72,12 @@ def collect_accessions() -> dict[str, tuple[str, int, str]]:
         lines = open(path, encoding="utf-8").read().splitlines()
         text_by_file[path] = lines
         for i, line in enumerate(lines):
+            # Skip comment lines: an accession written there is an *example* of
+            # the identifier shape (e.g. the rigor_checks identifier-token doc),
+            # not a receptor citation. A real accession also appears in a code
+            # string elsewhere, so it is still collected from that occurrence.
+            if line.lstrip().startswith("#"):
+                continue
             for m in _ACC_RE.finditer(line):
                 acc = m.group(0)
                 if is_uniprot_accession(acc):
