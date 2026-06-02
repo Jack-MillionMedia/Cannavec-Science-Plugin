@@ -9,7 +9,7 @@ a **thirteenth primary-source live lane**:
   conclusive-evidence finding anchored to Whiting 2015 JAMA SR (PMID
   26103030), Stockings 2018 PAIN SR (PMID 29847469), Mücke 2018
   Cochrane neuropathic (PMID 29513392), Boehnke 2019 J Pain MMJ
-  prospective cohort (PMID 31237829), Andreae 2015 IPD meta-analysis
+  prospective cohort (PMID 30715980), Andreae 2015 IPD meta-analysis
   (PMID 26362106), de Vita 2018 experimental-pain SR (PMID 30422266).
 - **Cannabis-and-psychosis psychiatry** (≥ 6 rows): Di Forti 2019
   EU-GEI Lancet Psychiatry (PMID 30902669), Marconi 2016 Schizophr

@@ -217,7 +217,7 @@ _PERTWEE_2008 = MinorCannabinoidCitation(
 )
 _THOMAS_2005 = MinorCannabinoidCitation(
     label="Thomas A et al., Br J Pharmacol 2005, THCV CB1 antagonism in vitro and in vivo",
-    pmid="16282192", year=2005,
+    pmid="16205722", year=2005,
 )
 _RIEDEL_2009 = MinorCannabinoidCitation(
     label="Riedel G et al., Br J Pharmacol 2009, THCV reduces food intake in mice",

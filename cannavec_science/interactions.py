@@ -252,7 +252,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Grayson 2018 — INR elevation with CBD + warfarin (case)",
-                pmid="29744288",
+                pmid="29387536",
                 year=2018,
             ),
             InteractionCitation(
@@ -284,7 +284,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Leino 2019 — CBD-tacrolimus trough rise (case)",
-                pmid="30907227",
+                pmid="31012522",
                 year=2019,
             ),
         ),
@@ -588,7 +588,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Leino 2019 — CBD-tacrolimus trough rise (case)",
-                pmid="30907227",
+                pmid="31012522",
                 year=2019,
             ),
             InteractionCitation(

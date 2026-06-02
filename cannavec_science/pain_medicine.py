@@ -30,7 +30,7 @@ Topic coverage:
   AE-driven discontinuation" — different in tone from the broader
   Whiting / Stockings findings.
 - ``cohort_observational`` — Boehnke 2019 J Pain prospective
-  medical-cannabis cohort (PMID 31237829). Observational evidence
+  medical-cannabis cohort (PMID 30715980). Observational evidence
   from a real-world MMJ-card cohort showing opioid-reduction
   patterns; observational, not causal.
 - ``ipd_meta_analysis`` — Andreae 2015 J Pain individual-patient-data
@@ -192,7 +192,7 @@ _BOEHNKE_2019 = PainMedicineCitation(
     label="Boehnke KF et al., J Pain 2019, qualifying conditions of medical "
           "cannabis license holders in the United States — prospective "
           "cohort analyses",
-    pmid="31237829", year=2019,
+    pmid="30715980", year=2019,
 )
 _ANDREAE_2015 = PainMedicineCitation(
     label="Andreae MH et al., J Pain 2015, inhaled cannabis for chronic "

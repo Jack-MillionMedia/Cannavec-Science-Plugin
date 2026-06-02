@@ -68,7 +68,7 @@ class RegistryShapeTests(unittest.TestCase):
             "26103030",  # Whiting 2015 JAMA SR
             "29847469",  # Stockings 2018 PAIN SR
             "29513392",  # Mücke 2018 Cochrane neuropathic
-            "31237829",  # Boehnke 2019 J Pain cohort
+            "30715980",  # Boehnke 2019 J Pain cohort
             "26362106",  # Andreae 2015 IPD-MA
         ):
             self.assertIn(pmid, all_pmids)
