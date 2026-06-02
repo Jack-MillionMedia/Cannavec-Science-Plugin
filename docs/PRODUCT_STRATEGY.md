@@ -92,8 +92,8 @@ forming exactly as that cost rises.
 
 | Priority | Investment | Status |
 |---|---|---|
-| **P0** | **Verified-evidence gate** — citation integrity enforced continuously, in CI, on every change. | **Shipped this session** (offline denylist guard + online author-OR-title audit gating PRs). Remaining: extend the *online* check to DOI / ChEMBL / UniProt (defects were found in all three), and mark the CI check "required" in branch protection. |
-| **P1** | **Claim-support verification** — verify the cited paper actually supports the *magnitude/direction* claimed (e.g. "AUC ×14.8", "CYP3A4 inhibition"), not just that the identifier resolves. LLM-as-flagger over the abstract → human review. This is the next tier of trust and the deferred 4th option. | Not started |
+| **P0** | **Verified-evidence gate** — citation integrity enforced continuously, in CI, on every change. | **Shipped** — offline denylist guard + online author-OR-title PMID audit + online UniProt accession audit, all gating PRs; discovery-index structural guard. Remaining: extend the *online* check to DOI / ChEMBL resolution (the specific defects found are denylisted offline), and mark the CI check "required" in branch protection. |
+| **P1** | **Claim-support verification** — verify the cited paper actually supports the *magnitude/direction* claimed (e.g. "AUC ×14.8", "CYP3A4 inhibition"), not just that the identifier resolves. | **Shipped (v1)** — deterministic flagger (`claim_support.py`) + CI harness over the interaction registry: soft verdicts print a review queue, a direction *contradiction* fails. The optional LLM adjudicator over the flagged minority is the next layer. |
 | **P2** | **Per-answer provenance/audit trail** — every claim → identifier → verification timestamp → GRADE, exportable. This is what makes a brief *defensible and reproducible*, and is the feature enterprise buyers will pay extra for. | Partially present (bibliography export, GRADE inline) |
 | **P3** | **Coverage expansion** (more registries/sources) — only *after* the gate is bulletproof, or you scale the defect surface faster than the trust. | Ongoing; sequence behind P0/P1 |
 
@@ -175,11 +175,22 @@ real deliverable they'd otherwise have paid a person to produce.
   sandbox (network policy) and had a substring blind spot. Both are now fixed;
   an offline denylist guard runs everywhere, and the online audit (author-OR-
   title, network-resilient) gates PRs.
-- **Not yet verified (honest gaps):** claim-support (does the paper support the
-  *magnitude* claimed?); 24 UniProt accessions (no verification tool available
-  in-session — canonical receptor IDs spot-checked by knowledge only); the
-  ~7,500-row discovery index (uncurated candidates, re-verified at read time);
-  one Stott DOI (`10.2217/fca.13.87`) that does not resolve and needs a curator.
+- **Gaps subsequently closed into enforced capabilities:**
+  - *Claim-support* — shipped as a deterministic flagger + CI harness
+    (`claim_support.py` / `audit_claim_support.py`); produces a review queue,
+    fails on a direction contradiction.
+  - *UniProt accessions (24)* — now resolved against live UniProt by an online
+    audit (`audit_uniprot.py`) plus an offline anchor guard on the core
+    receptor/enzyme ids; wired into CI.
+  - *Discovery index (7,500 rows)* — locked by an offline structural-integrity
+    guard (well-formedness, URL consistency, uniqueness, truthful `curated`
+    flag).
+  - *Stott DOI (`10.2217/fca.13.87`)* — resolved: a phantom "review"; the claim
+    is re-anchored to the verified Stout 2014 systematic review (PMID 24160757).
+- **Still open (named honestly):** online *DOI/ChEMBL resolution* audits (the
+  specific defects found are denylisted offline, but new ones aren't yet caught
+  online); the optional *LLM adjudicator* for the claim-support review queue;
+  and making the CI integrity check a *required* status check (a repo setting).
 
 ---
 
