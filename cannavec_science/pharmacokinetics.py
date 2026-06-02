@@ -204,9 +204,9 @@ _KARSCHNER_2011 = PharmacokineticsCitation(
     pmid="21078841", year=2011,
 )
 _GARRETT_1977 = PharmacokineticsCitation(
-    label="Garrett ER & Hunt CA, J Pharm Sci 1977, physicochemical "
-          "properties, solubility, and protein binding of Δ⁹-THC",
-    pmid="887158", year=1977,
+    label="Garrett ER & Hunt CA, J Pharm Sci 1977, pharmacokinetics of "
+          "Δ⁹-THC in dogs",
+    pmid="845807", year=1977,
 )
 _HUESTIS_1996 = PharmacokineticsCitation(
     label="Huestis MA et al., J Anal Toxicol 1996, characterization of the "

@@ -250,8 +250,9 @@ _DESPRES_2013 = MinorCannabinoidCitation(
     pmid="23373571", year=2012,
 )
 _RUSSO_2018 = MinorCannabinoidCitation(
-    label="Russo EB, Front Plant Sci 2018, minor-cannabinoid pharmacology synthesis",
-    pmid="30815017", year=2019,
+    label="Russo EB, Front Plant Sci 2019, the case for the entourage effect "
+          "and conventional breeding of clinical cannabis (No 'Strain,' No Gain)",
+    pmid="30687364", year=2019,
 )
 _KARNIOL_1975 = MinorCannabinoidCitation(
     label="Karniol IG et al., Pharmacology 1975, CBN sedation observations (historical, low-quality)",
@@ -1335,10 +1336,10 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 citations=(
                     MinorCannabinoidCitation(
                         label=(
-                            "Mechoulam R et al., Hexahydrocannabinol pharmacology "
-                            "review (historical)"
+                            "Edery H, Mechoulam R et al., J Med Chem 1984, "
+                            "activity of novel amino-hexahydrocannabinols in baboons"
                         ),
-                        pmid="4348475", year=1972,
+                        pmid="6541257", year=1984,
                     ),
                 ),
             ),

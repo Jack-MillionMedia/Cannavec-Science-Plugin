@@ -21,7 +21,7 @@ Topic coverage:
   downstream cannabinoid acids. Fellermeier & Zenk 1998 (PMID 9607329)
   is the primary characterisation paper for this prenyltransferase step.
 - ``acid_synthase`` — THCA synthase (Sirikantaramas 2004 PMID 15190053)
-  and CBDA synthase (Taura 1996 PMID 8632416) are FAD-dependent
+  and CBDA synthase (Taura 1996 PMID 8663284) are FAD-dependent
   oxidocyclases that catalyse the divergent cyclisation of CBGA into
   THCA vs CBDA. The two synthases share substrate but differ in
   product specificity — the molecular basis of chemotype Type I
@@ -186,10 +186,10 @@ _SIRIKANTARAMAS_2004 = BiosynthesisCitation(
     pmid="15190053", year=2004,
 )
 _TAURA_1996 = BiosynthesisCitation(
-    label="Taura F et al., J Am Chem Soc 1996, first direct evidence for "
-          "the mechanism of Δ¹-tetrahydrocannabinolic acid biosynthesis — "
-          "characterisation of CBDA synthase",
-    pmid="8632416", year=1996,
+    label="Taura F et al., J Biol Chem 1996, purification and "
+          "characterisation of cannabidiolic-acid (CBDA) synthase from "
+          "Cannabis sativa — oxidocyclisation of cannabigerolic acid",
+    pmid="8663284", year=1996,
 )
 _LUO_2019 = BiosynthesisCitation(
     label="Luo X et al., Nature 2019, complete biosynthesis of "

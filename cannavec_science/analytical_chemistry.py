@@ -222,9 +222,9 @@ _HILLIG_MAHLBERG_2004 = AnalyticalChemistryCitation(
     pmid="21653452", year=2004,
 )
 _LEGHISSA_2018 = AnalyticalChemistryCitation(
-    label="Leghissa A et al., J Sep Sci 2018, the imperatives and "
-          "challenges of analyzing Cannabis edibles",
-    pmid="29251828", year=2018,
+    label="Leghissa A et al., J Sep Sci 2018, a review of methods for the "
+          "chemical characterization of cannabis natural products",
+    pmid="28986974", year=2018,
 )
 _AIZPURUA_OLAIZOLA_2016 = AnalyticalChemistryCitation(
     label="Aizpurua-Olaizola O et al., J Nat Prod 2016, evolution of the "
