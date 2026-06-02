@@ -38,14 +38,16 @@ class handler(BaseHTTPRequestHandler):
             payload["phase"] = 2 if live_ready else 1
             payload["live_discovery"] = live_ready
             # Ranking capability probe: the deterministic cross-source ranker is
-            # always available (stdlib); the LLM rerank lift needs the optional
-            # ``anthropic`` package deployed AND an ``ANTHROPIC_API_KEY`` set.
+            # always available (stdlib). The LLM rerank lift needs BOTH the
+            # optional ``anthropic`` package deployed AND an ``ANTHROPIC_API_KEY``
+            # set — reported separately so a false ``llm_rerank`` is diagnosable.
             import importlib.util
+            anthropic_installed = importlib.util.find_spec("anthropic") is not None
+            anthropic_key_set = bool(os.environ.get("ANTHROPIC_API_KEY"))
             payload["ranking"] = True
-            payload["llm_rerank"] = (
-                importlib.util.find_spec("anthropic") is not None
-                and bool(os.environ.get("ANTHROPIC_API_KEY"))
-            )
+            payload["anthropic_installed"] = anthropic_installed
+            payload["anthropic_key_set"] = anthropic_key_set
+            payload["llm_rerank"] = anthropic_installed and anthropic_key_set
             payload["curated_registries"] = len(groups)
             payload["registry_names"] = list(groups)
             payload["endpoints"] = ["/api/answer", "/api/discover", "/api/rigor",

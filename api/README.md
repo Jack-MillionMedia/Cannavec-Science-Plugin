@@ -37,7 +37,9 @@ live findings are never promoted to curated facts (§IX).
   `rerank=true` (default `false`) adds the optional LLM lift, which fires only
   when the deterministic order is genuinely uncertain and degrades silently to
   the deterministic order if `anthropic`/`ANTHROPIC_API_KEY` is absent;
-  `rerank_model` (default `claude-sonnet-4-6`) selects the model. The ranking
+  `rerank=force` bypasses the confidence short-circuit and always calls the
+  model (for testing the LLM path on demand); `rerank_model` (default
+  `claude-sonnet-4-6`) selects the model. The ranking
   block carries `escalation_reason` (`top near-tie` | `design inversion` |
   `weak lexical signal` | `forced`) so you can see *why* the LLM was consulted.
 

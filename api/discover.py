@@ -47,13 +47,16 @@ _ALLOWED_ORIGIN = os.environ.get("CANNAVEC_ALLOWED_ORIGIN", "*")
 _DEFAULT_RERANK_MODEL = "claude-sonnet-4-6"
 
 
-def _maybe_rank(query, result, *, rank, rerank, rerank_model, max_results):
+def _maybe_rank(query, result, *, rank, rerank, rerank_model, max_results,
+                force=False):
     """Rank the fanned-out candidates across sources, or return ``None``.
 
     Deterministic by default (free, offline, additive). ``rerank`` adds the LLM
     lift, which auto-fires only on a genuine ranking uncertainty and degrades to
-    the deterministic order on any failure. Ranking never fails the response:
-    any unexpected error here returns ``None`` and the fan-out still stands.
+    the deterministic order on any failure. ``force`` (``rerank=force``) bypasses
+    the confidence short-circuit and always calls the model — for testing the
+    LLM path without waiting for a natural escalation. Ranking never fails the
+    response: any unexpected error here returns ``None`` and the fan-out stands.
     """
     if not rank:
         return None
@@ -69,7 +72,9 @@ def _maybe_rank(query, result, *, rank, rerank, rerank_model, max_results):
             from cannavec_science.ranker_llm import LLMReranker
             backend = LLMReranker(model=rerank_model)
         return rank_candidates(
-            query, cands, backend=backend, top_k=max(1, int(max_results or 10)),
+            query, cands, backend=backend,
+            escalate=True if force else None,
+            top_k=max(1, int(max_results or 10)),
         ).to_dict()
     except Exception:  # noqa: BLE001 — ranking is additive, never fatal
         return None
@@ -163,10 +168,12 @@ class handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             max_results = 10
         rank = (q.get("rank") or ["true"])[0].strip().lower() != "false"
-        rerank = (q.get("rerank") or ["false"])[0].strip().lower() == "true"
+        rerank_raw = (q.get("rerank") or ["false"])[0].strip().lower()
+        rerank = rerank_raw in ("true", "force", "1", "yes")
+        rerank_force = rerank_raw == "force"
         rerank_model = (q.get("rerank_model") or [_DEFAULT_RERANK_MODEL])[0]
         self._handle(query, sources, max_results, since, fmt,
-                     rank, rerank, rerank_model)
+                     rank, rerank, rerank_model, rerank_force)
 
     def do_POST(self) -> None:
         try:
@@ -189,13 +196,16 @@ class handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             max_results = 10
         rank = bool(data.get("rank", True))
-        rerank = bool(data.get("rerank", False))
+        rerank_raw = str(data.get("rerank", "")).strip().lower()
+        rerank = data.get("rerank") is True or rerank_raw in ("true", "force", "1", "yes")
+        rerank_force = rerank_raw == "force"
         rerank_model = str(data.get("rerank_model") or _DEFAULT_RERANK_MODEL)
         self._handle(query, sources or None, max_results, since, fmt,
-                     rank, rerank, rerank_model)
+                     rank, rerank, rerank_model, rerank_force)
 
     def _handle(self, query, sources, max_results, since, fmt,
-                rank=True, rerank=False, rerank_model=_DEFAULT_RERANK_MODEL) -> None:
+                rank=True, rerank=False, rerank_model=_DEFAULT_RERANK_MODEL,
+                rerank_force=False) -> None:
         if not query:
             self._json(400, {"ok": False, "error": "missing 'query'"})
             return
@@ -224,6 +234,7 @@ class handler(BaseHTTPRequestHandler):
         ranking = _maybe_rank(
             query, result, rank=rank, rerank=rerank,
             rerank_model=rerank_model, max_results=max_results,
+            force=rerank_force,
         )
 
         if fmt == "markdown":

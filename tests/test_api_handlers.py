@@ -56,6 +56,20 @@ class _Server:
         self.httpd.server_close()
 
 
+class _FakeReranker:
+    """Patched-in stand-in for LLMReranker — reorders without any network."""
+
+    name = "llm"
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def plan(self, query, candidates):
+        from cannavec_science.ranker import RankPlan
+        order = tuple(c.identifier for c in reversed(list(candidates)))
+        return RankPlan(order=order, rationales={}, backend="llm")
+
+
 class HandlerShapeTests(unittest.TestCase):
     def test_every_handler_is_a_request_handler(self):
         for name in ("answer", "rigor", "registries", "health"):
@@ -91,9 +105,14 @@ class HTTPRoundTripTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertGreaterEqual(payload["curated_registries"], 21)
         # Ranking capability probe: deterministic ranking always on; the LLM
-        # rerank flag reflects whether anthropic + a key are deployed.
+        # rerank flag is split so a false value is diagnosable (package vs key).
         self.assertTrue(payload["ranking"])
-        self.assertIn("llm_rerank", payload)
+        self.assertIn("anthropic_installed", payload)
+        self.assertIn("anthropic_key_set", payload)
+        self.assertEqual(
+            payload["llm_rerank"],
+            payload["anthropic_installed"] and payload["anthropic_key_set"],
+        )
 
     def test_answer_get_json(self):
         mod = _load("answer")
@@ -214,6 +233,28 @@ class DiscoverHandlerTests(unittest.TestCase):
                 status, data = s.request("GET", "/?query=x&rank=false")
         self.assertEqual(status, 200)
         self.assertNotIn("ranking", json.loads(data))
+
+    def test_discover_rerank_force_calls_llm_even_when_decisive(self):
+        # A clearly-dominant SR would not naturally escalate; rerank=force
+        # bypasses the short-circuit and exercises the LLM path on demand.
+        from cannavec_science import live
+        canned = {"query": "cbd epilepsy", "sources": {"pubmed": [
+            {"pmid": "1", "title": "Cannabidiol for epilepsy: a systematic review and meta-analysis",
+             "year": 2024, "pubtypes": ["Systematic Review"], "retraction_status": "clean"},
+            {"pmid": "2", "title": "Hop brewing chemistry", "year": 2005,
+             "pubtypes": ["Case Reports"], "retraction_status": "clean"},
+            {"pmid": "3", "title": "Industrial hemp fibre processing", "year": 2004,
+             "pubtypes": ["Case Reports"], "retraction_status": "clean"},
+        ]}, "synthesis": {"convergence": "WEAK"}}
+        mod = _load("discover")
+        with mock.patch.object(live, "run_discovery", return_value=canned), \
+                mock.patch("cannavec_science.ranker_llm.LLMReranker", _FakeReranker):
+            with _Server(mod.handler) as s:
+                status, data = s.request("GET", "/?query=cbd%20epilepsy&rerank=force")
+        self.assertEqual(status, 200)
+        ranking = json.loads(data)["ranking"]
+        self.assertEqual(ranking["backend_used"], "llm")
+        self.assertTrue(ranking["escalated"])
 
 
 class AnswerAugmentHandlerTests(unittest.TestCase):
