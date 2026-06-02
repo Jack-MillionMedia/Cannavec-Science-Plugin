@@ -1,7 +1,13 @@
-# Cannavec Science is stdlib-only (Constitution §X) — the core engine and
-# the Phase-1 Vercel API handlers import nothing outside the Python standard
-# library, so this file is intentionally empty of runtime dependencies.
+# Cannavec Science core is stdlib-only (Constitution §X). The core engine, the
+# curated registries, and live discovery import NOTHING outside the Python
+# standard library (urllib for network), and that is load-bearing — none of the
+# evidence/safety backbone depends on a third-party package.
 #
-# Its presence signals the Python runtime to Vercel's builder. Phase-2 live
-# discovery also stays stdlib (urllib); any optional rendering extras (PDF /
-# slides) belong in a separate, opt-in layer and must NOT be added here.
+# The single dependency below is the OPTIONAL LLM-rerank layer only. It is
+# imported lazily by cannavec_science.ranker_llm, exclusively when a discover
+# request passes rerank=true AND an ANTHROPIC_API_KEY is set. The deterministic
+# ranker, and every other endpoint, run identically whether or not it is
+# installed; if the key is absent, rerank degrades silently to the deterministic
+# order. It lives here (rather than being unbundled) so the LLM lift can be
+# enabled on Vercel by setting one env var, with no code change.
+anthropic>=0.105.0

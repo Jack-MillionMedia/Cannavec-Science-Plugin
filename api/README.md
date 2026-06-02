@@ -48,13 +48,14 @@ live findings are never promoted to curated facts (§IX).
 | `CANNAVEC_ALLOWED_ORIGIN` | recommended | CORS allow-origin (default `*` — set to your site before public launch). |
 | `NCBI_API_KEY` | for live | Authenticates NCBI E-utilities (raises rate limit 3→10 req/s, fixes shared-IP `403`). Live discovery degrades gracefully without it. |
 | `NCBI_EMAIL` | optional | NCBI etiquette contact, sent alongside the key. |
-| `ANTHROPIC_API_KEY` | for `rerank=true` | Enables the optional LLM rerank lift. Also requires adding `anthropic` to `requirements.txt` (the stdlib-only default deployment does **not** bundle it). Without both, `rerank=true` degrades silently to deterministic ranking. |
+| `ANTHROPIC_API_KEY` | for `rerank=true` | Enables the optional LLM rerank lift. The `anthropic` package is bundled (`requirements.txt`), so this key is the only thing to set. Without it, `rerank=true` degrades silently to deterministic ranking — at zero cost. |
 
-> **Enabling the LLM rerank on Vercel** is a deliberate opt-in (it adds a
-> non-stdlib dependency, against the Constitution §X stdlib-only default): add
-> `anthropic>=0.40` to `requirements.txt`, set `ANTHROPIC_API_KEY` in the
-> Vercel project env, and redeploy. Verify with `GET /api/health` →
-> `"llm_rerank": true`. Deterministic ranking needs none of this.
+> **Enabling the LLM rerank on Vercel:** set `ANTHROPIC_API_KEY` in the Vercel
+> project env and redeploy — that's it (the `anthropic` package is already in
+> `requirements.txt`). Verify with `GET /api/health` → `"llm_rerank": true`.
+> The Cannavec **core** stays stdlib-only (Constitution §X): `anthropic` is
+> imported lazily by `ranker_llm` only, exclusively when `rerank=true` and the
+> key is present. Deterministic ranking (the default) needs none of this.
 
 ## Notes
 
