@@ -42,6 +42,8 @@ __all__ = [
     "DiscoverRefused",
     "run_discovery",
     "augment_answer",
+    "answer_with_fallback",
+    "is_thin",
     "default_runners",
 ]
 
@@ -68,7 +70,11 @@ def _run_pubmed(query: str, since: Optional[str], n: int):
 
 def _run_ctgov(query: str, since: Optional[str], n: int):
     from cannavec_science.ctgov_discover import CTGovSearcher
-    return CTGovSearcher().search(query, max_results=n)
+    # Per-source relevance gate: CT.gov free-text matching is broad, so a
+    # cannabis-science query must not surface unrelated trials.
+    return CTGovSearcher().search(
+        query, max_results=n, cannabis_relevant_only=True
+    )
 
 
 def _run_chembl(query: str, since: Optional[str], n: int):
@@ -195,3 +201,69 @@ def augment_answer(
                 answer.add_live_finding(**finding)
                 attached += 1
     return attached
+
+
+def is_thin(answer) -> bool:
+    """True when the curated answer has no real coverage of the question.
+
+    "Thin" = not a refusal AND (no curated claims OR the best curated grade is
+    Unsupported). This is the Phase-3 trigger: a genuinely novel question the
+    curated knowledge base does not cover, where live discovery should step in.
+    A refusal is never thin (we do not fan out on a refused prompt).
+    """
+    if getattr(answer, "is_refusal", False):
+        return False
+    if not getattr(answer, "claims", None):
+        return True
+    from cannavec_science.evidence import EvidenceLevel
+    es = getattr(answer, "evidence_summary", None)
+    if es is not None and es.highest_grade == EvidenceLevel.UNSUPPORTED:
+        return True
+    return False
+
+
+def answer_with_fallback(
+    question: str,
+    *,
+    retraction_policy: str = "strict",
+    max_results: int = 5,
+    sources: Optional[Sequence[str]] = None,
+    since: Optional[str] = None,
+    runners: Optional[Mapping[str, Runner]] = None,
+) -> tuple:
+    """Phase 3 — compose the curated brief and, only if it is *thin*, fall
+    back to live primary-source discovery automatically.
+
+    Returns ``(answer, fallback_used)``. ``fallback_used`` is ``True`` when the
+    live search was triggered (curated coverage was thin), regardless of how
+    many findings it attached. The curated brief always stands; live findings
+    are added as provisional, never-promoted rows (§IX) and, when there were
+    no curated claims at all, a note clarifies the brief is built from the
+    live frontier and must be verified before citing.
+
+    Fully offline-testable: pass ``runners`` to inject fake searchers.
+    """
+    from cannavec_science.answer import compose_answer
+
+    answer = compose_answer(
+        question,
+        retraction_policy=retraction_policy,
+        include_registries=True,
+        include_claims=True,
+        include_rigor=True,
+    )
+    if not is_thin(answer):
+        return answer, False
+
+    had_claims = bool(answer.claims)
+    augment_answer(
+        answer, sources=sources, max_results=max_results,
+        since=since, runners=runners,
+    )
+    if answer.live_findings and not had_claims:
+        answer.notes = answer.notes + (
+            "0 curated claims — the Live discovery section holds live "
+            "primary-source findings (provisional, unverified; NOT curated "
+            "facts). Verify each identifier before citing.",
+        )
+    return answer, True

@@ -23,8 +23,10 @@
   <ul>
     <li><code>GET /api/health</code> — liveness &amp; capability probe</li>
     <li><code>GET /api/answer?question=...</code> — cited research brief (JSON;
-        add <code>&amp;format=markdown</code> for prose; add
-        <code>&amp;augment=true</code> to weave in live findings)</li>
+        <code>&amp;format=markdown</code> for prose). <strong>Auto-fallback:</strong>
+        a question the curated KB doesn't cover automatically pulls live
+        primary-source findings (disable with <code>&amp;fallback=false</code>;
+        force with <code>&amp;augment=true</code>)</li>
     <li><code>POST /api/answer</code> — body <code>{"question":"..."}</code></li>
     <li><code>GET /api/discover?query=...</code> — <strong>live</strong>
         PubMed / ClinicalTrials.gov (+ opt-in ChEMBL / Europe PMC) fan-out

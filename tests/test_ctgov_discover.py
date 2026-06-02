@@ -433,5 +433,53 @@ class FetcherInjectionTests(unittest.TestCase):
         self.assertTrue(callable(default_ctgov_fetcher))
 
 
+class CannabisRelevanceFilterTests(unittest.TestCase):
+    """Spec 029 — the CT.gov lane must not surface trials that match a broad
+    free-text query but have nothing to do with cannabinoids."""
+
+    def _mixed_fetcher(self) -> "_StubFetcher":
+        return _StubFetcher({
+            "/api/v2/studies?": _search_fixture([
+                _study_payload(
+                    nct="NCT0CANN", intervention="Cannabidiol",
+                    condition="Metabolic Syndrome",
+                ),
+                _study_payload(
+                    nct="NCT0HCV", intervention="Boceprevir",
+                    condition="HCV Coinfection",
+                ),
+            ]),
+        })
+
+    def test_default_keeps_all_trials(self) -> None:
+        rows = CTGovSearcher(fetcher=self._mixed_fetcher()).search(
+            "metabolic syndrome"
+        )
+        self.assertEqual({r.nct_id for r in rows}, {"NCT0CANN", "NCT0HCV"})
+
+    def test_cannabis_only_drops_unrelated_trial(self) -> None:
+        rows = CTGovSearcher(fetcher=self._mixed_fetcher()).search(
+            "cannabis insulin metabolic syndrome", cannabis_relevant_only=True
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].nct_id, "NCT0CANN")
+        self.assertIn("Cannabidiol", rows[0].intervention)
+
+    def test_relevance_helper(self) -> None:
+        from cannavec_science.ctgov_discover import _trial_is_cannabis_relevant
+        cann = CTGovTrialRow(
+            nct_id="NCT1", status="COMPLETED", phase="PHASE2", sponsor="x",
+            pi_name=None, intervention=("THC oral solution",),
+            condition=("Chronic pain",),
+        )
+        non = CTGovTrialRow(
+            nct_id="NCT2", status="COMPLETED", phase="PHASE2", sponsor="x",
+            pi_name=None, intervention=("Boceprevir",),
+            condition=("HCV",), title="Boceprevir in HCV",
+        )
+        self.assertTrue(_trial_is_cannabis_relevant(cann))
+        self.assertFalse(_trial_is_cannabis_relevant(non))
+
+
 if __name__ == "__main__":
     unittest.main()

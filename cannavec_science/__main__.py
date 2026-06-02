@@ -302,7 +302,11 @@ def _run_chembl(args):
 
 def _run_ctgov(args):
     from cannavec_science.ctgov_discover import CTGovSearcher
-    return CTGovSearcher().search(args.query, max_results=args.max)
+    # Per-source relevance gate: CT.gov free-text matching is broad, so a
+    # cannabis-science query must not surface unrelated trials.
+    return CTGovSearcher().search(
+        args.query, max_results=args.max, cannabis_relevant_only=True
+    )
 
 
 def _run_pubchem(args):

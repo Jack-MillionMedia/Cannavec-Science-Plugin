@@ -198,6 +198,7 @@ class AnswerAugmentHandlerTests(unittest.TestCase):
         self.assertEqual(len(payload["answer"]["live_findings"]), 1)
 
     def test_default_answer_is_not_augmented(self):
+        # A well-curated question must NOT trigger the Phase-3 fallback.
         mod = _load("answer")
         with _Server(mod.handler) as s:
             status, data = s.request(
@@ -206,6 +207,74 @@ class AnswerAugmentHandlerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         payload = json.loads(data)
         self.assertEqual(payload["augmented"], 0)
+        self.assertFalse(payload["fallback_used"])
+
+
+class AnswerFallbackHandlerTests(unittest.TestCase):
+    """Phase 3 — /api/answer auto-falls-back to live discovery when curated
+    coverage is thin, with no augment flag."""
+
+    _NOVEL = (
+        "What is the effect of cannabidiol on the tensile strength of "
+        "spider silk fibres?"
+    )
+
+    def test_thin_question_triggers_fallback(self):
+        from cannavec_science import live
+
+        def _fake_fallback(question, **kw):
+            from cannavec_science.answer import compose_answer
+            a = compose_answer(question)
+            a.add_live_finding(
+                label="Live frontier hit", identifier="PMID 7",
+                source_tag="live_pubmed",
+            )
+            return a, True
+
+        mod = _load("answer")
+        with mock.patch.object(live, "answer_with_fallback",
+                               side_effect=_fake_fallback):
+            with _Server(mod.handler) as s:
+                status, data = s.request(
+                    "GET", "/?question=some%20novel%20cannabis%20question"
+                )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertTrue(payload["fallback_used"])
+        self.assertEqual(payload["augmented"], 1)
+        self.assertEqual(len(payload["answer"]["live_findings"]), 1)
+
+    def test_curated_question_does_not_fall_back(self):
+        # Real call (no monkeypatch): insulin is curated → not thin → no live
+        # search, so this stays fully offline.
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET",
+                "/?question=How%20does%20chronic%20cannabis%20use%20alter%20"
+                "insulin%20sensitivity%20in%20metabolic%20syndrome%3F",
+            )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertFalse(payload["fallback_used"])
+        self.assertEqual(payload["augmented"], 0)
+        pmids = {c.get("pmid") for c in payload["answer"]["citations"]}
+        self.assertIn("23684393", pmids)
+
+    def test_fallback_can_be_disabled(self):
+        # fallback=false routes to the pure-curated path → no live search even
+        # for a thin question (offline-safe, deterministic).
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET",
+                "/?question=" + self._NOVEL.replace(" ", "%20") + "&fallback=false",
+            )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertFalse(payload["fallback_used"])
+        self.assertEqual(payload["augmented"], 0)
+        self.assertEqual(len(payload["answer"]["live_findings"]), 0)
 
 
 class HealthLiveFlagTests(unittest.TestCase):
