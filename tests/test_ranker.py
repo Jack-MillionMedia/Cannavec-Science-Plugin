@@ -77,6 +77,18 @@ class CandidateAdaptationTests(unittest.TestCase):
         c = Candidate.from_row("pubmed", {"pmid": "1", "year": "n/a"})
         self.assertIsNone(c.year)
 
+    def test_from_row_ctgov_start_date_and_folded_fields(self):
+        # CT.gov rows carry start_date (not year) + structured condition /
+        # intervention; both were being dropped (audit finding).
+        c = Candidate.from_row("ctgov", {
+            "nct_id": "NCT02286986", "title": "Cannabidiol in Epilepsy",
+            "start_date": "2014-09-18", "condition": ["Epilepsy"],
+            "intervention": ["Cannabidiol"],
+        })
+        self.assertEqual(c.identifier, "NCT02286986")
+        self.assertEqual(c.year, 2014)               # parsed from start_date
+        self.assertIn("Epilepsy", c.abstract)        # condition folded into text
+
     def test_candidates_from_discovery_skips_errors_and_idless(self):
         result = {
             "sources": {
@@ -125,6 +137,14 @@ class DesignPriorTests(unittest.TestCase):
     def test_design_label_surfaced_in_signals(self):
         cands = [_c("A", title="CBD pain", study_types=("Meta-Analysis",))]
         result = rank_candidates("cbd pain", cands, now_year=2026)
+        self.assertEqual(result.ranked[0].signals["design_label"], "meta-analysis")
+
+    def test_title_aware_sr_detection_overrides_review_pubtype(self):
+        # PubMed lags MeSH indexing — a fresh SR+MA is often tagged only
+        # "Review". The title carries the unambiguous truth (audit finding).
+        c = _c("X", study_types=("Journal Article", "Review"),
+               title="Adjunctive CBD for Epilepsy: A Systematic Review and Meta-Analysis of RCTs")
+        result = rank_candidates("cbd epilepsy", [c], now_year=2026)
         self.assertEqual(result.ranked[0].signals["design_label"], "meta-analysis")
 
 
@@ -206,14 +226,26 @@ class EscalationTests(unittest.TestCase):
         self.assertFalse(has_design_inversion(rows))
 
     # ── weak-lexical-signal trigger (BM25's synonymy blind spot) ────────
-    def test_low_lexical_confidence_on_synonymy_miss(self):
-        # "cbd" never lexically matches "cannabidiol" — BM25 is blind here.
+    def test_synonym_map_closes_cbd_cannabidiol_gap(self):
+        # The canon map now collapses cbd↔cannabidiol, so a "cbd" query is a
+        # confident lexical match against "cannabidiol" titles (the deployment
+        # audit's worst case, where the SR had scored BM25 0.00).
         cands = [
             _c("A", title="Cannabidiol mechanisms", abstract="cannabidiol pharmacology"),
             _c("B", title="Cannabidiol clinical overview", abstract="cannabidiol clinical"),
             _c("C", title="Cannabidiol safety", abstract="cannabidiol safety"),
         ]
-        self.assertTrue(low_lexical_confidence("cbd", cands))
+        self.assertFalse(low_lexical_confidence("cbd", cands))
+
+    def test_low_lexical_confidence_on_genuine_gap(self):
+        # A semantic gap the canon map does NOT cover (ganja↔cannabis,
+        # insomnia↔sleep) — BM25 is blind, so the LLM is the better judge.
+        cands = [
+            _c("A", title="Cannabis for sleep disorders"),
+            _c("B", title="Marijuana and sleep quality"),
+            _c("C", title="Cannabis effects on rest"),
+        ]
+        self.assertTrue(low_lexical_confidence("ganja insomnia", cands))
 
     def test_lexical_confident_when_terms_present(self):
         cands = [
@@ -328,19 +360,21 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(_ranked_ids(result)[0], "MA")
 
     def test_weak_lexical_signal_auto_escalates(self):
-        # "cbd" never lexically matches "cannabidiol", so BM25 is unreliable;
-        # the SR dominates on design (no top-tie, no inversion) but the LLM's
-        # semantic read is the effective ranker → escalate on weak lexical.
+        # A semantic gap the canon map does NOT cover (ganja↔cannabis,
+        # insomnia↔sleep), so BM25 is unreliable; the SR dominates on design
+        # (no top-tie, no inversion) but the LLM's semantic read is the
+        # effective ranker → escalate on weak lexical.
         cands = [
-            _c("A", title="Cannabidiol mechanisms of action", abstract="cannabidiol pharmacology",
+            _c("A", title="Cannabis for sleep disorders: a systematic review",
                year=2024, study_types=("Systematic Review",)),
-            _c("B", title="Cannabidiol clinical overview", abstract="cannabidiol clinical",
+            _c("B", title="Marijuana and sleep quality",
                year=2022, study_types=("Review",)),
-            _c("C", title="Cannabidiol safety review", abstract="cannabidiol safety",
+            _c("C", title="Cannabis effects on rest",
                year=2020, study_types=("Review",)),
         ]
         backend = _FakeBackend(order=["B", "A", "C"])
-        result = rank_candidates("cbd", cands, backend=backend, escalate=None, now_year=2026)
+        result = rank_candidates("ganja insomnia", cands, backend=backend,
+                                 escalate=None, now_year=2026)
         self.assertTrue(result.escalated)
         self.assertEqual(result.escalation_reason, "weak lexical signal")
         self.assertEqual(_ranked_ids(result)[0], "B")

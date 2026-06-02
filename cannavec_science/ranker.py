@@ -83,14 +83,34 @@ _STOP = frozenset(
     "between among also can may than then they them our".split()
 )
 
+# Domain-vocabulary canonicalisation, applied AFTER the plural fold (so keys are
+# the folded forms). Collapses synonyms a purely-lexical BM25 would miss, in
+# both the query and the document, so e.g. a "cbd" query matches a
+# "cannabidiol" title. High-confidence cannabis + epilepsy nomenclature only.
+_CANON = {
+    "cannabidiol": "cbd", "cannabidiolic": "cbda",
+    "tetrahydrocannabinol": "thc", "tetrahydrocannabinolic": "thca",
+    "tetrahydrocannabivarin": "thcv", "cannabidivarin": "cbdv",
+    "cannabigerol": "cbg", "cannabinol": "cbn", "cannabichromene": "cbc",
+    "marijuana": "cannabi", "marihuana": "cannabi",  # match folded "cannabis"
+    "epileptic": "epilepsy", "epilepsie": "epilepsy",
+    "convulsion": "seizure", "convulsive": "seizure", "convulsant": "seizure",
+}
+
 
 def _tokens(text: str) -> list[str]:
-    """Lowercase, split, drop stopwords, and fold trailing plural ``s``.
+    """Lowercase, split, drop stopwords, fold trailing plural ``s``, and
+    canonicalise domain vocabulary.
 
-    The plural fold is intentionally crude (``seizures`` → ``seizure``,
-    ``cannabinoids`` → ``cannabinoid``). It is applied identically to query
-    and document tokens, so even linguistically-wrong folds stay *consistent*
-    on both sides and only help recall.
+    The plural fold is intentionally crude (``seizures`` → ``seizure``). It is
+    applied identically to query and document tokens, so even linguistically-
+    wrong folds stay *consistent* on both sides and only help recall.
+
+    Domain canonicalisation then collapses synonyms BM25 would otherwise miss —
+    ``cannabidiol`` → ``cbd``, ``tetrahydrocannabinol`` → ``thc``,
+    ``epileptic`` → ``epilepsy``, ``convulsive`` → ``seizure`` — so a user who
+    types ``cbd`` still matches a title that says *cannabidiol* (the deployment
+    audit showed a 2026 systematic review scoring BM25 0.00 for exactly this).
     """
     out: list[str] = []
     for w in _TOKEN_RE.findall((text or "").lower()):
@@ -98,7 +118,7 @@ def _tokens(text: str) -> list[str]:
             continue
         if len(w) > 3 and w.endswith("s"):
             w = w[:-1]
-        out.append(w)
+        out.append(_CANON.get(w, w))
     return out
 
 
@@ -192,15 +212,35 @@ class Candidate:
             study = study + (str(design),)
 
         yr = row.get("year") or row.get("start_year")
+        if not yr:
+            # ClinicalTrials.gov rows carry start_date (ISO), not year — parse
+            # the leading 4-digit year so trial recency is not dropped.
+            m = re.match(r"\s*(\d{4})", str(row.get("start_date") or ""))
+            if m:
+                yr = m.group(1)
         try:
             yr = int(yr) if yr not in (None, "") else None
         except (TypeError, ValueError):
             yr = None
 
+        # Fold structured trial fields (conditions, interventions) into the
+        # searchable text so a CT.gov row matches a query on its condition even
+        # when the title is just "<intervention> in <condition>".
+        abstract = str(row.get("abstract") or row.get("summary") or "")
+        extra: list[str] = []
+        for key in ("condition", "intervention"):
+            v = row.get(key)
+            if isinstance(v, (list, tuple)):
+                extra.extend(str(x) for x in v)
+            elif v:
+                extra.append(str(v))
+        if extra:
+            abstract = (abstract + " " + " ".join(extra)).strip()
+
         return cls(
             identifier=ident,
             title=str(row.get("title") or row.get("brief_title") or ""),
-            abstract=str(row.get("abstract") or row.get("summary") or ""),
+            abstract=abstract,
             year=yr,
             study_types=study,
             retraction_status=str(row.get("retraction_status") or "clean"),
@@ -294,8 +334,18 @@ def _bm25_scores(
 
 
 def _design_weight(c: Candidate) -> tuple[float, str]:
-    """Study-design prior. Pubtypes dominate; the title is a fallback only."""
-    hay = " ".join(t.lower() for t in c.study_types).strip() or (c.title or "").lower()
+    """Study-design prior, read from pubtypes AND the title.
+
+    Pubtype tagging in PubMed lags for new papers — a 2026 "Systematic Review
+    and Meta-Analysis" is often only tagged ``Review`` until MeSH indexing
+    catches up (the deployment audit caught exactly this: two equivalent
+    SR+MAs scored 1.00 vs 0.55). The title carries the unambiguous phrases
+    ("systematic review", "meta-analysis"), so we scan both. The table is
+    ordered strongest-first, so a title that says *systematic review and
+    meta-analysis* wins over a bare ``Review`` pubtype.
+    """
+    hay = (" ".join(t.lower() for t in c.study_types) + " "
+           + (c.title or "").lower()).strip()
     for needles, w, label in _DESIGN_TABLE:
         if any(nd in hay for nd in needles):
             return w, label
