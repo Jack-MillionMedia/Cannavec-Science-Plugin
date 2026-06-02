@@ -265,6 +265,8 @@ class DiscoverRankingTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(payload["ranking"]["backend_used"], "llm")
         self.assertTrue(payload["ranking"]["escalated"])
+        # Four equal-score candidates → the top is a near-tie.
+        self.assertEqual(payload["ranking"]["escalation_reason"], "top near-tie")
 
     def test_rerank_llm_degrades_to_deterministic_on_failure(self):
         with patch("cannavec_science.ranker_llm.LLMReranker", _RaisingReranker):

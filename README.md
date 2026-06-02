@@ -166,9 +166,13 @@ study-design prior (meta-analysis / SR > RCT > cohort > case report — a
 *ranking* signal, never a GRADE), a gentle recency factor, and a hard
 retraction sink that pins retracted papers to the bottom. This deterministic
 order is the always-available accuracy *floor*. `--rerank-llm` adds an
-optional LLM lift on top: it fires **only on a genuine top-of-list near-tie**
-(a confidence short-circuit, so the model rarely runs and cost stays low),
-reorders by **index only** so it can never introduce or invent a citation
+optional LLM lift on top: it fires **only when the deterministic order is
+genuinely uncertain** — a top-of-list near-tie, or a *design inversion* where a
+still-relevant stronger-design paper (RCT / SR / meta-analysis) has been buried
+below a keyword-dense weaker-design one — a confidence short-circuit, so the
+model runs only where it changes the answer and cost stays low. The result
+records *why* it escalated. It reorders by **index only** so it can never
+introduce or invent a citation
 (Constitution §I/§IX), never assigns a grade (§VII), and **degrades silently
 to the deterministic order** if the model / `ANTHROPIC_API_KEY` / network is
 unavailable. `--rerank-model` selects the model (default `claude-sonnet-4-6`,

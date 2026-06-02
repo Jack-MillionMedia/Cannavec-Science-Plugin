@@ -18,7 +18,9 @@ from cannavec_science.ranker import (  # noqa: E402
     Candidate,
     DeterministicRanker,
     RankPlan,
+    ScoreBreakdown,
     candidates_from_discovery,
+    has_design_inversion,
     provenance_gate,
     rank_candidates,
     render_json,
@@ -26,6 +28,15 @@ from cannavec_science.ranker import (  # noqa: E402
     score_candidates,
     should_escalate,
 )
+
+
+def _sb(identifier, bm25, design):
+    """A ScoreBreakdown for direct has_design_inversion tests."""
+    return ScoreBreakdown(
+        identifier=identifier, bm25=bm25, design_weight=design,
+        design_label="x", recency_factor=1.0, retraction_factor=1.0,
+        final=(1.0 + bm25) * design,
+    )
 
 
 def _c(identifier, title="", abstract="", year=None, study_types=(),
@@ -168,6 +179,31 @@ class EscalationTests(unittest.TestCase):
     def test_too_few_candidates_never_escalates(self):
         self.assertFalse(should_escalate([("a", 5.0), ("b", 4.9)], margin=0.15))
 
+    # ── design-inversion trigger (expert audience) ──────────────────────
+    def test_inversion_when_relevant_strong_design_is_buried(self):
+        # REVIEW(0.55) ranked above RCT(0.90); RCT bm25 0.8 >= 0.25*2.0 floor.
+        rows = [_sb("REVIEW", 2.0, 0.55), _sb("RCT", 0.8, 0.90), _sb("CASE", 0.1, 0.55)]
+        self.assertTrue(has_design_inversion(rows))
+
+    def test_no_inversion_when_strong_design_is_offtopic(self):
+        # The meta has stronger design but is off-topic (bm25 below the floor),
+        # so it is correctly buried — not an inversion worth an expert's time.
+        rows = [_sb("REVIEW", 2.0, 0.55), _sb("OFFMETA", 0.2, 1.00), _sb("CASE", 0.1, 0.55)]
+        self.assertFalse(has_design_inversion(rows))
+
+    def test_no_inversion_in_design_respecting_order(self):
+        rows = [_sb("META", 2.0, 1.00), _sb("RCT", 1.5, 0.90), _sb("REVIEW", 1.0, 0.55)]
+        self.assertFalse(has_design_inversion(rows))
+
+    def test_small_design_gap_not_flagged(self):
+        # cohort(0.75) above rct(0.90): gap 0.15 < 0.2 → fine distinction, skip.
+        rows = [_sb("COHORT", 1.0, 0.75), _sb("RCT", 0.9, 0.90), _sb("X", 0.5, 0.65)]
+        self.assertFalse(has_design_inversion(rows))
+
+    def test_inversion_too_few_candidates(self):
+        rows = [_sb("REVIEW", 2.0, 0.55), _sb("RCT", 1.0, 0.90)]
+        self.assertFalse(has_design_inversion(rows))
+
     def test_pipeline_default_is_deterministic_no_escalation(self):
         cands = [_c("A", title="CBD pain"), _c("B", title="CBD sleep")]
         result = rank_candidates("cbd pain", cands, now_year=2026)
@@ -227,6 +263,40 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(_ranked_ids(result)[0], "P3")
         self.assertTrue(result.ranked[0].reordered_by_llm)
         self.assertEqual(result.ranked[0].rationale, "most direct")
+        self.assertEqual(result.escalation_reason, "forced")
+
+    def test_design_inversion_auto_escalates_and_expert_lifts_strong_design(self):
+        # A keyword-dense narrative review outscores a buried-but-relevant RCT
+        # and meta-analysis on BM25 — the exact case where an expert reranker
+        # should adjudicate. Auto-escalation must fire on "design inversion",
+        # not a top near-tie, and the (fake) expert lift pulls the strong
+        # designs back up.
+        cands = [
+            _c("REV", title="Cannabidiol for epilepsy in Dravet syndrome: a practical guide",
+               abstract="cannabidiol epilepsy dravet seizures cannabidiol epilepsy dravet seizures cannabidiol reduced",
+               year=2021, study_types=("Review",)),
+            _c("MA", title="Comparative network meta-analysis of antiseizure add-on therapies",
+               abstract="we pooled randomized trials of stiripentol fenfluramine and cannabidiol for dravet using extensive frequentist methods across many comparisons reported at length here",
+               year=2024, study_types=("Systematic Review", "Network Meta-Analysis")),
+            _c("RCT", title="Trial of fenfluramine for convulsive seizures",
+               abstract="double blind placebo controlled randomized trial of fenfluramine in children with dravet seizures over fourteen weeks",
+               year=2017, study_types=("Randomized Controlled Trial",)),
+            _c("REV2", title="State-of-the-art management of Dravet syndrome",
+               abstract="review of dravet management and comorbidities", year=2025, study_types=("Review",)),
+            _c("GUIDE", title="Epilepsy treatment overview",
+               abstract="epilepsy treatment overview narrative", year=2020, study_types=("Review",)),
+        ]
+        query = "cannabidiol epilepsy dravet seizures"
+        # Deterministic floor buries the strong designs under the dense review.
+        det = rank_candidates(query, cands, now_year=2026)
+        self.assertEqual(_ranked_ids(det)[0], "REV")
+        # Auto-escalate with an expert backend that lifts MA/RCT above the review.
+        backend = _FakeBackend(order=["MA", "RCT", "REV", "GUIDE", "REV2"])
+        result = rank_candidates(query, cands, backend=backend, escalate=None, now_year=2026)
+        self.assertTrue(result.escalated)
+        self.assertEqual(result.escalation_reason, "design inversion")
+        self.assertEqual(result.backend_used, "llm")
+        self.assertEqual(_ranked_ids(result)[0], "MA")
 
     def test_llm_cannot_introduce_a_citation(self):
         # Backend tries to inject an identifier not in the candidate set.

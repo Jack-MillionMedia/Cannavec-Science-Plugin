@@ -48,6 +48,7 @@ __all__ = [
     "DeterministicRanker",
     "score_candidates",
     "should_escalate",
+    "has_design_inversion",
     "provenance_gate",
     "rank_candidates",
     "candidates_from_discovery",
@@ -456,6 +457,49 @@ def should_escalate(
     return (top - second) / top < margin
 
 
+def has_design_inversion(
+    ordered: Sequence[ScoreBreakdown],
+    *,
+    min_design_gap: float = 0.2,
+    relevance_floor_frac: float = 0.25,
+    min_candidates: int = 3,
+) -> bool:
+    """True when a materially stronger-design candidate is ranked *below* a
+    weaker-design one while still being a genuine relevance contender.
+
+    This is the second escalation trigger (for an expert audience): BM25
+    keyword density can float a keyword-dense narrative review above a pivotal
+    RCT or meta-analysis. When that happens to a paper that is still on-topic —
+    not an off-topic record correctly buried for irrelevance — the ordering is
+    a judgement call worth an expert (LLM) opinion.
+
+    ``ordered`` is the deterministic best-first list of (non-retracted)
+    :class:`ScoreBreakdown`. An inversion is flagged when some higher-ranked
+    row ``hi`` and lower-ranked row ``lo`` satisfy both:
+
+    - ``lo.design_weight - hi.design_weight >= min_design_gap`` — ``lo`` has a
+      materially stronger study design but sits lower (e.g. RCT/SR/MA below a
+      narrative review; a gap of 0.2 ignores fine distinctions like RCT vs
+      cohort and fires only on real tier jumps), and
+    - ``lo.bm25 >= relevance_floor_frac * max_bm25`` — ``lo`` is relevant
+      enough to be a real contender, so a genuinely off-topic strong-design
+      record near the bottom does *not* trigger escalation.
+    """
+    rows = list(ordered)
+    if len(rows) < min_candidates:
+        return False
+    max_bm25 = max((r.bm25 for r in rows), default=0.0)
+    floor = relevance_floor_frac * max_bm25
+    for a in range(len(rows)):
+        hi = rows[a]
+        for b in range(a + 1, len(rows)):
+            lo = rows[b]
+            if (lo.design_weight - hi.design_weight) >= min_design_gap and \
+                    lo.bm25 >= floor:
+                return True
+    return False
+
+
 def provenance_gate(
     proposed: Sequence[str],
     allowed: set[str],
@@ -510,11 +554,13 @@ class RankResult:
     escalated: bool
     shortlist_size: int
     notes: tuple[str, ...] = ()
+    escalation_reason: Optional[str] = None  # why the LLM lift fired (or None)
 
     def to_dict(self) -> dict:
         return {
             "backend_used": self.backend_used,
             "escalated": self.escalated,
+            "escalation_reason": self.escalation_reason,
             "shortlist_size": self.shortlist_size,
             "notes": list(self.notes),
             "ranked": [r.to_dict() for r in self.ranked],
@@ -532,6 +578,8 @@ def rank_candidates(
     top_k: int = 10,
     escalate: Optional[bool] = None,
     margin: float = 0.15,
+    min_design_gap: float = 0.2,
+    relevance_floor_frac: float = 0.25,
     now_year: Optional[int] = None,
     k1: float = 1.5,
     b: float = 0.75,
@@ -540,10 +588,13 @@ def rank_candidates(
 
     The deterministic score is always computed (it is the floor, the tail
     order, and the fallback). An LLM ``backend`` — if supplied — is consulted
-    only on a top-of-list near-tie (``escalate=None`` → auto via
-    :func:`should_escalate`; pass ``True``/``False`` to force). Whatever the
-    backend returns is provenance-gated against the shortlist and retracted
-    rows are pinned last, so accuracy never depends on the model behaving.
+    only when the deterministic order is genuinely uncertain: either a
+    top-of-list near-tie (:func:`should_escalate`) or a design inversion, where
+    a still-relevant stronger-design paper is ranked below a weaker-design one
+    (:func:`has_design_inversion`). ``escalate=None`` auto-decides via those
+    two triggers; pass ``True``/``False`` to force. Whatever the backend
+    returns is provenance-gated against the shortlist and retracted rows are
+    pinned last, so accuracy never depends on the model behaving.
     """
     cands = _dedupe(candidates)
     if backend is None:
@@ -560,16 +611,32 @@ def rank_candidates(
     shortlist = [by_id[i] for i in shortlist_ids]
     shortlist_set = set(shortlist_ids)
 
-    nonret_scored = [
-        (i, scores[i].final)
-        for i in det_order
+    # Escalation triggers are scoped to the shortlist — the only rows an LLM
+    # backend actually reorders — which also bounds the inversion scan to
+    # O(top_k²). Both lists are already best-first (shortlist ⊆ det_order).
+    shortlist_nonret = [
+        scores[i] for i in shortlist_ids
         if by_id[i].retraction_status != "retracted"
     ]
+    nonret_scored = [(bd.identifier, bd.final) for bd in shortlist_nonret]
     llm_backed = getattr(backend, "name", "deterministic") != "deterministic"
+
+    reason: Optional[str] = None
     if escalate is None:
-        do_escalate = llm_backed and should_escalate(nonret_scored, margin=margin)
+        if llm_backed:
+            if should_escalate(nonret_scored, margin=margin):
+                reason = "top near-tie"
+            elif has_design_inversion(
+                shortlist_nonret,
+                min_design_gap=min_design_gap,
+                relevance_floor_frac=relevance_floor_frac,
+            ):
+                reason = "design inversion"
+        do_escalate = reason is not None
     else:
         do_escalate = bool(escalate) and llm_backed
+        if do_escalate:
+            reason = "forced"
 
     notes: list[str] = []
     final_short: list[str]
@@ -633,12 +700,14 @@ def rank_candidates(
             )
         )
 
+    escalated = backend_used != "deterministic"
     return RankResult(
         ranked=tuple(ranked),
         backend_used=backend_used,
-        escalated=backend_used != "deterministic",
+        escalated=escalated,
         shortlist_size=len(shortlist_ids),
         notes=tuple(notes),
+        escalation_reason=reason if escalated else None,
     )
 
 
@@ -677,7 +746,7 @@ def render_markdown(result: RankResult) -> str:
         "## Ranked candidates",
         "",
         f"_Backend: {result.backend_used}"
-        f"{' (LLM rerank)' if result.escalated else ' (deterministic floor)'} · "
+        f"{f' (LLM rerank — {result.escalation_reason})' if result.escalated else ' (deterministic floor)'} · "
         f"shortlist {result.shortlist_size}. Ranking only — these are "
         f"discovery candidates, not curated facts; verify each identifier and "
         f"let the deterministic verify + GRADE gate assign any grade._",
