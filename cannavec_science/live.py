@@ -30,6 +30,7 @@ Constitution compliance
 
 from __future__ import annotations
 
+import re
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 from cannavec_science._log import get_logger
@@ -44,6 +45,7 @@ __all__ = [
     "augment_answer",
     "answer_with_fallback",
     "is_thin",
+    "refine_query",
     "default_runners",
 ]
 
@@ -95,6 +97,58 @@ def default_runners() -> dict[str, Runner]:
         "chembl": _run_chembl,
         "europepmc": _run_europepmc,
     }
+
+
+# A natural-language question is a poor literature-search query — PubMed
+# E-utilities ANDs terms, so function words and generic research verbs
+# ("does", "effect", "alter", "in") over-restrict and tank recall. Strip them
+# and keep the content terms (cannabinoids, anatomy, hormones, conditions —
+# including short medical tokens like T3, LH, CB1).
+_QUERY_STOPWORDS = frozenset({
+    # articles / auxiliaries / question words / prepositions / conjunctions
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "am",
+    "do", "does", "did", "done", "how", "what", "why", "when", "where",
+    "which", "who", "whom", "whose", "of", "in", "on", "to", "for", "and",
+    "or", "but", "with", "without", "by", "from", "at", "as", "into", "than",
+    "then", "that", "this", "these", "those", "it", "its", "between", "among",
+    "during", "via", "vs", "versus", "about", "over", "under", "per", "not",
+    "no", "any", "there", "their", "they", "we", "you", "your",
+    # generic research verbs/nouns that rarely appear in indexed text and
+    # only narrow the AND-query
+    "effect", "effects", "impact", "impacts", "role", "roles", "level",
+    "levels", "alter", "alters", "affect", "affects", "modify", "modifies",
+    "modulate", "modulates", "influence", "influences", "change", "changes",
+    "contribute", "contributes", "cause", "causes", "use", "uses", "using",
+    "associated", "association", "incidence", "extent", "distinct",
+})
+
+_MAX_QUERY_TOKENS = 16
+
+
+def refine_query(question: str) -> str:
+    """Turn a natural-language question into a keyword search query.
+
+    Drops function words and generic research verbs, keeps content terms
+    (including short medical abbreviations such as ``T3``/``LH``/``CB1``),
+    de-duplicates preserving order, and caps length. Falls back to the
+    original text if stripping would leave nothing. Used for the auto-fallback
+    live search, where the input is a question, not a curated query.
+    """
+    if not question:
+        return question
+    tokens = re.findall(r"[a-z0-9][a-z0-9-]*", question.lower())
+    kept: list[str] = []
+    seen: set[str] = set()
+    for t in tokens:
+        if len(t) < 2 or t in _QUERY_STOPWORDS:
+            continue
+        if t in seen:
+            continue
+        seen.add(t)
+        kept.append(t)
+        if len(kept) >= _MAX_QUERY_TOKENS:
+            break
+    return " ".join(kept) or question
 
 
 def _clean_sources(sources: Optional[Sequence[str]]) -> tuple[str, ...]:
@@ -177,9 +231,12 @@ def augment_answer(
 
     if getattr(answer, "is_refusal", False):
         return 0
+    # Search the keyword-refined question, not the raw sentence — far better
+    # literature-search recall (see refine_query).
+    query = refine_query(answer.prompt)
     try:
         result = run_discovery(
-            answer.prompt,
+            query,
             sources=sources,
             max_results=max_results,
             since=since,

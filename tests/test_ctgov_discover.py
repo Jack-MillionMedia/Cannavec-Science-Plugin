@@ -465,6 +465,26 @@ class CannabisRelevanceFilterTests(unittest.TestCase):
         self.assertEqual(rows[0].nct_id, "NCT0CANN")
         self.assertIn("Cannabidiol", rows[0].intervention)
 
+    def test_cannabis_only_constrains_intervention_field(self) -> None:
+        # Recall fix: the cannabinoid constraint goes into CT.gov's
+        # intervention field, and the term is the cannabis-stripped topic.
+        from urllib.parse import urlsplit, parse_qs
+        fetcher = _StubFetcher({
+            "/api/v2/studies?": _search_fixture([
+                _study_payload(nct="NCT0CANN", intervention="Cannabidiol",
+                               condition="Metabolic Syndrome"),
+            ]),
+        })
+        CTGovSearcher(fetcher=fetcher).search(
+            "cannabis insulin metabolic syndrome", cannabis_relevant_only=True
+        )
+        qs = parse_qs(urlsplit(fetcher.calls[0]).query)
+        self.assertIn("query.intr", qs)
+        self.assertIn("cannabidiol", " ".join(qs["query.intr"]).lower())
+        # "cannabis" was stripped out of the topic term.
+        self.assertNotIn("cannabis", " ".join(qs.get("query.term", [""])).lower())
+        self.assertIn("insulin", " ".join(qs.get("query.term", [""])).lower())
+
     def test_relevance_helper(self) -> None:
         from cannavec_science.ctgov_discover import _trial_is_cannabis_relevant
         cann = CTGovTrialRow(

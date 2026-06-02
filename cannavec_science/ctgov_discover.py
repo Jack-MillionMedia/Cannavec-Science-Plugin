@@ -183,6 +183,25 @@ def _trial_is_cannabis_relevant(row: "CTGovTrialRow") -> bool:
     return bool(_CANNABIS_RELEVANCE_RE.search(haystack))
 
 
+# Cannabis OR-group sent to CT.gov's intervention field so the API returns
+# cannabinoid-intervention trials directly (recall), instead of fetching a
+# broad free-text page and post-filtering it to empty.
+_CANNABIS_INTR_QUERY = (
+    "cannabis OR cannabidiol OR cannabinoid OR marijuana OR THC OR CBD OR "
+    "tetrahydrocannabinol OR nabiximols OR dronabinol OR nabilone OR hemp"
+)
+
+
+def _strip_cannabis_terms(query: str) -> str:
+    """Remove cannabinoid tokens from a query so the remainder can be used as
+    the CT.gov ``query.term`` (the condition/topic) while the cannabinoid
+    constraint moves to ``query.intr``. Falls back to the original query if
+    stripping leaves nothing."""
+    stripped = _CANNABIS_RELEVANCE_RE.sub(" ", query)
+    stripped = re.sub(r"\s+", " ", stripped).strip()
+    return stripped or query
+
+
 class CTGovSearcher:
     def __init__(self, *, fetcher: Optional[Fetcher] = None) -> None:
         self._fetcher = fetcher or default_ctgov_fetcher
@@ -223,10 +242,20 @@ class CTGovSearcher:
 
         preflight(query)
 
+        # Cannabis relevance gate (recall + precision): push the cannabinoid
+        # constraint into CT.gov's intervention field so the API returns
+        # cannabinoid trials directly, and use the cannabis-stripped remainder
+        # as the topic term. The post-filter below is the safety net.
+        eff_query = query
+        eff_intervention = intervention
+        if cannabis_relevant_only and not intervention:
+            eff_intervention = _CANNABIS_INTR_QUERY
+            eff_query = _strip_cannabis_terms(query)
+
         url = self._build_search_url(
-            query=query,
+            query=eff_query,
             condition=condition,
-            intervention=intervention,
+            intervention=eff_intervention,
             status=status,
             since=since,
             page_size=max_results,

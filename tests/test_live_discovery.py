@@ -151,6 +151,53 @@ class AugmentAnswerTests(unittest.TestCase):
         self.assertEqual(len(a.live_findings), 0)
 
 
+class RefineQueryTests(unittest.TestCase):
+    def test_drops_function_and_research_words(self):
+        toks = live.refine_query(
+            "Does cannabidiol alter tear film osmolarity in dry eye?"
+        ).split()
+        self.assertIn("cannabidiol", toks)
+        self.assertIn("osmolarity", toks)
+        for dropped in ("does", "alter", "in", "the"):
+            self.assertNotIn(dropped, toks)
+
+    def test_keeps_short_medical_tokens(self):
+        toks = live.refine_query(
+            "How does THC change TSH, free T3 and T4 levels?"
+        ).split()
+        for kept in ("thc", "tsh", "t3", "t4", "free"):
+            self.assertIn(kept, toks)
+        self.assertNotIn("levels", toks)
+
+    def test_dedup_preserves_first(self):
+        out = live.refine_query("cannabis cannabis cannabis insulin")
+        self.assertEqual(out.split().count("cannabis"), 1)
+
+    def test_all_stopwords_falls_back_to_original(self):
+        self.assertTrue(live.refine_query("the of in and"))
+
+
+class AugmentUsesRefinedQueryTests(unittest.TestCase):
+    def test_augment_searches_keyword_query_not_raw_sentence(self):
+        a = compose_answer(
+            "What is the effect of cannabidiol on tear film osmolarity in "
+            "dry eye?"
+        )
+        seen = {}
+
+        def _rec(query, since, n):
+            seen["q"] = query
+            return []
+
+        live.augment_answer(a, sources=["pubmed"], runners={"pubmed": _rec})
+        toks = seen["q"].split()
+        self.assertIn("cannabidiol", toks)
+        self.assertIn("osmolarity", toks)
+        # function / research words must be gone
+        self.assertNotIn("what", toks)
+        self.assertNotIn("effect", toks)
+
+
 class IsThinTests(unittest.TestCase):
     def _fake(self, *, is_refusal=False, claims=(), highest=None):
         import types
