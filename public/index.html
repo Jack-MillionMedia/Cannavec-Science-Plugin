@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cannavec Science API</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 16px/1.6 system-ui, sans-serif; max-width: 46rem;
+           margin: 3rem auto; padding: 0 1.25rem; }
+    code { background: rgba(127,127,127,.18); padding: .1em .35em;
+           border-radius: .25em; }
+    pre { background: rgba(127,127,127,.12); padding: 1rem;
+          border-radius: .5em; overflow:auto; }
+    h1 { margin-bottom: .25rem; } .muted { opacity:.7; }
+    li { margin:.35rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Cannavec Science API</h1>
+  <p class="muted">Research-grade cannabis-science briefs — primary-source
+  anchored, GRADE-honest. Phase&nbsp;1 (curated, offline) endpoints:</p>
+  <ul>
+    <li><code>GET /api/health</code> — liveness &amp; capability probe</li>
+    <li><code>GET /api/answer?question=...</code> — cited research brief (JSON;
+        add <code>&amp;format=markdown</code> for prose)</li>
+    <li><code>POST /api/answer</code> — body <code>{"question":"..."}</code></li>
+    <li><code>GET /api/rigor?text=...</code> — phytochemistry &amp;
+        banned-pattern audit</li>
+    <li><code>GET /api/registries</code> — curated-registry inventory</li>
+  </ul>
+  <p>Example:</p>
+  <pre>curl "/api/answer?question=CBD evidence in Dravet syndrome&amp;format=markdown"</pre>
+  <p class="muted">Live primary-source discovery (PubMed / ChEMBL /
+  ClinicalTrials.gov) is Phase&nbsp;2 and requires an
+  <code>NCBI_API_KEY</code> environment variable.</p>
+</body>
+</html>

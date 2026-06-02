@@ -1,0 +1,7 @@
+# Cannavec Science is stdlib-only (Constitution §X) — the core engine and
+# the Phase-1 Vercel API handlers import nothing outside the Python standard
+# library, so this file is intentionally empty of runtime dependencies.
+#
+# Its presence signals the Python runtime to Vercel's builder. Phase-2 live
+# discovery also stays stdlib (urllib); any optional rendering extras (PDF /
+# slides) belong in a separate, opt-in layer and must NOT be added here.

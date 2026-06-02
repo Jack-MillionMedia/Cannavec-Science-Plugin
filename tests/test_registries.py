@@ -28,6 +28,8 @@ class AllRegistryGroupsTests(unittest.TestCase):
         # depth registries, bringing the total to 16.
         # Spec 006 US7 / FR-008: v0.6 adds four research-domain-breadth
         # registries, bringing the total to 20.
+        # Spec 026 US1 / FR-026: v0.7 adds the cannabis-endocrinology
+        # registry, bringing the total to 21.
         self.assertEqual(names, (
             "major_cannabinoids",
             "minor_cannabinoids",
@@ -49,14 +51,15 @@ class AllRegistryGroupsTests(unittest.TestCase):
             "psychiatry",
             "driving_impairment",
             "ptsd_anxiety_sleep",
+            "endocrine",
         ))
 
 
 class BuildInventoryTests(unittest.TestCase):
     def test_all_registries_returns_twenty_groups(self):
         inv = build_inventory("all")
-        # Spec 006 US7 / FR-008: v0.6 brings total to 20.
-        self.assertEqual(len(inv.groups), 20)
+        # Spec 026 US1 / FR-026: v0.7 brings total to 21.
+        self.assertEqual(len(inv.groups), 21)
         self.assertGreater(inv.total_rows, 180)
 
     def test_single_registry_filter(self):

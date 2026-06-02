@@ -97,6 +97,8 @@ def all_registry_groups() -> tuple[str, ...]:
         "psychiatry",
         "driving_impairment",
         "ptsd_anxiety_sleep",
+        # Spec 026 — cannabis-endocrinology additions.
+        "endocrine",
     )
 
 
@@ -393,6 +395,19 @@ def _build_ptsd_anxiety_sleep() -> RegistryGroup:
     )
 
 
+def _build_endocrine() -> RegistryGroup:
+    from cannavec_science.endocrine import all_endocrine_rows
+    rows = all_endocrine_rows()
+    entries = tuple(sorted({f"{r.topic}: {r.name}" for r in rows}))
+    return RegistryGroup(
+        name="endocrine",
+        label="Cannabis endocrinology — metabolic/reproductive/HP-axes (v0.7)",
+        row_count=len(rows),
+        entries=entries,
+        last_verified=_latest_last_verified(rows),
+    )
+
+
 _BUILDERS = {
     "major_cannabinoids": _build_major_cannabinoids,
     "minor_cannabinoids": _build_minor_cannabinoids,
@@ -416,6 +431,7 @@ _BUILDERS = {
     "psychiatry": _build_psychiatry,
     "driving_impairment": _build_driving_impairment,
     "ptsd_anxiety_sleep": _build_ptsd_anxiety_sleep,
+    "endocrine": _build_endocrine,
 }
 
 

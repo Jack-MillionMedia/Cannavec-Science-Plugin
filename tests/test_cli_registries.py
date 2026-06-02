@@ -41,6 +41,7 @@ _EXPECTED_REGISTRIES = {
     "psychiatry",
     "driving_impairment",
     "ptsd_anxiety_sleep",
+    "endocrine",
 }
 
 
@@ -65,8 +66,8 @@ class RegistriesJSONTests(unittest.TestCase):
             f"missing registries: {_EXPECTED_REGISTRIES - names}",
         )
         self.assertEqual(
-            len(names & _EXPECTED_REGISTRIES), 20,
-            "all 20 curated v0.6 registries must surface",
+            len(names & _EXPECTED_REGISTRIES), 21,
+            "all 21 curated v0.7 registries must surface",
         )
 
     def test_specific_registry_returns_only_that_one(self):
@@ -95,7 +96,7 @@ class RegistriesMarkdownTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         out = buf.getvalue()
         # The header is rendered with markdown bold around the count.
-        self.assertIn("**20** curated registries", out)
+        self.assertIn("**21** curated registries", out)
         # And a representative subset of display names should appear.
         for fragment in (
             "Major cannabinoids",
