@@ -385,7 +385,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
             ),
             InteractionCitation(
                 label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -412,7 +412,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
             ),
             InteractionCitation(
                 label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -593,7 +593,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
             ),
             InteractionCitation(
                 label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -621,7 +621,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
             ),
             InteractionCitation(
                 label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                pmid="35115300",
                 year=2020,
             ),
         ),
@@ -704,7 +704,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
             ),
             InteractionCitation(
                 label="Bansal 2020 — Cannabinoid CYP review",
-                pmid="32346841",
+                pmid="35115300",
                 year=2020,
             ),
         ),

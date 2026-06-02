@@ -20,7 +20,7 @@ Topic coverage:
   demographics + alcohol the cannabis-only adjusted OR dropped to
   ~1.05 (95% CI 0.86-1.27) — the most-cited NHTSA finding and the
   most-mis-cited result in the cannabis-driving literature.
-- ``plasma_dose_response`` — Hartman 2015 Clin Chem (PMID 25371545)
+- ``plasma_dose_response`` — Hartman 2015 Clin Chem (PMID 26144593)
   analysis of plasma Δ⁹-THC concentration vs crash-risk dose-response.
   Provides the methodologically rigorous plasma-concentration
   framework that per-se thresholds reference (but cannot endorse
@@ -182,7 +182,7 @@ _HARTMAN_2015 = DrivingImpairmentCitation(
     label="Hartman RL et al., Clinical Chemistry 2015, cannabis effects on "
           "driving lateral control with and without alcohol — plasma THC "
           "dose-response analysis",
-    pmid="25371545", year=2015,
+    pmid="26144593", year=2015,
 )
 _MARCOTTE_2022 = DrivingImpairmentCitation(
     label="Marcotte TD et al., JAMA Psychiatry 2022, driving performance "

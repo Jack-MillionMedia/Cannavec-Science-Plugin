@@ -21,7 +21,7 @@ Topic coverage:
   topical capsaicin treatment with caveat that cessation remains
   the only definitive long-term resolution.
 - ``cyclic_vomiting_dx`` — CVS vs CHS differential and post-
-  legalization ED epidemiology (Kim 2018 PMID 30049481).
+  legalization ED epidemiology (Kim 2018 PMID 25903855).
 
 Each row carries `to_claim()` returning a typed Claim, identifier-
 anchored citations per §I, and is matched by a topic-keyword regex
@@ -184,7 +184,7 @@ _KIM_2018 = HyperemesisSyndromeCitation(
     label="Kim HS et al., BMJ Open 2018, cyclic vomiting presentations "
           "following marijuana liberalization in Colorado — emergency "
           "department visits before and after legalization",
-    pmid="30049481", year=2018,
+    pmid="25903855", year=2018,
 )
 
 
