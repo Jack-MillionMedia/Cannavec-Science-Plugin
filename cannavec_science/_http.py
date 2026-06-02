@@ -30,12 +30,16 @@ import os
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 __all__ = [
     "TIMEOUT_FAST",
     "TIMEOUT_SLOW",
     "user_agent",
     "crossref_contact",
+    "ncbi_api_key",
+    "ncbi_email",
+    "append_ncbi_auth",
     "retry_urlopen",
     "RetryableHTTPError",
 ]
@@ -84,6 +88,55 @@ def crossref_contact() -> str | None:
     """
     mail = os.environ.get("CANNAVEC_CROSSREF_MAILTO", "").strip()
     return mail or None
+
+
+# Only NCBI E-utilities calls are authenticated; the key/email never leak to
+# any other host.
+_NCBI_EUTILS_HOST = "eutils.ncbi.nlm.nih.gov"
+
+
+def ncbi_api_key() -> str | None:
+    """Operator's NCBI E-utilities API key from ``NCBI_API_KEY``.
+
+    A key raises the E-utilities rate limit from 3 → 10 requests/second and
+    identifies the caller, so NCBI is far less likely to refuse a shared
+    cloud-egress IP (the production fix for the ``403 Forbidden`` seen from a
+    locked-down environment). Returns ``None`` when unset — in which case the
+    request is sent unauthenticated, exactly as before, so offline tests and
+    key-less deployments are unaffected.
+    """
+    key = os.environ.get("NCBI_API_KEY", "").strip()
+    return key or None
+
+
+def ncbi_email() -> str | None:
+    """Operator contact e-mail from ``NCBI_EMAIL`` (NCBI etiquette). Optional."""
+    mail = os.environ.get("NCBI_EMAIL", "").strip()
+    return mail or None
+
+
+def append_ncbi_auth(url: str) -> str:
+    """Return ``url`` with NCBI ``api_key`` (and ``email``) query params added.
+
+    No-ops unless (a) a key is configured AND (b) the URL targets the NCBI
+    E-utilities host — so the credential is never appended to Crossref,
+    ChEMBL, CT.gov, or any other source. Idempotent: an already-present
+    ``api_key`` is left untouched.
+    """
+    key = ncbi_api_key()
+    if not key:
+        return url
+    parts = urlsplit(url)
+    if parts.netloc != _NCBI_EUTILS_HOST:
+        return url
+    q = dict(parse_qsl(parts.query, keep_blank_values=True))
+    q.setdefault("api_key", key)
+    email = ncbi_email()
+    if email:
+        q.setdefault("email", email)
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment)
+    )
 
 
 class RetryableHTTPError(urllib.error.HTTPError):
