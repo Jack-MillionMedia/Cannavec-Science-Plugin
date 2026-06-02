@@ -226,7 +226,12 @@ class LLMReranker:
                 }
             ],
             messages=[{"role": "user", "content": user_text}],
-            thinking={"type": "adaptive"},
+            # Thinking disabled: reranking a shortlist against an explicit rubric
+            # is a bounded single-pass task, and adaptive thinking added seconds
+            # of latency on denser queries (CYP3A4) that pushed the call past the
+            # serverless timeout. A fast, predictable pass is the right tradeoff;
+            # the accuracy guarantees do not depend on thinking.
+            thinking={"type": "disabled"},
             output_config={
                 "effort": self.effort,
                 "format": {"type": "json_schema", "schema": _SCHEMA},

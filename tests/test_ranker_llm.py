@@ -159,8 +159,8 @@ class RequestConstructionTests(unittest.TestCase):
         # Static rubric carried as a cache_control system block.
         self.assertEqual(call["system"][0]["cache_control"], {"type": "ephemeral"})
         self.assertEqual(call["system"][0]["text"], RUBRIC)
-        # Adaptive thinking + effort under output_config (cost-quality lever).
-        self.assertEqual(call["thinking"], {"type": "adaptive"})
+        # Thinking disabled for a fast, bounded single-pass rerank (latency).
+        self.assertEqual(call["thinking"], {"type": "disabled"})
         self.assertIn("effort", call["output_config"])
         # A wall-clock timeout bounds the call so a slow model degrades to the
         # deterministic floor instead of hanging a serverless request.
