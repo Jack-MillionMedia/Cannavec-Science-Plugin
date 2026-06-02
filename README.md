@@ -158,6 +158,25 @@ etiquette) to fan out across the 13 lanes concurrently. Result ordering
 stays alphabetical-by-source regardless of completion order so identical
 runs produce identical JSON.
 
+`discover` also ranks the fanned-out candidates into a single cross-source
+**Ranked candidates** view (on by default; `--no-rank` to suppress). The
+ranking is a free, offline, **deterministic** retrieve-then-rerank: an
+Okapi-BM25 relevance score over title + abstract + topic, modulated by a
+study-design prior (meta-analysis / SR > RCT > cohort > case report — a
+*ranking* signal, never a GRADE), a gentle recency factor, and a hard
+retraction sink that pins retracted papers to the bottom. This deterministic
+order is the always-available accuracy *floor*. `--rerank-llm` adds an
+optional LLM lift on top: it fires **only on a genuine top-of-list near-tie**
+(a confidence short-circuit, so the model rarely runs and cost stays low),
+reorders by **index only** so it can never introduce or invent a citation
+(Constitution §I/§IX), never assigns a grade (§VII), and **degrades silently
+to the deterministic order** if the model / `ANTHROPIC_API_KEY` / network is
+unavailable. `--rerank-model` selects the model (default `claude-sonnet-4-6`,
+accuracy-equivalent to Opus for a bounded rerank at lower cost; pass
+`claude-opus-4-8` for the maximum ceiling). The deterministic core is
+stdlib-only; the LLM layer lives in `cannavec_science.ranker_llm` and is
+imported only when used.
+
 ### Quantitative evidence synthesis (`meta`, spec 011)
 
 Discovery and grading tell you *which* studies exist and *how trustworthy*
