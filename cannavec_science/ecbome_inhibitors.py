@@ -220,7 +220,7 @@ _PF_04457845_CANNABIS_WITHDRAWAL = EcbomeInhibitorRow(
     source_tier=SourceTier.JOURNAL_RCT,
     target_protein="FAAH (fatty acid amide hydrolase; UniProt O00519)",
     compound_id="PF-04457845",
-    chembl_id="CHEMBL2105751",
+    chembl_id="CHEMBL1651534",
     citations=(_DSOUZA_2019,),
     key_notes=(
         "Single-trial Level B (Phase 2a; n=70 males only). Level A would "
@@ -256,7 +256,7 @@ _PF_04457845_OSTEOARTHRITIS = EcbomeInhibitorRow(
     source_tier=SourceTier.JOURNAL_RCT,
     target_protein="FAAH (fatty acid amide hydrolase; UniProt O00519)",
     compound_id="PF-04457845",
-    chembl_id="CHEMBL2105751",
+    chembl_id="CHEMBL1651534",
     citations=(_HUGGINS_2012,),
     key_notes=(
         "Negative trial with verified target engagement is the most "
@@ -294,7 +294,7 @@ _BIA_10_2474_DISASTER = EcbomeInhibitorRow(
     source_tier=SourceTier.SINGLE_ARM_OR_MECH,
     target_protein="FAAH (claimed) + off-target lipases / serine hydrolases (actual)",
     compound_id="BIA 10-2474",
-    chembl_id="CHEMBL3989775",
+    chembl_id="",  # curator: no verified ChEMBL entry for BIA 10-2474; prior id resolved to an unrelated compound (Eganoprost)
     citations=(_KERBRAT_2016, _VAN_ESBROECK_2017),
     key_notes=(
         "The off-target serine-hydrolase disambiguation is the row's "
@@ -334,7 +334,7 @@ _MAGL_ABX_1431 = EcbomeInhibitorRow(
     source_tier=SourceTier.SINGLE_ARM_OR_MECH,
     target_protein="MAGL (monoacylglycerol lipase; UniProt Q99685)",
     compound_id="ABX-1431 / Lu AG06466",
-    chembl_id="CHEMBL4302093",
+    chembl_id="CHEMBL3945728",
     citations=(_CISAR_2018,),
     key_notes=(
         "Selectivity over FAAH is the key SAR challenge for MAGL "
@@ -372,7 +372,7 @@ _JZL195_DUAL = EcbomeInhibitorRow(
     source_tier=SourceTier.PREPRINT_OR_SMALL,
     target_protein="FAAH + MAGL (dual; UniProt O00519 + Q99685)",
     compound_id="JZL195",
-    chembl_id="CHEMBL2364146",
+    chembl_id="",  # curator: prior id was invalid; JZL195 not found in ChEMBL by name
     citations=(_LONG_2009,),
     key_notes=(
         "JZL195 has not progressed to clinical development; clinical "

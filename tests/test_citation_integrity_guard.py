@@ -54,6 +54,37 @@ _WRONG_TO_RIGHT = {
     "31867754": "31469934",
 }
 
+# DOIs that shipped pointing at the wrong paper (confirmed via PubMed/Crossref
+# on 2026-06-02) -> verified replacement.
+_WRONG_DOIS = {
+    "10.1038/clpt.2008.229": "10.1038/clpt.2008.213",  # was Pollock geriatric-psychopharm editorial, not Sachse-Seeboth
+    "10.1111/nmo.13606": "10.1111/nmo.13604",          # one-digit-off Venkatesan 2019 DOI
+    "10.1080/13880200902749229": "10.3109/08958370902748559",  # wrong DOI for Pomahacova 2009 (Inhal Toxicol)
+}
+
+# ChEMBL ids that shipped resolving to the wrong compound or an invalid id
+# (confirmed via the ChEMBL API on 2026-06-02). Value is the verified
+# replacement, or "" where the compound has no verified ChEMBL entry and the
+# wrong id was removed rather than replaced.
+_WRONG_CHEMBL = {
+    "CHEMBL2105751": "CHEMBL1651534",  # PF-04457845 (prior id did not resolve)
+    "CHEMBL4302093": "CHEMBL3945728",  # ABX-1431 (prior id was a platinum complex)
+    "CHEMBL3989775": "",               # BIA 10-2474 -> prior id was Eganoprost; no verified entry
+    "CHEMBL2364146": "",               # JZL195 -> prior id invalid; not in ChEMBL by name
+}
+
+_DOI_RE = re.compile(r'doi\s*=\s*["\']([^"\']+)["\']')
+_CHEMBL_RE = re.compile(r'\bCHEMBL\d+\b')
+
+
+def _all_literals(regex: "re.Pattern[str]") -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for path in sorted(glob.glob(os.path.join(_PKG, "*.py"))):
+        text = open(path, encoding="utf-8").read()
+        for tok in set(regex.findall(text)):
+            out.setdefault(tok, []).append(os.path.basename(path))
+    return out
+
 
 def _all_pmids() -> dict[str, list[str]]:
     """Map each PMID literal to the basenames of the modules that cite it."""
@@ -88,6 +119,31 @@ class CitationIntegrityGuard(unittest.TestCase):
                 right,
                 self.pmids,
                 msg=f"Verified replacement PMID {right} is missing from the registries.",
+            )
+
+    def test_known_bad_dois_never_return(self) -> None:
+        dois = _all_literals(_DOI_RE)
+        for bad, right in _WRONG_DOIS.items():
+            where = dois.get(bad)
+            self.assertIsNone(
+                where,
+                msg=(
+                    f"Known-wrong DOI {bad} reappeared in {where}; it resolves to "
+                    f"the wrong paper and must be {right}. See this file's header."
+                ),
+            )
+
+    def test_known_bad_chembl_ids_never_return(self) -> None:
+        chembl = _all_literals(_CHEMBL_RE)
+        for bad, right in _WRONG_CHEMBL.items():
+            where = chembl.get(bad)
+            hint = f"must be {right}" if right else "had no verified entry; leave it unset"
+            self.assertIsNone(
+                where,
+                msg=(
+                    f"Known-wrong ChEMBL id {bad} reappeared in {where}; it resolves "
+                    f"to a different/invalid compound ({hint}). See this file's header."
+                ),
             )
 
 

@@ -26,7 +26,7 @@ Topic coverage:
   Type V (essentially cannabinoid-free hemp) classification. The
   industry-expert framing standard for distinguishing cultivars.
 - ``pyrolysis`` — vapor / smoke pyrolysis byproducts. Pomahacova 2009
-  (DOI 10.1080/13880200902749229) compared combustion vs vaporisation
+  (DOI 10.3109/08958370902748559) compared combustion vs vaporisation
   for benzene / toluene / naphthalene / PAHs. The harm-reduction
   literature uses these data heavily.
 
@@ -198,7 +198,7 @@ _LEWIS_2018 = AnalyticalChemistryCitation(
 _POMAHACOVA_2009 = AnalyticalChemistryCitation(
     label="Pomahacova B et al., Inhal Toxicol 2009, cannabis smoke "
           "condensate III: the cannabinoid content of vaporized cannabis",
-    doi="10.1080/13880200902749229", year=2009,
+    pmid="19852551", doi="10.3109/08958370902748559", year=2009,
 )
 _MOIR_2008 = AnalyticalChemistryCitation(
     label="Moir D et al., Chem Res Toxicol 2008, comparison of mainstream "

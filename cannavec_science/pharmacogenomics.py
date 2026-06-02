@@ -198,7 +198,8 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         citations=(
             PGxCitation(
                 label="Sachse-Seeboth 2009 — CYP2C9 polymorphism and THC pharmacokinetics",
-                doi="10.1038/clpt.2008.229",
+                pmid="19005461",
+                doi="10.1038/clpt.2008.213",
                 year=2009,
             ),
             PGxCitation(

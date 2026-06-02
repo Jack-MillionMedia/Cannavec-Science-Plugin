@@ -836,7 +836,7 @@ _VENKATESAN_2019 = EndocrineCitation(
     label="Venkatesan T et al., Neurogastroenterol Motil 2019, ACG/CAPS "
           "consensus on cannabinoid hyperemesis syndrome within the cyclic-"
           "vomiting-syndrome spectrum",
-    pmid="31241819", doi="10.1111/nmo.13606", year=2019,
+    pmid="31241819", doi="10.1111/nmo.13604", year=2019,
 )
 
 
