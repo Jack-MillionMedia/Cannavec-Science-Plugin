@@ -92,7 +92,7 @@ forming exactly as that cost rises.
 
 | Priority | Investment | Status |
 |---|---|---|
-| **P0** | **Verified-evidence gate** — citation integrity enforced continuously, in CI, on every change. | **Shipped** — offline denylist guard + online author-OR-title PMID audit + online UniProt accession audit, all gating PRs; discovery-index structural guard. Remaining: extend the *online* check to DOI / ChEMBL resolution (the specific defects found are denylisted offline), and mark the CI check "required" in branch protection. |
+| **P0** | **Verified-evidence gate** — citation integrity enforced continuously, in CI, on every change. | **Shipped** — online audits for all four identifier types (PMID author-OR-title, UniProt accession, DOI via Crossref, ChEMBL via the ChEMBL API) + an offline denylist guard + the discovery-index structural guard, all in the CI integrity-audit job. Every curated DOI and ChEMBL id was verified 1:1 this round. Remaining: mark the CI check "required" in branch protection. |
 | **P1** | **Claim-support verification** — verify the cited paper actually supports the *magnitude/direction* claimed (e.g. "AUC ×14.8", "CYP3A4 inhibition"), not just that the identifier resolves. | **Shipped (v1)** — deterministic flagger (`claim_support.py`) + CI harness over the interaction registry: soft verdicts print a review queue, a direction *contradiction* fails. The optional LLM adjudicator over the flagged minority is the next layer. |
 | **P2** | **Per-answer provenance/audit trail** — every claim → identifier → verification timestamp → GRADE, exportable. This is what makes a brief *defensible and reproducible*, and is the feature enterprise buyers will pay extra for. | Partially present (bibliography export, GRADE inline) |
 | **P3** | **Coverage expansion** (more registries/sources) — only *after* the gate is bulletproof, or you scale the defect surface faster than the trust. | Ongoing; sequence behind P0/P1 |
@@ -187,10 +187,14 @@ real deliverable they'd otherwise have paid a person to produce.
     flag).
   - *Stott DOI (`10.2217/fca.13.87`)* — resolved: a phantom "review"; the claim
     is re-anchored to the verified Stout 2014 systematic review (PMID 24160757).
-- **Still open (named honestly):** online *DOI/ChEMBL resolution* audits (the
-  specific defects found are denylisted offline, but new ones aren't yet caught
-  online); the optional *LLM adjudicator* for the claim-support review queue;
-  and making the CI integrity check a *required* status check (a repo setting).
+- **Every curated DOI and ChEMBL id verified 1:1** (next round): all 43 DOIs
+  cross-checked against PubMed/Crossref and 3 wrong/phantom ones fixed (Damkier
+  DOI, "Hajós 2014" and "Stout 2012" phantoms → re-anchored to verified Stout
+  2014 / Bansal 2022); both ChEMBL ids confirmed. Online Crossref + ChEMBL
+  audits now run in CI so new ones can't slip in.
+- **Still open (named honestly):** the optional *LLM adjudicator* for the
+  claim-support review queue; and making the CI integrity check a *required*
+  status check (a repo setting only the owner can flip).
 
 ---
 
