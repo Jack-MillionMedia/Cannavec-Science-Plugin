@@ -47,7 +47,7 @@ class RegistryShapeTests(unittest.TestCase):
             c.pmid for r in all_driving_impairment_rows()
             for c in r.citations if c.pmid
         }
-        for p in ("25371545", "35080588", "27082781"):
+        for p in ("25371545", "35080588", "27701009"):
             self.assertIn(p, pmids)
 
     def test_compton_2017_nhtsa_report_id_present(self):

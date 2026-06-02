@@ -34,7 +34,7 @@ Topic coverage:
   cohort linking cannabis-positive emergency-department crashes in
   British Columbia. Real-world post-legalization signal.
 - ``systematic_review`` — Bondallaz 2016 Forensic Sci Int systematic
-  review (PMID 27082781) of cannabis-and-driving evidence — the
+  review (PMID 27701009) of cannabis-and-driving evidence — the
   most-cited synthesis in the forensic-toxicology literature.
 
 Each row carries `to_claim()`, identifier-anchored citations per §I
@@ -194,12 +194,12 @@ _BRUBACHER_2022 = DrivingImpairmentCitation(
     label="Brubacher JR et al., New England Journal of Medicine 2022, "
           "cannabis legalization and detection of THC in injured drivers "
           "(British Columbia trauma-centre study)",
-    pmid="35081282", year=2022,
+    pmid="35020985", year=2022,
 )
 _BONDALLAZ_2016 = DrivingImpairmentCitation(
     label="Bondallaz P et al., Forensic Science International 2016, cannabis "
           "and its effects on driving skills — systematic review",
-    pmid="27082781", year=2016,
+    pmid="27701009", year=2016,
 )
 
 

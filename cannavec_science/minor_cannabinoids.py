@@ -253,7 +253,7 @@ _RUSSO_2018 = MinorCannabinoidCitation(
 )
 _KARNIOL_1975 = MinorCannabinoidCitation(
     label="Karniol IG et al., Pharmacology 1975, CBN sedation observations (historical, low-quality)",
-    pmid="1098986", year=1975,
+    pmid="1221432", year=1975,
 )
 # NOTE (v2.7): the Linck 2024 Sci Rep CBN-sleep crossover reference
 # was previously shipped here with a `pending PubMed verification`

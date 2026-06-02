@@ -78,7 +78,7 @@ _HUESTIS_2007 = MinorCannabinoidCitation(
         "Huestis MA, Chem Biodivers 2007 — Δ⁹-THC pharmacokinetics "
         "across inhaled / oral / oromucosal routes"
     ),
-    pmid="17712814", year=2007,
+    pmid="17712819", year=2007,
 )
 _GROTENHERMEN_2003 = MinorCannabinoidCitation(
     label=(

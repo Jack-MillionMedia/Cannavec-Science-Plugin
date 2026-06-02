@@ -380,7 +380,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
             ),
             PopulationCitation(
                 label="Stockings 2018 — Cannabis and cannabinoids for chronic non-cancer pain SR/MA (Pain)",
-                pmid="29796855",
+                pmid="29847469",
                 year=2018,
                 role="systematic_review",
             ),

@@ -177,7 +177,7 @@ _VERESS_1990 = AnalyticalChemistryCitation(
 _DUSSY_2005 = AnalyticalChemistryCitation(
     label="Dussy FE et al., Forensic Sci Int 2005, isolation of Δ⁹-THCA-A "
           "and quantification by HPLC vs GC",
-    pmid="15734279", year=2005,
+    pmid="15734104", year=2005,
 )
 _WANG_2016 = AnalyticalChemistryCitation(
     label="Wang M et al., Cannabis Cannabinoid Res 2016, decarboxylation "

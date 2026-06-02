@@ -178,7 +178,7 @@ _HUESTIS_1992 = PharmacokineticsCitation(
     label="Huestis MA et al., J Anal Toxicol 1992, blood cannabinoids I — "
           "absorption of THC and formation of 11-OH-THC and THC-COOH during "
           "and after smoking marijuana",
-    pmid="1335089", year=1992,
+    pmid="1338215", year=1992,
 )
 _WALL_1983 = PharmacokineticsCitation(
     label="Wall ME et al., Clin Pharmacol Ther 1983, metabolism, "

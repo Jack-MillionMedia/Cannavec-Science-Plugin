@@ -22,7 +22,7 @@ Topic coverage:
   Modest effect-size, "moderate-quality evidence". Single most-cited
   cannabis-medicine SR.
 - ``sr_neuropathic`` — Stockings 2018 PAIN systematic review of
-  cannabinoid neuropathic-pain trials (PMID 30121596). 47 RCTs
+  cannabinoid neuropathic-pain trials (PMID 29847469). 47 RCTs
   evaluated.
 - ``cochrane_review`` — Mücke 2018 Cochrane review on cannabinoids
   for chronic neuropathic pain (PMID 29513392). The Cochrane
@@ -35,7 +35,7 @@ Topic coverage:
   patterns; observational, not causal.
 - ``ipd_meta_analysis`` — Andreae 2015 J Pain individual-patient-data
   meta-analysis of inhaled cannabis for neuropathic pain (PMID
-  25840040). 5 trials, NNT ≈ 5.6.
+  26362106). 5 trials, NNT ≈ 5.6.
 - ``experimental_pain`` — de Vita 2018 J Pain experimental-pain SR
   (PMID 30422266). Laboratory-pain (cold-pressor, heat-pain,
   electrical) cannabinoid effects in healthy volunteers — quantitative
@@ -179,7 +179,7 @@ _STOCKINGS_2018 = PainMedicineCitation(
     label="Stockings E et al., PAIN 2018, cannabis and cannabinoids for the "
           "treatment of people with chronic non-cancer pain — systematic "
           "review and meta-analysis",
-    pmid="30121596", year=2018,
+    pmid="29847469", year=2018,
 )
 _MUCKE_2018_COCHRANE = PainMedicineCitation(
     label="Mücke M et al., Cochrane Database Syst Rev 2018, cannabis-based "
@@ -198,7 +198,7 @@ _ANDREAE_2015 = PainMedicineCitation(
     label="Andreae MH et al., J Pain 2015, inhaled cannabis for chronic "
           "neuropathic pain — individual-patient-data meta-analysis "
           "(5 trials, NNT ≈ 5.6)",
-    pmid="25840040", year=2015,
+    pmid="26362106", year=2015,
 )
 _DEVITA_2018 = PainMedicineCitation(
     label="De Vita MJ et al., J Pain 2018, association of cannabinoid "

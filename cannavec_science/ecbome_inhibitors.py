@@ -23,7 +23,7 @@ Topic coverage:
   drug-development conclusions.
 - ``magl_inhibitor`` — MAGL (monoacylglycerol lipase) inhibitor
   pharmacology. ABX-1431 / lorcaserin / lu AG06466 era — Cisar 2018
-  (PMID 29498523) ABX-1431 SAR / pharmacology paper.
+  (PMID 30067909) ABX-1431 SAR / pharmacology paper.
 - ``dual_inhibitor`` — JZL195 dual FAAH / MAGL inhibitor mechanism
   reference (Long 2009 PMID 19429692) — endocannabinoid-tone elevation
   via simultaneous AEA + 2-AG protection.
@@ -186,7 +186,7 @@ _CISAR_2018 = EcbomeInhibitorCitation(
     label="Cisar JS et al., J Med Chem 2018, identification of ABX-1431, "
           "a selective inhibitor of monoacylglycerol lipase (MAGL) and "
           "clinical candidate for treatment of neurological disorders",
-    pmid="29498523", year=2018,
+    pmid="30067909", year=2018,
 )
 _LONG_2009 = EcbomeInhibitorCitation(
     label="Long JZ et al., Nat Chem Biol 2009, dual blockade of fatty "

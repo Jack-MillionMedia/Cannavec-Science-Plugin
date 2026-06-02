@@ -85,7 +85,7 @@ class TestFormatForClinician(unittest.TestCase):
     def test_table_includes_pmid_when_present(self) -> None:
         hits = find_interactions(cannabinoid="CBD", partner_drug="clobazam")
         out = format_for_clinician(hits)
-        self.assertIn("PMID 25940466", out)
+        self.assertIn("PMID 26114620", out)
         self.assertIn("CYP2C19", out)
 
 

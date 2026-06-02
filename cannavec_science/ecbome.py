@@ -109,7 +109,7 @@ _BISOGNO_2005 = EcbomeCitation(
 )
 _DINH_2002 = EcbomeCitation(
     label="Dinh TP et al., PNAS 2002, MAGL identification",
-    pmid="12235421", year=2002,
+    pmid="12136125", year=2002,
 )
 _CRAVATT_1996 = EcbomeCitation(
     label="Cravatt BF et al., Nature 1996, FAAH cloning",

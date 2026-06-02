@@ -7,10 +7,10 @@ a **thirteenth primary-source live lane**:
 
 - **Pain medicine** (≥ 7 rows): NASEM 2017 chapter-4 chronic-pain
   conclusive-evidence finding anchored to Whiting 2015 JAMA SR (PMID
-  26103030), Stockings 2018 PAIN SR (PMID 30121596), Mücke 2018
+  26103030), Stockings 2018 PAIN SR (PMID 29847469), Mücke 2018
   Cochrane neuropathic (PMID 29513392), Boehnke 2019 J Pain MMJ
   prospective cohort (PMID 31237829), Andreae 2015 IPD meta-analysis
-  (PMID 25840040), de Vita 2018 experimental-pain SR (PMID 30422266).
+  (PMID 26362106), de Vita 2018 experimental-pain SR (PMID 30422266).
 - **Cannabis-and-psychosis psychiatry** (≥ 6 rows): Di Forti 2019
   EU-GEI Lancet Psychiatry (PMID 30902669), Marconi 2016 Schizophr
   Bull dose-response SR (PMID 26884547), Vaucher 2018 Mendelian
@@ -22,8 +22,8 @@ a **thirteenth primary-source live lane**:
   Virginia Beach case-control crash-risk (DOT HS 812 411), Hartman
   2015 Clin Chem plasma-THC dose-response (PMID 25371545), Marcotte
   2022 JAMA Psychiatry driving-simulator RCT (PMID 35080588),
-  Brubacher 2022 NEJM BC post-legalization cohort (PMID 35081282),
-  Bondallaz 2016 Forensic Sci Int SR (PMID 27082781). The SCIENCE,
+  Brubacher 2022 NEJM BC post-legalization cohort (PMID 35020985),
+  Bondallaz 2016 Forensic Sci Int SR (PMID 27701009). The SCIENCE,
   not the LAW — per-se law surfaces remain in the parent plugin.
 - **PTSD / anxiety / sleep** (≥ 5 rows): Bonn-Miller 2021 PLOS One
   PTSD smoked-cannabis cross-over RCT (PMID 33730032) with the

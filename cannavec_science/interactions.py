@@ -219,7 +219,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Geffrey 2015 — CBD-clobazam interaction in paediatric epilepsy",
-                pmid="25940466",
+                pmid="26114620",
                 year=2015,
             ),
             InteractionCitation(
@@ -380,7 +380,7 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         citations=(
             InteractionCitation(
                 label="Yamaori 2011 — CBD CYP2C19 inhibition (in-vitro)",
-                pmid="21356050",
+                pmid="21821735",
                 year=2011,
             ),
             InteractionCitation(

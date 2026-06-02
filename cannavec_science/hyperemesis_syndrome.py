@@ -13,7 +13,7 @@ Topic coverage:
   28000146) and Allen 2004 original case series (PMID 15082584).
   Cyclic vomiting + abdominal pain + compulsive hot bathing in a
   chronic heavy cannabis user; resolves with cessation.
-- ``rome_iv`` — Venkatesan 2019 (PMID 31480576) consensus criteria
+- ``rome_iv`` — Venkatesan 2019 (PMID 31241819) consensus criteria
   positioning CHS within the Rome IV functional GI disorder framework
   (a subtype of cyclic vomiting syndrome characterised by chronic
   cannabis exposure).
@@ -168,7 +168,7 @@ _VENKATESAN_2019 = HyperemesisSyndromeCitation(
     label="Venkatesan T et al., Neurogastroenterol Motil 2019, ACG "
           "and CAPS expert review on cyclic vomiting syndrome — including "
           "CHS diagnostic considerations within the Rome IV framework",
-    pmid="31480576", year=2019,
+    pmid="31241819", year=2019,
 )
 _DEZIECK_2017 = HyperemesisSyndromeCitation(
     label="Dezieck L et al., Clin Toxicol 2017, capsaicin cream for "
