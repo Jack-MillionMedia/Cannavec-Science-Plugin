@@ -21,12 +21,12 @@ Topic coverage:
   Bergamaschi 2011 Neuropsychopharm public-speaking simulation
   (PMID 21307846). Small mechanistic studies in SAD patients
   showing acute CBD anxiolysis on standardized stressor paradigms.
-- ``sleep_sr`` — Walsh 2017 Sleep Med Rev SR (PMID 28392485) of
-  cannabis / cannabinoids in sleep. Concluded the evidence base is
-  "limited and inconclusive" — exactly the asymmetric correction
-  to the marketing-copy-implied story.
-- ``acute_anxiety_dose_response`` — Bedi 2010 Drug Alcohol Depend
-  (PMID 19897322) on dose-dependent acute Δ⁹-THC anxiogenic effects.
+- ``sleep_sr`` — Suraev 2020 Sleep Med Rev SR (PMID 32603954) of
+  cannabinoid therapies for sleep disorders. Concluded the evidence
+  base is insufficient (moderate-to-high risk of bias) — exactly the
+  asymmetric correction to the marketing-copy-implied story.
+- ``acute_anxiety_dose_response`` — Childs 2017 Drug Alcohol Depend
+  (PMID 28599212) on dose-dependent acute Δ⁹-THC effects on stress.
   Low Δ⁹-THC doses (~5 mg oral) produce anxiolysis; higher doses
   (15+ mg) produce anxiogenesis — the biphasic dose-response that
   underlies clinical-safety considerations.
@@ -165,16 +165,21 @@ _BERGAMASCHI_2011 = PtsdAnxietySleepCitation(
           "treatment-naïve social phobia patients",
     pmid="21307846", year=2011,
 )
+# Re-cited from the unverifiable "Bedi 2010" / "Walsh 2017" labels (whose
+# PMIDs resolved to unrelated papers) to the verified Childs 2017 / Suraev 2020
+# papers whose findings they actually described; variable names retained for
+# reference stability.
 _BEDI_2010 = PtsdAnxietySleepCitation(
-    label="Bedi G et al., Drug and Alcohol Dependence 2010, acute effects "
-          "of Δ⁹-tetrahydrocannabinol on anxiety reactivity and reward "
-          "responsivity",
-    pmid="19897322", year=2010,
+    label="Childs E, Lutz JA & de Wit H, Drug and Alcohol Dependence 2017, "
+          "dose-related effects of Δ⁹-tetrahydrocannabinol on emotional "
+          "responses to acute psychosocial stress",
+    pmid="28599212", year=2017,
 )
 _WALSH_2017 = PtsdAnxietySleepCitation(
-    label="Walsh JH et al., Sleep Medicine Reviews 2017, cannabinoids and "
-          "sleep — a systematic review",
-    pmid="28392485", year=2017,
+    label="Suraev AS et al., Sleep Medicine Reviews 2020, cannabinoid "
+          "therapies in the management of sleep disorders — a systematic "
+          "review of preclinical and clinical studies",
+    pmid="32603954", year=2020,
 )
 
 
@@ -265,22 +270,21 @@ _CRIPPA_SAD = PtsdAnxietySleepRow(
 
 
 _BEDI_ANXIETY = PtsdAnxietySleepRow(
-    name="Bedi 2010 Drug Alcohol Depend — biphasic acute Δ⁹-THC anxiety dose-response",
+    name="Childs 2017 Drug Alcohol Depend — biphasic acute Δ⁹-THC anxiety/stress dose-response",
     topic=PtsdAnxietySleepTopic.ACUTE_ANXIETY_DOSE_RESPONSE,
     claim_text=(
-        "Bedi et al. 2010 Drug Alcohol Depend reported a biphasic acute "
-        "Δ⁹-THC dose-response on anxiety and reward responsivity in "
-        "healthy adult cannabis users (n = 30) — at low oral Δ⁹-THC "
-        "doses (~7.5 mg) participants reported reduced anxiety reactivity "
-        "and enhanced reward responsivity on standardized tasks, whereas "
-        "at higher doses (~12.5 mg+) anxiety reactivity increased and "
-        "reward responsivity decreased. The Bedi 2010 study is the "
-        "best-characterized acute-Δ⁹-THC dose-response for affective "
-        "outcomes in controlled-laboratory settings. The biphasic shape "
-        "underlies the consumer-experience observation that 'low doses "
-        "relaxing, high doses anxiogenic' — and is the mechanistic basis "
-        "for the start-low / go-slow oral-cannabinoid clinical-titration "
-        "guidance."
+        "Childs, Lutz & de Wit 2017 (Drug and Alcohol Dependence) ran a "
+        "double-blind randomized trial (N = 42 healthy volunteers) of oral "
+        "Δ⁹-THC (0, 7.5, or 12.5 mg) administered before the Trier Social "
+        "Stress Test. The low 7.5 mg dose significantly reduced self-"
+        "reported distress and attenuated appraisal of the stressor as "
+        "threatening, whereas the higher 12.5 mg dose increased negative "
+        "mood both before and during the tasks and impaired task "
+        "performance. This dose-related (biphasic) pattern — low-dose "
+        "stress-relief, higher-dose negative mood — is the best-"
+        "characterized controlled-laboratory evidence for why 'cannabis "
+        "for anxiety' framing requires dose-context disambiguation, and "
+        "underlies start-low / go-slow oral-cannabinoid titration guidance."
     ),
     claim_type=ClaimType.PHARMACOKINETIC,
     evidence_level=EvidenceLevel.C,
@@ -293,7 +297,7 @@ _BEDI_ANXIETY = PtsdAnxietySleepRow(
     ),
     key_notes=(
         "Biphasic Δ⁹-THC dose-response is consistent across "
-        "controlled-dose labs (Bedi, Bidwell, Hindocha groups); "
+        "controlled-dose labs (Childs, Bidwell, Hindocha groups); "
         "the threshold between low / high dose is highly individual.",
         "The biphasic shape is a textbook example of why 'cannabis "
         "for anxiety' framing requires dose-context disambiguation — "
@@ -303,23 +307,21 @@ _BEDI_ANXIETY = PtsdAnxietySleepRow(
 
 
 _WALSH_SLEEP = PtsdAnxietySleepRow(
-    name="Walsh 2017 Sleep Med Rev — cannabinoids and sleep systematic review",
+    name="Suraev 2020 Sleep Med Rev — cannabinoids and sleep-disorders systematic review",
     topic=PtsdAnxietySleepTopic.SLEEP_SR,
     claim_text=(
-        "Walsh et al. 2017 Sleep Medicine Reviews published the canonical "
-        "systematic review of cannabinoids and sleep. The Walsh SR "
-        "evaluated 14 studies (RCTs + observational) covering nabilone, "
-        "dronabinol, nabiximols, smoked cannabis, and CBD. The Walsh "
-        "conclusion was deliberately cautious: 'methodological diversity, "
-        "small sample sizes, and inconsistent outcomes preclude firm "
-        "conclusions about the role of cannabinoids in sleep medicine.' "
-        "The Walsh SR identified some short-term sleep-onset-latency "
-        "and total-sleep-time signals (e.g. nabilone for chronic pain-"
-        "related sleep disturbance) but found no robust evidence base "
-        "for cannabinoids as a primary sleep-disorder treatment. The "
-        "Walsh review remains the most-cited synthesis of cannabinoids "
-        "and sleep and is an essential corrective to marketing-implied "
-        "'cannabis for sleep' framings."
+        "Suraev et al. 2020 (Sleep Medicine Reviews) systematically "
+        "reviewed cannabinoid therapies for sleep disorders across 14 "
+        "preclinical and 12 clinical studies. The review concluded there "
+        "is insufficient evidence to support routine clinical use of "
+        "cannabinoid therapies for any sleep disorder, citing a moderate-"
+        "to-high risk of bias across most studies to date. It identified "
+        "promising preliminary signals — a rationale for future RCTs in "
+        "sleep apnea, insomnia, PTSD-related nightmares, restless legs "
+        "syndrome, REM-sleep behaviour disorder, and narcolepsy — but "
+        "stressed the need for larger, rigorously controlled, longer-term "
+        "trials. It is an essential primary-source corrective to "
+        "marketing-implied 'cannabis for sleep' framings."
     ),
     claim_type=ClaimType.CLINICAL_EFFICACY,
     evidence_level=EvidenceLevel.A,
@@ -333,12 +335,11 @@ _WALSH_SLEEP = PtsdAnxietySleepRow(
     ),
     key_notes=(
         "Cannabis-for-sleep is one of the largest commercial-claim "
-        "spaces; the Walsh 2017 SR's 'limited and inconclusive' "
+        "spaces; the Suraev 2020 SR's 'insufficient evidence' "
         "verdict is an essential primary-source corrective.",
-        "The Walsh SR notes the literature on cannabinoid-induced "
-        "suppression of REM sleep (Δ⁹-THC at higher doses) — a "
-        "mechanistic finding that complicates simple 'cannabis "
-        "improves sleep' framings.",
+        "The Suraev SR stresses a moderate-to-high risk of bias across "
+        "the cannabinoid-sleep literature — complicating simple "
+        "'cannabis improves sleep' framings.",
     ),
 )
 
@@ -417,7 +418,7 @@ _TOPIC_KEYWORDS: tuple[tuple[str, re.Pattern[str]], ...] = (
         PtsdAnxietySleepTopic.SLEEP_SR,
         re.compile(
             r"\b("
-            r"walsh\s+(?:2017|et\s+al)|"
+            r"suraev\s+(?:2020|et\s+al)|"
             r"cannabis.{0,30}sleep.{0,30}(?:systematic|review|sr|meta[- ]?analysis)|"
             r"(?:systematic|review|sr|meta[- ]?analysis).{0,30}cannabis.{0,30}sleep|"
             r"cannabinoid\w*\s+sleep.{0,30}(?:systematic|review|sr)|"
@@ -430,7 +431,7 @@ _TOPIC_KEYWORDS: tuple[tuple[str, re.Pattern[str]], ...] = (
         PtsdAnxietySleepTopic.ACUTE_ANXIETY_DOSE_RESPONSE,
         re.compile(
             r"\b("
-            r"bedi\s+(?:2010|et\s+al)|"
+            r"childs\s+(?:2017|et\s+al)|"
             r"acute\s+thc.{0,30}anxiety|anxiety.{0,30}acute\s+thc|"
             r"biphasic.{0,30}(?:thc|cannabinoid).{0,30}anxiety|"
             r"(?:thc|cannabinoid)\s+anxiety\s+dose[- ]?response|"

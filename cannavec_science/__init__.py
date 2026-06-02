@@ -30,9 +30,9 @@ a **thirteenth primary-source live lane**:
   largely-negative primary endpoint honestly stated; Crippa 2011
   J Psychopharmacol CBD-SAD SPECT acute challenge (PMID 20829306);
   Bergamaschi 2011 Neuropsychopharm CBD-SAD public-speaking (PMID
-  21307846); Bedi 2010 Drug Alcohol Depend biphasic acute Δ⁹-THC
-  anxiety dose-response (PMID 19897322); Walsh 2017 Sleep Med Rev
-  cannabinoids-and-sleep systematic review (PMID 28392485).
+  21307846); Childs 2017 Drug Alcohol Depend biphasic acute Δ⁹-THC
+  anxiety/stress dose-response (PMID 28599212); Suraev 2020 Sleep Med
+  Rev cannabinoid-sleep-disorders systematic review (PMID 32603954).
 - **Reporting-rigor module**: six deterministic EQUATOR-network +
   risk-of-bias detectors — CONSORT-2010 for RCTs (Schulz 2010 BMJ
   PMID 20335313), PRISMA-2020 for SRs (Page 2021 BMJ PMID 33781993),

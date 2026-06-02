@@ -10,8 +10,8 @@ Topic coverage:
 
 - ``decarb_kinetics`` — THCA → Δ⁹-THC decarboxylation kinetics. Rate
   constants are matrix-, temperature-, and time-dependent; the canonical
-  primary literature is Veress 1990 (PMID 2384545) for the kinetic
-  framework and Wang 2016 / Citti 2018 for modern dose-response curves.
+  primary literature for the kinetic framework is Wang 2016
+  (DOI 10.1089/can.2016.0020) and Citti 2018 for modern dose-response curves.
 - ``hplc_validation`` — HPLC method validation for cannabinoid potency.
   Reverse-phase C18 / C8 with UV at 220-230 nm is the workhorse; AOAC
   2015.13 and the USP <467> / <1226> framework set the validation
@@ -169,11 +169,6 @@ class AnalyticalChemistryRow:
 
 # ── Citations ──────────────────────────────────────────────────────────
 
-_VERESS_1990 = AnalyticalChemistryCitation(
-    label="Veress T et al., J Chromatogr 1990, decarboxylation kinetics "
-          "of cannabinoid acids",
-    pmid="2384545", year=1990,
-)
 _DUSSY_2005 = AnalyticalChemistryCitation(
     label="Dussy FE et al., Forensic Sci Int 2005, isolation of Δ⁹-THCA-A "
           "and quantification by HPLC vs GC",
@@ -252,7 +247,7 @@ _DECARB_KINETICS_FLOWER = AnalyticalChemistryRow(
     source_tier=SourceTier.SINGLE_ARM_OR_MECH,
     matrix="dry cannabis flower",
     conditions="110 °C, ambient atmosphere, ~30-60 min hold time",
-    citations=(_VERESS_1990, _WANG_2016),
+    citations=(_WANG_2016,),
     key_notes=(
         "Kinetic parameters drift with matrix water content: dried-and-"
         "cured material decarboxylates faster than freshly harvested "

@@ -50,8 +50,8 @@ class RegistryShapeTests(unittest.TestCase):
             "33730032",  # Bonn-Miller 2021 PTSD
             "20829306",  # Crippa 2011 CBD-SAD
             "21307846",  # Bergamaschi 2011 CBD-SAD
-            "19897322",  # Bedi 2010 acute anxiety
-            "28392485",  # Walsh 2017 sleep
+            "28599212",  # Childs 2017 acute anxiety/stress (re-cited from Bedi)
+            "32603954",  # Suraev 2020 sleep SR (re-cited from Walsh)
         ):
             self.assertIn(p, pmids)
 
@@ -105,7 +105,7 @@ class DetectionPositiveTests(unittest.TestCase):
 
     def test_walsh_sleep(self):
         rows = detect_ptsd_anxiety_sleep_mention(
-            "cannabis sleep Walsh 2017 sleep medicine reviews systematic review"
+            "cannabis sleep Suraev 2020 sleep medicine reviews systematic review"
         )
         self.assertTrue(rows)
         self.assertIn(
@@ -115,7 +115,7 @@ class DetectionPositiveTests(unittest.TestCase):
 
     def test_bedi_acute_anxiety(self):
         rows = detect_ptsd_anxiety_sleep_mention(
-            "acute THC anxiety dose response Bedi 2010 drug alcohol depend"
+            "acute THC anxiety dose response Childs 2017 drug alcohol depend"
         )
         self.assertTrue(rows)
         self.assertIn(
