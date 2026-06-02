@@ -16,10 +16,12 @@ three structural rules that make it incapable of harming accuracy:
    regardless of what the model says, and the deterministic score remains the
    visible floor.
 
-Cost-efficiency is architectural, not a model downgrade (the skill's default,
-``claude-opus-4-8``, is kept): the pipeline calls this backend *only* on a
-genuine near-tie; the payload is a tiny identifier-free shortlist with
-truncated abstracts; and the static rubric is marked for **prompt caching**.
+Cost-efficiency is architectural: the pipeline calls this backend *only* when
+the deterministic order is genuinely uncertain; the payload is a tiny
+identifier-free shortlist with truncated abstracts; and the static rubric is
+marked for **prompt caching**. The model defaults to ``claude-sonnet-4-6`` (the
+operator's chosen rerank model — accuracy-equivalent to Opus for a bounded
+rerank at lower cost and latency); override per call via ``model=``.
 
 Stdlib-only at import time — the ``anthropic`` SDK is imported lazily, and
 only when no client is injected — so the core ranker and the offline test
@@ -39,7 +41,7 @@ __all__ = ["LLMReranker", "RUBRIC", "build_payload"]
 
 # Default model — the skill's standard. NOT downgraded for cost; the savings
 # come from the architecture (short-circuit, tiny payload, prompt caching).
-_DEFAULT_MODEL = "claude-opus-4-8"
+_DEFAULT_MODEL = "claude-sonnet-4-6"
 
 
 # The static, cacheable ranking rubric. Stable across every request, so it is
@@ -142,10 +144,18 @@ class LLMReranker:
         first use (resolving ``ANTHROPIC_API_KEY`` from the environment), so
         importing this module never requires the SDK.
     model:
-        Defaults to ``claude-opus-4-8`` (the skill's standard — not downgraded).
+        Defaults to ``claude-sonnet-4-6``.
     effort:
-        ``output_config`` effort. Defaults to ``"high"`` to keep the accuracy
-        promise; cost is saved by the architecture, not by lowering effort.
+        ``output_config`` effort. Defaults to ``"low"``: reranking ~10 candidates
+        against an explicit rubric is a bounded task, and the accuracy
+        guarantees (provenance gate, never-invent, deterministic floor) are
+        structural — not effort-dependent. Low effort keeps the call fast enough
+        to finish well inside a serverless timeout.
+    timeout:
+        Per-request wall-clock budget (seconds). If the model does not respond
+        in time the call raises and the pipeline degrades to the deterministic
+        order — so a slow model never hangs the request. Default 15s leaves
+        headroom under a 30s serverless ``maxDuration`` after the live fan-out.
     """
 
     name = "llm"
@@ -155,15 +165,17 @@ class LLMReranker:
         client=None,
         *,
         model: str = _DEFAULT_MODEL,
-        effort: str = "high",
+        effort: str = "low",
         max_abstract_chars: int = 400,
         max_tokens: int = 1024,
+        timeout: float = 15.0,
     ) -> None:
         self._client = client
         self.model = model
         self.effort = effort
         self.max_abstract_chars = max_abstract_chars
         self.max_tokens = max_tokens
+        self.timeout = timeout
 
     # ── client ─────────────────────────────────────────────────────────
     def _get_client(self):
@@ -176,7 +188,9 @@ class LLMReranker:
                 "LLMReranker requires the 'anthropic' package or an injected "
                 "client. Install anthropic, or pass client=... ."
             ) from exc
-        self._client = anthropic.Anthropic()
+        # max_retries=0 — fail fast to the deterministic floor rather than let
+        # SDK retries eat the serverless time budget on a slow/erroring call.
+        self._client = anthropic.Anthropic(max_retries=0)
         return self._client
 
     # ── RankerBackend ──────────────────────────────────────────────────
@@ -213,6 +227,7 @@ class LLMReranker:
                 "effort": self.effort,
                 "format": {"type": "json_schema", "schema": _SCHEMA},
             },
+            timeout=self.timeout,
         )
 
         ranking = _parse_ranking(resp)
