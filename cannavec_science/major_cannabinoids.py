@@ -99,6 +99,23 @@ _JONES_2012 = MinorCannabinoidCitation(
     ),
     pmid="22520455", doi="10.1016/j.seizure.2012.03.001", year=2012,
 )
+# Receptor-target-specific primaries. Pertwee 2008 is a CB1/CB2 paper, so a
+# non-CB1/CB2 CBD target must be anchored to the study that characterised it
+# (enforced by tests/test_citation_coverage.py's receptor-target gate).
+_RUSSO_2005 = MinorCannabinoidCitation(
+    label=(
+        "Russo EB et al., Neurochem Res 2005 — cannabidiol is an agonist "
+        "at human 5-HT1A receptors"
+    ),
+    pmid="16258853", doi="10.1007/s11064-005-6978-1", year=2005,
+)
+_BISOGNO_2001 = MinorCannabinoidCitation(
+    label=(
+        "Bisogno T et al., Br J Pharmacol 2001 — cannabidiol stimulates "
+        "TRPV1 (VR1) and modulates anandamide uptake/hydrolysis"
+    ),
+    pmid="11606325", doi="10.1038/sj.bjp.0704327", year=2001,
+)
 
 
 _REGISTRY: tuple[MajorCannabinoid, ...] = (
@@ -311,7 +328,7 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "and antinociceptive preclinical effects."
                 ),
                 assay="functional cAMP / receptor binding",
-                citations=(_PERTWEE_2008,),
+                citations=(_RUSSO_2005,),
             ),
             ReceptorActivity(
                 target="TRPV1",
@@ -324,7 +341,7 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "explains the Dravet / LGS efficacy."
                 ),
                 assay="Ca²⁺ flux in TRPV1-transfected cells",
-                citations=(_PERTWEE_2008,),
+                citations=(_BISOGNO_2001,),
             ),
         ),
         pharmacology_grade=MinorCannabinoidEvidenceClass.B,

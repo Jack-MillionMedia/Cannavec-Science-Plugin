@@ -235,6 +235,23 @@ _TAGEN_2022 = MinorCannabinoidCitation(
     ),
     pmid="35523678", doi="10.1111/bph.15865", year=2022,
 )
+# Receptor-target-specific primaries: Navarro 2018 is a CB1/CB2 paper, so CBG's
+# α2-adrenoceptor and 5-HT1A rows are anchored to Cascio 2010 (the study that
+# characterised them); THCV's 5-HT1A row is anchored to Cascio 2015.
+_CASCIO_2010 = MinorCannabinoidCitation(
+    label=(
+        "Cascio MG et al., Br J Pharmacol 2010 — cannabigerol is a highly "
+        "potent α2-adrenoceptor agonist and a 5-HT1A receptor antagonist"
+    ),
+    pmid="20002104", doi="10.1111/j.1476-5381.2009.00515.x", year=2010,
+)
+_CASCIO_2015 = MinorCannabinoidCitation(
+    label=(
+        "Cascio MG et al., Br J Pharmacol 2015 — Δ⁹-THCV enhances 5-HT1A "
+        "receptor activation (antipsychotic-leaning signal)"
+    ),
+    pmid="25363799", doi="10.1111/bph.13000", year=2015,
+)
 _THOMAS_2005 = MinorCannabinoidCitation(
     label="Thomas A et al., Br J Pharmacol 2005, THCV CB1 antagonism in vitro and in vivo",
     pmid="16205722", year=2005,
@@ -362,7 +379,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                     "not fully characterised in human assays."
                 ),
                 assay="cell-based 5-HT1A functional assays",
-                citations=(_PERTWEE_2008,),
+                citations=(_CASCIO_2015,),
             ),
         ),
         pharmacology_grade=MinorCannabinoidEvidenceClass.B,
@@ -983,10 +1000,11 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 affinity_note=(
                     "Selective α2 agonism is the most distinctive CBG "
                     "pharmacology — separates CBG from the rest of the "
-                    "phytocannabinoid family."
+                    "phytocannabinoid family. EC50 ≈ 0.2 nM ([³⁵S]GTPγS, "
+                    "mouse brain membranes)."
                 ),
                 assay="competitive binding + functional cAMP",
-                citations=(_NAVARRO_2018,),
+                citations=(_CASCIO_2010,),
             ),
             ReceptorActivity(
                 target="CB1",
@@ -1017,7 +1035,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 activity="antagonist (in vitro)",
                 affinity_note="Inverse to the CBD profile at this receptor; mechanism notable but clinical implications unproven.",
                 assay="functional cAMP",
-                citations=(_NAVARRO_2018,),
+                citations=(_CASCIO_2010,),
             ),
         ),
         pharmacology_grade=MinorCannabinoidEvidenceClass.B,

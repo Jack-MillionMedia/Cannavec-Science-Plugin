@@ -35,6 +35,24 @@ _COVERS: dict[str, set[str]] = {
     "28120231": {"THC", "THCV", "CBN", "CBD", "CBDV", "CBG", "CBC"},  # Turner 2017
     "29977202": {"CBG"},                                       # Navarro 2018
     "35523678": {"Δ⁸-THC"},                                    # Tagen 2022
+    "16258853": {"CBD"},                                       # Russo 2005 (5-HT1A)
+    "11606325": {"CBD"},                                       # Bisogno 2001 (TRPV1)
+    "25363799": {"THCV"},                                      # Cascio 2015 (5-HT1A)
+    "20002104": {"CBG"},                                       # Cascio 2010 (α2 / 5-HT1A)
+}
+
+# pmid -> set of receptor targets the paper actually characterises. Only
+# single-target-class primaries are listed: a paper here may anchor a receptor
+# row ONLY for a target in its set. This catches the subtler defect of a
+# CB1/CB2 paper (Pertwee 2008, Navarro 2018) standing in for a 5-HT1A / TRPV1 /
+# α2 row. Broad multi-target reviews are deliberately omitted.
+_RECEPTOR_TARGET_COVERAGE: dict[str, set[str]] = {
+    "17828291": {"CB1", "CB2"},                               # Pertwee 2008
+    "29977202": {"CB1", "CB2"},                               # Navarro 2018
+    "16258853": {"5-HT1A"},                                   # Russo 2005
+    "11606325": {"TRPV1"},                                    # Bisogno 2001
+    "25363799": {"5-HT1A"},                                   # Cascio 2015
+    "20002104": {"α2-adrenoceptor", "5-HT1A"},               # Cascio 2010
 }
 
 
@@ -65,6 +83,28 @@ class CitationCoverageTests(unittest.TestCase):
         self.assertEqual(
             offenders, [],
             "§I citation–compound mismatch:\n  " + "\n  ".join(offenders),
+        )
+
+    def test_receptor_rows_cite_a_source_that_studied_that_target(self) -> None:
+        """A characterised single-target primary may anchor a receptor row
+        only for the target it actually studied (§I, receptor-target precision).
+        Guards against a CB1/CB2 paper standing in for a 5-HT1A / TRPV1 / α2 row.
+        """
+        offenders = []
+        registry = list(all_major_cannabinoids()) + list(all_minor_cannabinoids())
+        for entry in registry:
+            for r in getattr(entry, "receptor_activity", ()) or ():
+                for c in getattr(r, "citations", ()) or ():
+                    pmid = getattr(c, "pmid", None)
+                    targets = _RECEPTOR_TARGET_COVERAGE.get(pmid)
+                    if targets is not None and r.target not in targets:
+                        offenders.append(
+                            f"{entry.name} {r.target} cites PMID {pmid}, "
+                            f"which only characterises {sorted(targets)}"
+                        )
+        self.assertEqual(
+            offenders, [],
+            "§I receptor-target mismatch:\n  " + "\n  ".join(offenders),
         )
 
     def test_pertwee_2008_never_anchors_an_uncovered_cannabinoid(self) -> None:
