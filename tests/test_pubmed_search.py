@@ -40,6 +40,12 @@ _EFETCH_XML = """<?xml version="1.0"?>
     <MeshHeadingList><MeshHeading><DescriptorName>Animals</DescriptorName></MeshHeading>
     <MeshHeading><DescriptorName>Mice</DescriptorName></MeshHeading></MeshHeadingList>
   </MedlineCitation></PubmedArticle>
+  <PubmedArticle><MedlineCitation><PMID>333</PMID>
+    <Article><Abstract><AbstractText>CBD in Caco-2 intestinal epithelial cells.</AbstractText></Abstract>
+    <PublicationTypeList><PublicationType>Journal Article</PublicationType></PublicationTypeList></Article>
+    <MeshHeadingList><MeshHeading><DescriptorName>Humans</DescriptorName></MeshHeading>
+    <MeshHeading><DescriptorName>Caco-2 Cells</DescriptorName></MeshHeading></MeshHeadingList>
+  </MedlineCitation></PubmedArticle>
 </PubmedArticleSet>"""
 
 
@@ -51,6 +57,8 @@ class EnrichmentTests(unittest.TestCase):
         self.assertIn("Randomized Controlled Trial", out["111"]["pubtypes"])
         self.assertEqual(out["222"]["species"], "animal")     # MeSH Animals + Mice
         self.assertIn("mouse", out["222"]["abstract"])
+        # A human cell line (Caco-2) is in-vitro, not a human clinical study.
+        self.assertEqual(out["333"]["species"], "in_vitro")
 
     def test_parse_efetch_xml_malformed_returns_empty(self):
         self.assertEqual(_parse_efetch_xml("not xml at all"), {})
@@ -63,9 +71,12 @@ class EnrichmentTests(unittest.TestCase):
             {"uid": "222", "title": "Cannabidiol gut study", "source": "J Vet",
              "pubdate": "2024", "authors": [{"name": "Lee K"}],
              "pubtype": ["Journal Article"]},
+            {"uid": "333", "title": "Cannabidiol in Caco-2 cells", "source": "J Cell",
+             "pubdate": "2023", "authors": [{"name": "Park S"}],
+             "pubtype": ["Journal Article"]},
         ]
         return PubMedSearcher(
-            esearch_fetcher=_stub_fetcher(_make_esearch_fixture(["111", "222"])),
+            esearch_fetcher=_stub_fetcher(_make_esearch_fixture(["111", "222", "333"])),
             esummary_fetcher=_stub_fetcher(_make_esummary_fixture(recs)),
             efetch_fetcher=efetch or _stub_fetcher(efetch_body),
         )
@@ -78,6 +89,9 @@ class EnrichmentTests(unittest.TestCase):
         # MeSH-confirmed animal study gets an "animal model" design tag.
         self.assertEqual(hits["222"].species, "animal")
         self.assertIn("animal model", hits["222"].pubtypes)
+        # In-vitro human-cell-line study is demoted via an "in vitro" tag.
+        self.assertEqual(hits["333"].species, "in_vitro")
+        self.assertIn("in vitro", hits["333"].pubtypes)
 
     def test_no_enrich_by_default(self):
         hits = {h.pmid: h for h in
@@ -91,7 +105,7 @@ class EnrichmentTests(unittest.TestCase):
         hits = {h.pmid: h for h in
                 self._enriched_searcher(efetch=boom).search("cbd gut", enrich=True)}
         # Title-only hits still returned — enrichment is best-effort.
-        self.assertEqual(len(hits), 2)
+        self.assertEqual(len(hits), 3)
         self.assertEqual(hits["111"].abstract, "")
 
 

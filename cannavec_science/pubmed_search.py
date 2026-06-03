@@ -91,6 +91,14 @@ _ANIMAL_MESH = {
     "sheep", "cattle", "chickens", "zebrafish", "drosophila melanogaster",
     "guinea pigs", "primates", "macaca", "models, animal", "disease models, animal",
 }
+# In-vitro / cell-culture work. A human cell line (e.g. Caco-2) carries the MeSH
+# "Humans" descriptor, so the in-vitro SETTING is detected first and weighted as
+# preclinical regardless — human cells in a dish are not a human clinical study.
+_INVITRO_MESH = {
+    "in vitro techniques", "cells, cultured", "cell line", "cell line, tumor",
+    "caco-2 cells", "hep g2 cells", "hek293 cells", "ht29 cells", "hela cells",
+    "jurkat cells", "organoids", "spheroids", "primary cell culture",
+}
 
 
 _MAX_RESULTS_CEILING = 50
@@ -290,9 +298,14 @@ class PubMedSearcher:
             if not e:
                 out.append(h)
                 continue
-            # MeSH-confirmed animal work adds a design tag so the ranker demotes
-            # it even when esummary gave only a bare "Journal Article" pubtype.
-            extra = ("animal model",) if e["species"] == "animal" else ()
+            # MeSH-confirmed non-human work adds a design tag so the ranker
+            # demotes it (to preclinical) even when esummary gave only a bare
+            # "Journal Article" pubtype.
+            extra: tuple[str, ...] = ()
+            if e["species"] == "animal":
+                extra = ("animal model",)
+            elif e["species"] == "in_vitro":
+                extra = ("in vitro",)
             merged = tuple(dict.fromkeys(h.pubtypes + e["pubtypes"] + extra))
             out.append(replace(
                 h, abstract=e["abstract"], species=e["species"],
@@ -455,7 +468,9 @@ def _parse_efetch_xml(body: str) -> dict[str, dict]:
                 dn = mh.find("DescriptorName")
                 if dn is not None and dn.text:
                     mesh.add(dn.text.strip().lower())
-        if "humans" in mesh:
+        if mesh & _INVITRO_MESH:
+            species = "in_vitro"
+        elif "humans" in mesh:
             species = "human"
         elif mesh & _ANIMAL_MESH:
             species = "animal"
