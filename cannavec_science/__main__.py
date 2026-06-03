@@ -117,6 +117,10 @@ def _cmd_answer(args: argparse.Namespace) -> int:
         scaffolder_blocks.append(render_sof(sof_obj))
         scaffolders_dict["summary_of_findings"] = sof_obj.to_dict()
 
+    if getattr(args, "verified", False) and not a.is_refusal:
+        from cannavec_science.flywheel import weave_verified_findings
+        weave_verified_findings(a, prompt=args.question)
+
     if getattr(args, "augment_live", False):
         _augment_with_live(a, args)
 
@@ -1046,6 +1050,199 @@ def _cmd_freshness_report(args: argparse.Namespace) -> int:
     return _cmd_freshness(args)
 
 
+def _cmd_curate_scan(args: argparse.Namespace) -> int:
+    """Turn the §IX flywheel: fan-out → gate → classify → stage by lane.
+
+    Offline by default (a dry run that stages everything it cannot network-
+    verify as NEEDS_EXPERT). ``--network`` fans out live discovery and verifies
+    identifiers, so confirmed, claim-supported sources can reach
+    BASIC_APPROVABLE. Nothing is ever promoted here — promotion is ``curate-apply``.
+    """
+    from cannavec_science.discover_guard import DiscoverRefused
+    from cannavec_science.flywheel import run_flywheel
+
+    sources = (
+        tuple(s.strip() for s in args.sources.split(",") if s.strip())
+        if getattr(args, "sources", None) else None
+    )
+    try:
+        report = run_flywheel(
+            args.query,
+            topic=getattr(args, "topic", None),
+            live=bool(args.network),
+            sources=sources,
+            max_results=args.max,
+            index_topic=getattr(args, "index_topic", None),
+            check_identifier=True if args.network else None,
+        )
+    except DiscoverRefused as exc:
+        print(f"[refused] {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        print(f"[error] curate-scan failed: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, default=str))
+        return 0
+    print(f"[curate-scan] topic={report.topic} query={report.query!r}")
+    print(f"  candidates scanned : {report.candidates}")
+    print(f"  → basic_approvable : {report.basic_approvable}")
+    print(f"  → needs_expert     : {report.needs_expert}")
+    print(f"  → rejected         : {report.rejected}")
+    print("  (review: `curate-queue`; promote: `curate-apply --id ID --approver YOU`)")
+    return 0
+
+
+def _cmd_curate_sweep(args: argparse.Namespace) -> int:
+    """Work down the demand-ranked holes (§IX): fan out + gate each top topic.
+
+    Without ``--network`` this is a dry preview — it prints which holes it would
+    fan out on and the query for each. With ``--network`` it executes the live
+    fan-out + gate + stage for each hole and reports the per-topic lane counts.
+    """
+    from cannavec_science.demand import priority_topics, topic_query
+    from cannavec_science.discover_guard import DiscoverRefused
+    from cannavec_science.flywheel import sweep_holes
+
+    picks = priority_topics(args.holes, min_misses=args.min_misses)
+    if not picks:
+        print("[curate-sweep] no demand holes recorded yet — run `demand-report` "
+              "(or evals/demand_probe.py) first.", file=sys.stderr)
+        return 1
+
+    if not args.network:
+        plan = [{"topic": t, "query": topic_query(t)} for t in picks]
+        if args.json:
+            print(json.dumps(plan, indent=2, default=str))
+        else:
+            print(f"[curate-sweep] dry preview — {len(picks)} demand holes "
+                  f"(add --network to execute):")
+            for p in plan:
+                print(f"  {p['topic']:<22} {p['query']}")
+        return 0
+
+    sources = (
+        tuple(s.strip() for s in args.sources.split(",") if s.strip())
+        if getattr(args, "sources", None) else None
+    )
+    try:
+        reports = sweep_holes(
+            n=args.holes, min_misses=args.min_misses, live=True,
+            sources=sources, max_results=args.max, check_identifier=True,
+        )
+    except DiscoverRefused as exc:
+        print(f"[refused] {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        print(f"[error] curate-sweep failed: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps([r.to_dict() for r in reports], indent=2, default=str))
+        return 0
+    tb = te = tr = tc = 0
+    print(f"[curate-sweep] swept {len(reports)} demand holes:")
+    for r in reports:
+        tb += r.basic_approvable; te += r.needs_expert
+        tr += r.rejected; tc += r.candidates
+        print(f"  {r.topic:<22} cand={r.candidates:<3} basic={r.basic_approvable} "
+              f"expert={r.needs_expert} reject={r.rejected}")
+    print(f"  TOTAL  basic={tb}  needs_expert={te}  reject={tr}  (scanned {tc})")
+    print("  Review: `curate-queue --lane basic_approvable` · "
+          "Promote: `curate-apply --id ID --approver YOU`")
+    return 0
+
+
+def _cmd_curate_queue(args: argparse.Namespace) -> int:
+    """Show the staging queue (latest state per identifier)."""
+    from cannavec_science.flywheel import queue
+
+    rows = queue(lane=getattr(args, "lane", None),
+                 status=getattr(args, "status", "pending"))
+    if args.json:
+        print(json.dumps(rows, indent=2, default=str))
+        return 0
+    if not rows:
+        print("[curate-queue] (empty)")
+        return 0
+    print(f"[curate-queue] {len(rows)} row(s) "
+          f"status={getattr(args, 'status', 'pending')}"
+          + (f" lane={args.lane}" if getattr(args, 'lane', None) else ""))
+    for r in rows:
+        print(f"  {r.get('identifier'):<14} {r.get('lane'):<16} "
+              f"{r.get('grade'):<9} [{r.get('topic')}]")
+        print(f"      {r.get('claim_text', '')[:96]}")
+        if r.get("reasons"):
+            print(f"      ⤷ {('; '.join(r['reasons']))[:120]}")
+    return 0
+
+
+def _cmd_curate_apply(args: argparse.Namespace) -> int:
+    """Human-gated promote / reject / revoke of a staged candidate (§IX)."""
+    from cannavec_science.flywheel import (
+        apply_promotion,
+        reject_candidate,
+        revoke_promotion,
+    )
+
+    if args.reject:
+        res = reject_candidate(args.id, approver=args.approver, reason=args.reason)
+    elif args.revoke:
+        res = revoke_promotion(args.id, approver=args.approver, reason=args.reason)
+    else:
+        res = apply_promotion(
+            args.id, approver=args.approver, note=args.note,
+            allow_expert_lane=bool(args.expert_override),
+        )
+    if args.json:
+        print(json.dumps(res.to_dict(), indent=2, default=str))
+    else:
+        tag = "ok" if res.ok else "refused"
+        print(f"[curate-apply:{tag}] {res.reason}",
+              file=sys.stdout if res.ok else sys.stderr)
+    return 0 if res.ok else 1
+
+
+def _cmd_curate_stats(args: argparse.Namespace) -> int:
+    """Verified-tier size, queue by lane, and the headline defect rate."""
+    from cannavec_science.flywheel import stats
+
+    s = stats()
+    if args.json:
+        print(json.dumps(s, indent=2, default=str))
+        return 0
+    print("[curate-stats]")
+    print(f"  curated registry identifiers : {s['curated_registry_identifiers']}")
+    print(f"  verified tier (gate-passed)  : {s['verified_tier']}")
+    print(f"  verified + curated           : {s['verified_plus_curated']} / "
+          f"{s['target']}  (remaining {s['remaining_to_target']})")
+    print(f"  queue pending — basic        : {s['queue_pending_basic_approvable']}")
+    print(f"  queue pending — needs expert : {s['queue_pending_needs_expert']}")
+    print(f"  approved / rejected / revoked: {s['approved']} / {s['rejected']} / {s['revoked']}")
+    print(f"  defect rate (rejected/scanned): {s['defect_rate']:.1%} "
+          f"({s['rejected']}/{s['scanned']})")
+    return 0
+
+
+def _cmd_demand_report(args: argparse.Namespace) -> int:
+    """Topics ranked by miss volume — where the flywheel should fan out next."""
+    from cannavec_science.demand import demand_report
+
+    report = demand_report()
+    if args.json:
+        print(json.dumps([t.to_dict() for t in report], indent=2, default=str))
+        return 0
+    if not report:
+        print("[demand-report] (no demand instrumented yet)")
+        return 0
+    print("[demand-report] topics by miss volume (promotion priority):")
+    print(f"  {'topic':<24}{'asks':>6}{'misses':>8}{'thin%':>8}")
+    for t in report:
+        print(f"  {t.topic:<24}{t.asks:>6}{t.misses:>8}{t.thin_rate * 100:>7.0f}%")
+    return 0
+
+
 def _cmd_registries(args: argparse.Namespace) -> int:
     """Emit the curated-registry inventory (spec 003 US8 / FR-008).
 
@@ -1502,6 +1699,12 @@ def _build_parser() -> argparse.ArgumentParser:
                    default="fallback",
                    help=("Curated-row retrieval recovery for thin/no-claim "
                          "answers (default: fallback)."))
+    # Weave the verified tier — gate-passed, human-approved breadth (§IX
+    # flywheel) — onto the brief as a distinct band between the curated core
+    # and the live frontier. Offline + deterministic (reads the local verified
+    # store); never re-grades the curated core.
+    a.add_argument("--verified", action="store_true",
+                   help="Append the gate-passed, human-approved verified-tier band.")
     a.set_defaults(func=_cmd_answer)
 
     # discover
@@ -1855,6 +2058,79 @@ def _build_parser() -> argparse.ArgumentParser:
     fr2.add_argument("--network", action="store_true")
     fr2.add_argument("--json", action="store_true")
     fr2.set_defaults(func=_cmd_freshness_report)
+
+    # ── the §IX curation flywheel (curate-* + demand-report) ──────────────
+    cs = sub.add_parser(
+        "curate-scan",
+        help="Run the §IX flywheel: fan-out → gate → stage candidates by lane.",
+    )
+    cs.add_argument("query")
+    cs.add_argument("--topic", default=None,
+                    help="Demand topic tag (else routed from the query).")
+    cs.add_argument("--index-topic", default=None, dest="index_topic",
+                    help="Coarse source-index topic substring to pre-filter (e.g. 'Guts').")
+    cs.add_argument("--sources", default=None,
+                    help="Comma list for --network discovery (pubmed,europepmc,ctgov,chembl).")
+    cs.add_argument("--max", type=int, default=25)
+    cs.add_argument("--network", action="store_true",
+                    help="Fan out live discovery and verify identifiers over the network.")
+    cs.add_argument("--json", action="store_true")
+    cs.set_defaults(func=_cmd_curate_scan)
+
+    csw = sub.add_parser(
+        "curate-sweep",
+        help="Work down the demand-ranked holes: fan out + gate each top topic (§IX).",
+    )
+    csw.add_argument("--holes", type=int, default=5,
+                     help="How many top demand holes to sweep (default 5).")
+    csw.add_argument("--min-misses", type=int, default=1, dest="min_misses",
+                     help="Only sweep topics with at least this many misses.")
+    csw.add_argument("--max", type=int, default=25,
+                     help="Max candidates fanned out per hole.")
+    csw.add_argument("--sources", default=None,
+                     help="Comma list of live lanes (pubmed,europepmc,ctgov,chembl).")
+    csw.add_argument("--network", action="store_true",
+                     help="Execute the live fan-out (without it, a dry preview).")
+    csw.add_argument("--json", action="store_true")
+    csw.set_defaults(func=_cmd_curate_sweep)
+
+    cq = sub.add_parser("curate-queue", help="Show the staging queue (default: pending).")
+    cq.add_argument("--lane", default=None,
+                    choices=["basic_approvable", "needs_expert", "reject"])
+    cq.add_argument("--status", default="pending",
+                    help="pending | approved | rejected (default pending).")
+    cq.add_argument("--json", action="store_true")
+    cq.set_defaults(func=_cmd_curate_queue)
+
+    ca = sub.add_parser(
+        "curate-apply",
+        help="Human-gated promote/reject/revoke of a staged candidate (§IX).",
+    )
+    ca.add_argument("--id", required=True, dest="id", help="Identifier to act on.")
+    ca.add_argument("--approver", required=True, help="Named curator of record (§IX).")
+    ca.add_argument("--note", default="")
+    ca.add_argument("--reason", default="")
+    ca.add_argument("--reject", action="store_true", help="Reject instead of promote.")
+    ca.add_argument("--revoke", action="store_true",
+                    help="Reverse a prior promotion (§IX reversibility).")
+    ca.add_argument("--expert-override", action="store_true", dest="expert_override",
+                    help="Record that an expert approved a NEEDS_EXPERT row.")
+    ca.add_argument("--json", action="store_true")
+    ca.set_defaults(func=_cmd_curate_apply)
+
+    cst = sub.add_parser(
+        "curate-stats",
+        help="Verified-tier size, queue by lane, and the defect rate.",
+    )
+    cst.add_argument("--json", action="store_true")
+    cst.set_defaults(func=_cmd_curate_stats)
+
+    dr = sub.add_parser(
+        "demand-report",
+        help="Topics ranked by miss volume (promotion priority).",
+    )
+    dr.add_argument("--json", action="store_true")
+    dr.set_defaults(func=_cmd_demand_report)
 
     return p
 
