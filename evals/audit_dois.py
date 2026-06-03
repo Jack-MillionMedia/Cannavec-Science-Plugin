@@ -76,6 +76,27 @@ def _blocks(text: str):
         yield text[start:j + 1]
 
 
+_FIELD = re.compile(r'\b(?:pmid|doi|url|year|role|first_author|authors?|'
+                    r'compound_id|chembl_id|tier)\s*=')
+
+
+def _extract_label(body: str) -> str:
+    """Full label text, joining Python implicit string concatenation.
+
+    Labels are often written as ``label=("a " "b")`` or split across lines, so a
+    single ``label="..."`` match drops everything after the first segment — which
+    silently hid an author (Blount) or a title (the NASEM report) from the match.
+    This collects every quoted segment after ``label=`` up to the next field.
+    """
+    m = re.search(r'label\s*=\s*', body)
+    if not m:
+        return ""
+    rest = body[m.end():]
+    stop = _FIELD.search(rest)
+    span = rest[:stop.start()] if stop else rest
+    return " ".join(re.findall(r'"([^"]*)"', span)).strip()
+
+
 def collect_dois() -> dict[str, tuple[str, str]]:
     """Map DOI -> (file, label) for every curated citation DOI (skips synthetic)."""
     out: dict[str, tuple[str, str]] = {}
@@ -88,8 +109,7 @@ def collect_dois() -> dict[str, tuple[str, str]]:
             doi = dm.group(1)
             if doi.startswith("10.99999"):
                 continue  # documented synthetic seed
-            lab = re.search(r'label\s*=\s*"([^"]+)"', body)
-            out.setdefault(doi, (os.path.basename(path), (lab.group(1) if lab else "")))
+            out.setdefault(doi, (os.path.basename(path), _extract_label(body)))
     return out
 
 
@@ -110,8 +130,15 @@ def find_suspects(claims: dict[str, tuple[str, str]],
             suspects.append((doi, fname, "DOI does not resolve on Crossref (404)", label[:70]))
             continue
         authors = msg.get("author") or []
-        family = _norm(authors[0].get("family", "")) if authors else ""
-        author_hit = bool(family) and all(t in words for t in family.split() if len(t) >= 4)
+        # Match against ALL authors (and any org "name"), like audit_pmids: a
+        # label may cite a senior/last author, not Crossref's first author, and
+        # reports/books are org-authored (a "name", not a "family").
+        author_toks: set[str] = set()
+        for a in authors:
+            for t in (_norm(a.get("family", "")) + " " + _norm(a.get("name", ""))).split():
+                if len(t) >= 4:
+                    author_toks.add(t)
+        author_hit = bool(author_toks & words)
         title = _norm((msg.get("title") or [""])[0])
         ttoks = {t for t in title.split() if len(t) >= 4 and t not in _TITLE_STOP}
         overlap = (len(ttoks & words) / len(ttoks)) if ttoks else 0.0

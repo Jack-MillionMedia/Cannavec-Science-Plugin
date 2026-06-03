@@ -23,6 +23,11 @@ _TRUTH = {
     # A real DOI that resolves to a DIFFERENT paper than the label claims.
     "10.9999/wrong": _msg("Pollock", "The critical role of clinical pharmacology in "
                           "geriatric psychopharmacology", 2008, "Clin Pharmacol Ther"),
+    # Crossref lists the FIRST author (Arnold); the label cites a co-author (Adams).
+    "10.1021/multi1942": {"author": [{"family": "Arnold"}, {"family": "Adams"}],
+                          "title": ["Synthesis of hexahydrocannabinol"],
+                          "issued": {"date-parts": [[1942]]},
+                          "container-title": ["J Am Chem Soc"]},
 }
 
 
@@ -65,6 +70,14 @@ class DoiAuditLogic(unittest.TestCase):
         self.assertEqual(suspects, [])
         self.assertEqual(inconclusive, 1)
 
+    def test_matches_a_non_first_author(self) -> None:
+        # Label cites Adams (a co-author); Crossref lists Arnold first. Matching
+        # ALL authors (like the PMID audit) must accept this, not flag it.
+        claims = {"10.1021/multi1942": ("minor_cannabinoids.py",
+                  "Adams R et al., J Am Chem Soc 1942, synthesis of HHC")}
+        suspects, _ = self._run(claims)
+        self.assertEqual(suspects, [])
+
 
 class DoiCollection(unittest.TestCase):
     def test_collects_real_dois_and_skips_synthetic(self) -> None:
@@ -72,6 +85,14 @@ class DoiCollection(unittest.TestCase):
         self.assertGreater(len(claims), 30)
         self.assertFalse(any(d.startswith("10.99999") for d in claims),
                          "synthetic seed DOI must be excluded")
+
+    def test_multiline_concatenated_label_fully_captured(self) -> None:
+        # The NASEM report's label spans several quoted segments; the title part
+        # ("The Health Effects of Cannabis...") must be captured, not dropped
+        # after the first segment (the bug that false-flagged it in live CI).
+        claims = audit_dois.collect_dois()
+        self.assertIn("10.17226/24625", claims)
+        self.assertIn("health effects", claims["10.17226/24625"][1].lower())
 
 
 if __name__ == "__main__":
