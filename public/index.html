@@ -19,28 +19,38 @@
 <body>
   <h1>Cannavec Science API</h1>
   <p class="muted">Research-grade cannabis-science briefs — primary-source
-  anchored, GRADE-honest. Phase&nbsp;1 (curated, offline) endpoints:</p>
+  anchored, GRADE-honest.</p>
+  <p><strong>One answer, not two endpoints.</strong> <code>/api/answer</code>
+  returns a single blended brief: the verified curated <strong>core</strong>
+  (GRADE'd, retraction-checked) plus citation-checked live <strong>breadth</strong>
+  (provenance-tagged <code>live_*</code>, reranked) and a cross-source synthesis
+  verdict (STRONG / MIXED / WEAK) — the two tiers kept visibly distinct.</p>
   <ul>
     <li><code>GET /api/health</code> — liveness &amp; capability probe</li>
-    <li><code>GET /api/answer?question=...</code> — cited research brief (JSON;
-        <code>&amp;format=markdown</code> for prose). <strong>Auto-fallback:</strong>
-        a question the curated KB doesn't cover automatically pulls live
-        primary-source findings (disable with <code>&amp;fallback=false</code>;
-        force with <code>&amp;augment=true</code>)</li>
-    <li><code>POST /api/answer</code> — body <code>{"question":"..."}</code></li>
+    <li><code>GET /api/answer?question=...&amp;blend=true</code> — the
+        <strong>single blended brief</strong> (curated core + live breadth +
+        synthesis). JSON; <code>&amp;format=markdown</code> for prose.</li>
+    <li><code>GET /api/answer?question=...</code> — curated core (offline,
+        deterministic). <strong>Auto-fallback:</strong> a question the curated
+        KB doesn't cover automatically pulls live primary-source findings
+        (disable with <code>&amp;fallback=false</code>)</li>
+    <li><code>POST /api/answer</code> — body
+        <code>{"question":"...","blend":true}</code></li>
     <li><code>GET /api/discover?query=...</code> — <strong>live</strong>
         PubMed / ClinicalTrials.gov (+ opt-in ChEMBL / Europe PMC) fan-out
-        with a cross-source synthesis verdict <span class="muted">(Phase&nbsp;2)</span></li>
+        with a cross-source synthesis verdict, when you want the raw frontier
+        view on its own</li>
     <li><code>GET /api/rigor?text=...</code> — phytochemistry &amp;
         banned-pattern audit</li>
     <li><code>GET /api/registries</code> — curated-registry inventory</li>
   </ul>
   <p>Examples:</p>
-  <pre>curl "/api/answer?question=CBD evidence in Dravet syndrome&amp;format=markdown"
+  <pre>curl "/api/answer?question=CBD evidence in Dravet syndrome&amp;blend=true&amp;format=markdown"
 curl "/api/discover?query=cannabis melatonin circadian&amp;sources=pubmed,ctgov"</pre>
-  <p class="muted">Live discovery (<code>/api/discover</code> and
-  <code>?augment=true</code>) authenticates to NCBI via the
-  <code>NCBI_API_KEY</code> environment variable. The curated
-  <code>/api/answer</code> path needs no key and works offline.</p>
+  <p class="muted">The live tier (<code>?blend=true</code> and
+  <code>/api/discover</code>) authenticates to NCBI via the
+  <code>NCBI_API_KEY</code> environment variable, and live findings are always
+  provisional — provenance-tagged, retraction-checked, and never promoted into
+  the curated grade. The curated core needs no key and works offline.</p>
 </body>
 </html>

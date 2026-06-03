@@ -211,6 +211,59 @@ class AnswerAugmentHandlerTests(unittest.TestCase):
         self.assertFalse(payload["fallback_used"])
 
 
+class AnswerBlendAliasTests(unittest.TestCase):
+    """``blend=true`` is the researcher-facing alias for ``augment=true`` — the
+    single-answer call that weaves curated core + live breadth + synthesis."""
+
+    def test_blend_alias_weaves_and_surfaces_synthesis(self):
+        from cannavec_science import live
+
+        def _fake_augment(answer, **kw):
+            answer.add_live_finding(
+                label="Fresh hit", identifier="PMID 99", source_tag="live_pubmed",
+            )
+            answer.live_synthesis = {
+                "convergence": "MIXED", "per_source_counts": {"pubmed": 1},
+            }
+            return 1
+
+        mod = _load("answer")
+        with mock.patch.object(live, "augment_answer", side_effect=_fake_augment):
+            with _Server(mod.handler) as s:
+                status, data = s.request(
+                    "GET", "/?question=CBD%20in%20Dravet%20syndrome&blend=true"
+                )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertEqual(payload["augmented"], 1)
+        # The cross-source verdict rides in the same response — one endpoint.
+        self.assertEqual(payload["synthesis"]["convergence"], "MIXED")
+        self.assertEqual(
+            payload["answer"]["live_synthesis"]["convergence"], "MIXED"
+        )
+        self.assertEqual(len(payload["answer"]["live_findings"]), 1)
+
+    def test_blend_alias_via_post_body(self):
+        from cannavec_science import live
+
+        def _fake_augment(answer, **kw):
+            answer.add_live_finding(
+                label="h", identifier="PMID 1", source_tag="live_pubmed",
+            )
+            return 1
+
+        mod = _load("answer")
+        body = json.dumps(
+            {"question": "CBD in Dravet syndrome", "blend": True}
+        ).encode()
+        with mock.patch.object(live, "augment_answer", side_effect=_fake_augment):
+            with _Server(mod.handler) as s:
+                status, data = s.request("POST", "/api/answer", body=body)
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertEqual(payload["augmented"], 1)
+
+
 class AnswerFallbackHandlerTests(unittest.TestCase):
     """Phase 3 — /api/answer auto-falls-back to live discovery when curated
     coverage is thin, with no augment flag."""
