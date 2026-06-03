@@ -291,7 +291,7 @@ def _entry_from_citation(citation: "Citation",
 
 
 def _bibtex_escape(s: str) -> str:
-    """Escape BibTeX metacharacters in field values.
+    r"""Escape BibTeX metacharacters in field values.
 
     Conservative: BibTeX treats ``{`` / ``}`` / ``%`` / ``\`` /
     ``#`` specially. We wrap the whole field in braces so most
