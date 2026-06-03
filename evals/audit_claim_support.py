@@ -99,9 +99,13 @@ def adjudicate_interactions(
     """Deterministically flag, then optionally LLM-adjudicate, every row.
 
     Returns ``(reviews, checked, inconclusive)`` where ``reviews`` is a list of
-    ``(cannabinoid, partner_drug, pmid, ClaimReview)`` for the **flagged
-    minority** — the rows the deterministic flagger (:func:`gates_to_llm`) sent
-    for a closer read. This is the human review queue.
+    ``(cannabinoid, partner_drug, pmid, ClaimReview)`` for the rows the
+    deterministic flagger (:func:`gates_to_llm`) sent for a closer read — the
+    human review queue. That gate is the flagged minority (``WEAK`` /
+    ``UNVERIFIED`` / ``CONTRADICTION``) **plus** an otherwise-confident
+    ``SUPPORTED`` claim whose text asserts a quantitative magnitude
+    (:func:`asserts_magnitude`), since the deterministic layer never reads the
+    number itself.
 
     With no ``adjudicator`` the reviews carry the deterministic verdict only.
     Pass an injected :class:`cannavec_science.claim_support_llm.LLMAdjudicator`
@@ -109,6 +113,15 @@ def adjudicate_interactions(
     identifier-free verdict (``supported`` / ``partial`` / ``unverified``) and
     the supporting sentence quoted — provenance-gated, so a fabricated quote is
     dropped, never surfaced. A human confirms the contested ones.
+
+    Note the two verdict surfaces on each ``ClaimReview``: ``review.verdict`` is
+    the surfaced :class:`~cannavec_science.claim_support.Support` (the model's
+    read, or the deterministic mapping), while the hard CI signal — a direction
+    *contradiction* — lives on the deterministic floor at
+    ``review.report.verdict == Verdict.CONTRADICTION`` (and is always reflected
+    in ``review.needs_human``). A caller gating CI on contradictions MUST read
+    the floor, not the surfaced verdict, which maps a contradiction to the
+    softer ``unverified``.
 
     Network-resilient like the deterministic audit: an un-fetchable abstract is
     inconclusive, never a flag. The fetcher is injected so the offline suite
