@@ -91,6 +91,31 @@ _TAYLOR_2018 = MinorCannabinoidCitation(
     label="Taylor 2018 — Phase 1 PK of CBD oral solution in healthy adults",
     pmid="30374683", year=2018,
 )
+_JONES_2012 = MinorCannabinoidCitation(
+    label=(
+        "Jones NA et al., Seizure 2012 — CBD anti-convulsant effects in "
+        "rodent temporal-lobe (pilocarpine) and partial (penicillin) "
+        "seizure models"
+    ),
+    pmid="22520455", doi="10.1016/j.seizure.2012.03.001", year=2012,
+)
+# Receptor-target-specific primaries. Pertwee 2008 is a CB1/CB2 paper, so a
+# non-CB1/CB2 CBD target must be anchored to the study that characterised it
+# (enforced by tests/test_citation_coverage.py's receptor-target gate).
+_RUSSO_2005 = MinorCannabinoidCitation(
+    label=(
+        "Russo EB et al., Neurochem Res 2005 — cannabidiol is an agonist "
+        "at human 5-HT1A receptors"
+    ),
+    pmid="16258853", doi="10.1007/s11064-005-6978-1", year=2005,
+)
+_BISOGNO_2001 = MinorCannabinoidCitation(
+    label=(
+        "Bisogno T et al., Br J Pharmacol 2001 — cannabidiol stimulates "
+        "TRPV1 (VR1) and modulates anandamide uptake/hydrolysis"
+    ),
+    pmid="11606325", doi="10.1038/sj.bjp.0704327", year=2001,
+)
 
 
 _REGISTRY: tuple[MajorCannabinoid, ...] = (
@@ -303,7 +328,7 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "and antinociceptive preclinical effects."
                 ),
                 assay="functional cAMP / receptor binding",
-                citations=(_PERTWEE_2008,),
+                citations=(_RUSSO_2005,),
             ),
             ReceptorActivity(
                 target="TRPV1",
@@ -316,7 +341,7 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "explains the Dravet / LGS efficacy."
                 ),
                 assay="Ca²⁺ flux in TRPV1-transfected cells",
-                citations=(_PERTWEE_2008,),
+                citations=(_BISOGNO_2001,),
             ),
         ),
         pharmacology_grade=MinorCannabinoidEvidenceClass.B,
@@ -332,7 +357,11 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "placebo (n=120, 14-week double-blind). NNT ≈ 7 "
                     "for ≥50% responder rate."
                 ),
-                grade=MinorCannabinoidEvidenceClass.A,
+                # §VII: a single pivotal RCT caps at Level B. The
+                # body-of-evidence aggregate (clinical_grade) is Level A
+                # because Dravet + LGS + TSC RCTs align — but no single
+                # study row may claim Level A.
+                grade=MinorCannabinoidEvidenceClass.B,
                 citations=(_DEVINSKY_2017,),
                 caveats=(
                     "Pivotal trial; effect replicated in Lennox-"
@@ -344,13 +373,16 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
             ClinicalEvidenceRow(
                 indication="drop seizures in Lennox-Gastaut syndrome",
                 design="RCT (NEJM)",
-                n=171,
+                n=225,
                 dose_route="CBD 20 mg/kg/day oral",
                 outcome=(
                     "Median monthly drop-seizure frequency reduced "
-                    "41.9% on CBD 20 mg/kg/day vs 17.2% on placebo."
+                    "41.9% on CBD 20 mg/kg/day vs 17.2% on placebo "
+                    "(GWPCARE3, 225 patients across the 10 mg/kg, "
+                    "20 mg/kg, and placebo arms)."
                 ),
-                grade=MinorCannabinoidEvidenceClass.A,
+                # §VII single-study cap → Level B (see Dravet row above).
+                grade=MinorCannabinoidEvidenceClass.B,
                 citations=(_DEVINSKY_2018_LGS,),
                 caveats=(
                     "Same hepatic and CNS-depressant interaction "
@@ -363,13 +395,18 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
         clinical_grade=MinorCannabinoidEvidenceClass.A,
         preclinical_evidence=(
             PreclinicalEvidenceRow(
-                indication_or_model="rodent seizure threshold models",
-                species_or_assay="maximal electroshock; pentylenetetrazol",
-                dose_or_concentration="50-200 mg/kg",
+                indication_or_model="rodent seizure models (anti-convulsant)",
+                species_or_assay=(
+                    "rat acute pilocarpine (temporal-lobe) + penicillin "
+                    "(partial-seizure) models"
+                ),
+                dose_or_concentration="1–100 mg/kg",
                 outcome=(
-                    "CBD raises seizure threshold across multiple "
-                    "rodent seizure models with effective doses in the "
-                    "50–200 mg/kg range."
+                    "CBD reduced the proportion of animals experiencing "
+                    "the most severe seizures (pilocarpine, all doses) and "
+                    "decreased seizure-associated mortality (penicillin, "
+                    "≥10 mg/kg), extending CBD's anti-convulsant profile "
+                    "across rodent models."
                 ),
                 bridging_to_clinic=(
                     "Rodent dose ranges do not translate directly to "
@@ -377,7 +414,7 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "clinical dose range."
                 ),
                 grade=MinorCannabinoidEvidenceClass.B,
-                citations=(_PERTWEE_2008,),
+                citations=(_JONES_2012,),
             ),
         ),
         regulatory_status=(
