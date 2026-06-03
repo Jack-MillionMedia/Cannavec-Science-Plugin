@@ -232,18 +232,25 @@ def fetch_forward_cites(
     """Fetch the forward-citation PMIDs via NCBI elink.
 
     Returns the tuple of cite PMIDs, capped at ``_MAX_FORWARD_CITES``.
-    Raises ``IOError`` on network failure.
+
+    Raises ``IOError`` on network failure **or an unreadable response** — a
+    non-JSON body or a payload missing the ``linksets`` key means the fetch did
+    not succeed (e.g. a rate-limited / keyless NCBI reply), which is *unavailable*,
+    NOT "zero forward citations". Only a well-formed elink payload whose linkset
+    carries no ``pubmed_pubmed_citedin`` entries is a genuine zero (returns
+    ``()``). This lets the caller render "unavailable" instead of a misleading
+    hard ``0`` for a paper the lookup simply could not reach.
     """
     fetch = fetcher or default_citation_fetcher
     url = _ELINK_URL.format(pmid=urllib.parse.quote(pmid))
     body = fetch(url)
     try:
         payload = json.loads(body)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return ()
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        raise IOError("elink returned a non-JSON response") from exc
+    if not isinstance(payload, dict) or "linksets" not in payload:
+        raise IOError("elink response missing 'linksets' (lookup unavailable)")
     linksets = payload.get("linksets") or []
-    if not linksets:
-        return ()
     out: list[str] = []
     for ls in linksets:
         for db in ls.get("linksetdbs", []) or []:

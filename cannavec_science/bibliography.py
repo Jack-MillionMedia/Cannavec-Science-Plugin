@@ -142,13 +142,21 @@ def _extract_authors_from_label(label: str) -> tuple[str, ...]:
     and return it as the single-author list. Multi-author labels using
     ``"<S1> & <S2>"`` or ``"<S1>, <S2>, <S3>"`` are also handled.
     """
-    # Strip year and trailing title body.
-    head = re.split(r"\s+(?:—|--|–|:|,|\()\s*", label, maxsplit=1)[0]
-    head = re.sub(r"\b\d{4}\b", "", head).strip()
-    if not head:
+    # The leading chunk before the first separator (em-dash, colon, comma,
+    # open-paren, or a 4-digit year) is the author segment; everything after is
+    # title / journal. The comma needs no preceding space ("Pertwee RG,").
+    head = re.split(
+        r"\s*(?:—|--|–|:|,|\()\s*|\s+(?=(?:19|20)\d{2}\b)", label, maxsplit=1
+    )[0]
+    head = re.sub(r"\b(?:19|20)\d{2}\b", "", head).strip(" .,&")
+    # Must look like a name (starts with an uppercase letter), else this label
+    # is a free-text description (journal / title / keywords) with no parsable
+    # author — return nothing rather than mangle it into fake authors.
+    if not head or not head[0].isalpha() or not head[0].isupper():
         return ()
-    # Split on common separators.
-    parts = re.split(r"\s*(?:and|&|,)\s*", head)
+    # Multiple authors ONLY on a real word-boundary connector (" and " / " & "),
+    # never the substring "and" inside a word (the "ligand" → "lig"+"and" bug).
+    parts = re.split(r"\s+(?:and|&)\s+", head)
     out: list[str] = []
     for p in parts:
         p = p.strip()

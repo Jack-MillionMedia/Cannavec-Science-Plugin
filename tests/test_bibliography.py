@@ -26,12 +26,54 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cannavec_science.answer import Answer, Citation       # noqa: E402
 from cannavec_science.bibliography import (                # noqa: E402
     BibliographyEntry,
+    _extract_authors_from_label,
     bibliography_from_answer,
     render,
     render_bibtex,
     render_csljson,
     render_ris,
 )
+
+
+class AuthorParsingTests(unittest.TestCase):
+    """A descriptive label must never garble into fake authors (the Pertwee bug)."""
+
+    def test_descriptive_label_not_split_into_fake_authors(self) -> None:
+        # The exact label that produced `{Pertwee RG and Br J Pharmacol and lig
+        # and -binding…}`: the journal and the word "ligand" must NOT become
+        # authors. Only the leading author chunk survives.
+        self.assertEqual(
+            _extract_authors_from_label(
+                "Pertwee RG, Br J Pharmacol 2008, ligand-binding profile of phytocannabinoids"),
+            ("Pertwee RG",),
+        )
+
+    def test_clean_surname_year_title_label(self) -> None:
+        self.assertEqual(
+            _extract_authors_from_label("Devinsky 2017 — Trial of cannabidiol (NEJM)"),
+            ("Devinsky",),
+        )
+
+    def test_real_multi_author_connector_kept(self) -> None:
+        # A genuine " and " between names is still honoured.
+        self.assertEqual(
+            _extract_authors_from_label("Smith and Jones 2020 — CBD pharmacokinetics"),
+            ("Smith", "Jones"),
+        )
+
+    def test_freetext_description_yields_no_authors(self) -> None:
+        self.assertEqual(_extract_authors_from_label("ligand-binding profile review"), ())
+
+    def test_bibtex_render_has_no_garbled_author(self) -> None:
+        ans = Answer(prompt="x", audience="researcher")
+        ans.citations.append(Citation(
+            label="Pertwee RG, Br J Pharmacol 2008, ligand-binding profile of phytocannabinoids",
+            pmid="17828291", year=2008,
+        ))
+        bib = render_bibtex(bibliography_from_answer(ans))
+        self.assertIn("author  = {Pertwee RG}", bib)
+        self.assertNotIn("lig and", bib)
+        self.assertNotIn("Br J Pharmacol and", bib)
 
 
 def _make_answer_with_pmids() -> Answer:

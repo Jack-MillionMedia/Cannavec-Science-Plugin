@@ -121,7 +121,7 @@ _DESIGN_TABLE: tuple[tuple[tuple[str, ...], float, str], ...] = (
     (("preprint",), 0.60, "preprint"),
     (("case report", "case series", "case study"), 0.55, "case report"),
     (("narrative review", "review", "editorial", "comment", "letter",
-      "commentary"), 0.55, "review/other"),
+      "commentary"), 0.45, "review/other"),
 )
 _DEFAULT_DESIGN_WEIGHT = 0.65
 
@@ -303,15 +303,18 @@ def _design_weight(c: Candidate) -> tuple[float, str]:
 
 
 def _recency_factor(year: Optional[int], now_year: int) -> float:
-    """Gentle, bounded recency preference in roughly [0.85, 1.05].
+    """Gentle, bounded recency preference in roughly [0.90, 1.00].
 
-    Newer is mildly preferred but can never overpower study quality: a recent
-    case report must not outrank an older systematic review on relevance ties.
+    Newer is mildly preferred but must never overpower study quality: a recent
+    narrative review must not outrank an older RCT / systematic review of
+    comparable relevance. The window is deliberately narrow (a ≤11% swing) so
+    the study-design prior — which spans 0.45 (review) to 1.00 (SR/meta) — is
+    the dominant quality signal, and recency only breaks near-ties.
     """
     if not year:
         return 1.0
     age = max(0, now_year - int(year))
-    return round(0.85 + 0.20 / (1.0 + age / 8.0), 6)
+    return round(0.90 + 0.10 / (1.0 + age / 8.0), 6)
 
 
 def score_candidates(

@@ -50,8 +50,16 @@ class MajorCannabinoid(MinorCannabinoid):
 # ─── Citations re-used across the THC and CBD entries ──────────────────
 
 _PERTWEE_2008 = MinorCannabinoidCitation(
-    label="Pertwee RG, Br J Pharmacol 2008, ligand-binding profile of phytocannabinoids",
-    pmid="17828291", year=2008,
+    label="Pertwee 2008 — CB1/CB2 receptor pharmacology of Δ⁹-THC, CBD & THCV (Br J Pharmacol)",
+    pmid="17828291", doi="10.1038/sj.bjp.0707442", year=2008,
+)
+# Primary preclinical CBD-seizure study (replaces the binding review formerly
+# mis-cited for rodent seizure efficacy): in-vivo PTZ + in-vitro hippocampal-
+# slice models, CB1-independent anticonvulsant effect.
+_JONES_2010 = MinorCannabinoidCitation(
+    label=("Jones 2010 — CBD antiepileptiform & antiseizure properties "
+           "in vitro and in vivo (J Pharmacol Exp Ther)"),
+    pmid="19906779", doi="10.1124/jpet.109.159145", year=2010,
 )
 _DEVINSKY_2017 = MinorCannabinoidCitation(
     label="Devinsky 2017 — CBD in Dravet syndrome (NEJM)",
@@ -332,7 +340,11 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "placebo (n=120, 14-week double-blind). NNT ≈ 7 "
                     "for ≥50% responder rate."
                 ),
-                grade=MinorCannabinoidEvidenceClass.A,
+                # Per-indication grade: a single pivotal RCT caps at Level B
+                # (§VII single-study rule) — matching the deterministic grade the
+                # composed answer surfaces. The aggregate `clinical_grade` (A)
+                # below reflects the replicated body (Dravet + LGS + TSC RCTs).
+                grade=MinorCannabinoidEvidenceClass.B,
                 citations=(_DEVINSKY_2017,),
                 caveats=(
                     "Pivotal trial; effect replicated in Lennox-"
@@ -350,7 +362,9 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
                     "Median monthly drop-seizure frequency reduced "
                     "41.9% on CBD 20 mg/kg/day vs 17.2% on placebo."
                 ),
-                grade=MinorCannabinoidEvidenceClass.A,
+                # Single pivotal RCT → Level B per the §VII single-study cap
+                # (see the Dravet row above); the aggregate grade is A.
+                grade=MinorCannabinoidEvidenceClass.B,
                 citations=(_DEVINSKY_2018_LGS,),
                 caveats=(
                     "Same hepatic and CNS-depressant interaction "
@@ -363,21 +377,26 @@ _REGISTRY: tuple[MajorCannabinoid, ...] = (
         clinical_grade=MinorCannabinoidEvidenceClass.A,
         preclinical_evidence=(
             PreclinicalEvidenceRow(
-                indication_or_model="rodent seizure threshold models",
-                species_or_assay="maximal electroshock; pentylenetetrazol",
-                dose_or_concentration="50-200 mg/kg",
+                indication_or_model="rodent + in-vitro seizure models",
+                species_or_assay=(
+                    "pentylenetetrazole (in vivo, rat); Mg²⁺-free & 4-AP "
+                    "hippocampal slices (in vitro)"
+                ),
+                dose_or_concentration="1–100 mg/kg (in vivo); 0.01–100 µM (in vitro)",
                 outcome=(
-                    "CBD raises seizure threshold across multiple "
-                    "rodent seizure models with effective doses in the "
-                    "50–200 mg/kg range."
+                    "CBD reduced the incidence of severe seizures and "
+                    "mortality in the pentylenetetrazole model (significant "
+                    "at 100 mg/kg) and suppressed epileptiform burst activity "
+                    "in hippocampal slices — an anticonvulsant effect that "
+                    "appears largely CB1-independent."
                 ),
                 bridging_to_clinic=(
-                    "Rodent dose ranges do not translate directly to "
-                    "human mg/kg; the Dravet / LGS RCT data anchor the "
-                    "clinical dose range."
+                    "Rodent mg/kg doses do not translate directly to human "
+                    "dosing; the Dravet / LGS RCT data anchor the clinical "
+                    "dose range."
                 ),
                 grade=MinorCannabinoidEvidenceClass.B,
-                citations=(_PERTWEE_2008,),
+                citations=(_JONES_2010,),
             ),
         ),
         regulatory_status=(

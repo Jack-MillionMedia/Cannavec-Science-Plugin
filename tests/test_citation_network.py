@@ -115,12 +115,38 @@ class FetchForwardCitesTests(unittest.TestCase):
         cites = fetch_forward_cites("28538134", fetcher=stub)
         self.assertEqual(cites, ("11111", "22222"))
 
-    def test_invalid_json(self):
+    def test_invalid_json_is_unavailable_not_zero(self):
+        # A non-JSON body means the lookup did not succeed — that is
+        # *unavailable*, NOT "zero forward citations". It must raise so the
+        # builder surfaces an error (and the renderer shows "unavailable"),
+        # never a misleading hard 0.
         def stub(url: str) -> str:
             return "not json"
 
-        cites = fetch_forward_cites("28538134", fetcher=stub)
-        self.assertEqual(cites, ())
+        with self.assertRaises(IOError):
+            fetch_forward_cites("28538134", fetcher=stub)
+
+    def test_missing_linksets_is_unavailable_not_zero(self):
+        # A 200 with a payload lacking 'linksets' (e.g. a keyless / rate-limited
+        # NCBI reply) is unavailable, not a genuine zero.
+        def stub(url: str) -> str:
+            return json.dumps({"error": "API rate limit exceeded"})
+
+        with self.assertRaises(IOError):
+            fetch_forward_cites("28538134", fetcher=stub)
+
+    def test_build_renders_unavailable_for_unreadable_response(self):
+        # The user's exact bug: a cited-thousands-of-times PMID came back "0"
+        # because the keyless elink reply wasn't a real linkset. Now the block
+        # carries an error and renders "unavailable", never "Forward citations: 0".
+        def stub(url: str) -> str:
+            return json.dumps({"error": "API rate limit exceeded"})
+
+        block = build_citation_network("28538134", fetcher=stub)
+        self.assertIsNotNone(block.error)
+        md = render_markdown(block)
+        self.assertIn("unavailable", md)
+        self.assertNotIn("Forward citations: **0**", md)
 
 
 # ── Build citation network ──────────────────────────────────────

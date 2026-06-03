@@ -149,6 +149,21 @@ class RecencyTests(unittest.TestCase):
         result = rank_candidates("cbd sleep", cands, now_year=2026)
         self.assertEqual(_ranked_ids(result)[0], "OLDSR")
 
+    def test_recent_review_does_not_outrank_older_rct(self):
+        # The gut-permeability case: a recent narrative review must not outrank
+        # an older HUMAN RCT of comparable relevance. Study design dominates the
+        # (now narrowed) recency window.
+        cands = [
+            _c("REVIEW", title="Cannabidiol in the gut: therapeutic potential",
+               abstract="cannabidiol gut permeability narrative review",
+               year=2025, study_types=("Review",)),
+            _c("RCT", title="Cannabidiol prevents human gut hyperpermeability in vivo",
+               abstract="cannabidiol gut permeability randomized controlled trial human",
+               year=2019, study_types=("Randomized Controlled Trial",)),
+        ]
+        result = rank_candidates("cannabidiol gut permeability", cands, now_year=2026)
+        self.assertEqual(_ranked_ids(result)[0], "RCT")
+
 
 # ── Retraction sink ───────────────────────────────────────────────────────
 
@@ -301,8 +316,10 @@ class BackendIntegrationTests(unittest.TestCase):
         # not a top near-tie, and the (fake) expert lift pulls the strong
         # designs back up.
         cands = [
-            _c("REV", title="Cannabidiol for epilepsy in Dravet syndrome: a practical guide",
-               abstract="cannabidiol epilepsy dravet seizures cannabidiol epilepsy dravet seizures cannabidiol reduced",
+            _c("REV", title="Cannabidiol for epilepsy in Dravet syndrome seizures: a practical guide",
+               abstract=("cannabidiol epilepsy dravet seizures cannabidiol epilepsy dravet seizures "
+                         "cannabidiol epilepsy dravet seizures cannabidiol epilepsy dravet seizures "
+                         "cannabidiol epilepsy dravet seizures cannabidiol reduced seizures"),
                year=2021, study_types=("Review",)),
             _c("MA", title="Comparative network meta-analysis of antiseizure add-on therapies",
                abstract="we pooled randomized trials of stiripentol fenfluramine and cannabidiol for dravet using extensive frequentist methods across many comparisons reported at length here",

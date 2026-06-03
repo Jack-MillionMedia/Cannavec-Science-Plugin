@@ -1854,8 +1854,21 @@ def format_for_researcher(
         out.append("")
     if _want("clinical"):
         out.append(
-            f"{sub} Human clinical evidence (grade: {_format_grade(entry.clinical_grade)})"
+            f"{sub} Human clinical evidence (overall grade: {_format_grade(entry.clinical_grade)})"
         )
+        # Reconcile the aggregate vs per-indication grades so the brief is never
+        # internally contradictory (e.g. a headline "Level B" beside a monograph
+        # row "Level A" for the same single trial). When the overall body-of-
+        # evidence grade is stronger than every single indication, say why: the
+        # per-row grades apply the §VII single-study cap; the overall grade
+        # reflects the aligned body of trials. ("A" < "B" as strings → stronger.)
+        rows = entry.clinical_evidence
+        if rows and entry.clinical_grade.value < min(r.grade.value for r in rows):
+            out.append(
+                "- _Per-indication grades below apply the single-study cap "
+                "(a single pivotal RCT caps at Level B per §VII); the overall "
+                "grade reflects the aligned body of trials._"
+            )
         if not entry.clinical_evidence:
             out.append("- No clinical-evidence rows in the registry.")
         for c in entry.clinical_evidence:
