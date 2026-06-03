@@ -64,6 +64,7 @@ _WRONG_DOIS = {
     "10.1111/bcpt.13345": "10.1111/bcpt.13152",                  # wrong Damkier DOI (off by article no.); real is bcpt.13152 (PMID 30326170)
     "10.1007/s11920-014-0524-4": "10.3109/03602532.2013.849268",  # phantom "Hajos 2014"; re-anchored to Stout 2014 (PMID 24160757)
     "10.2174/187231212800229578": "10.1124/dmd.121.000734",      # phantom "Stout 2012 Drug Metab Lett"; re-anchored to Bansal 2022 (35115300) / Stout 2014
+    "10.1021/ja01258a047": "10.1021/acschembio.3c00254",         # mislabeled "Adams 1942 HHC"; DOI resolves to Arnold 1942. Re-anchored to Nasrallah & Garg 2023 (PMID 37578929)
 }
 
 # ChEMBL ids that shipped resolving to the wrong compound or an invalid id
