@@ -125,6 +125,20 @@ _DESIGN_TABLE: tuple[tuple[tuple[str, ...], float, str], ...] = (
 )
 _DEFAULT_DESIGN_WEIGHT = 0.65
 
+# Primary preclinical work (animal models / in-vitro / cell-line / organoid)
+# weighted below human evidence — applied ONLY to the unclassified fallback, so
+# a human-classified design (RCT / SR / cohort) is never demoted by an in-vitro
+# sub-arm. The markers are species + in-vitro cues, not generic words, to avoid
+# false positives on human studies.
+_PRECLINICAL_WEIGHT = 0.50
+_PRECLINICAL_RE = re.compile(
+    r"\b(?:mouse|mice|murine|rats?|rodents?|in[\s-]vitro|ex[\s-]vivo|"
+    r"cell[\s-]lines?|caco-?2|hippocampal[\s-]slices?|zebrafish|porcine|"
+    r"canine|bovine|chickens?|guinea[\s-]pigs?|xenografts?|"
+    r"animal[\s-]models?|preclinical|organoids?)\b",
+    re.IGNORECASE,
+)
+
 # Retraction factor mirrors the verifier / live-search semantics. Retracted →
 # 0.0 (sunk and pinned last); EOC / under-correction heavily penalised; a plain
 # correction barely matters.
@@ -249,6 +263,21 @@ class ScoreBreakdown:
         }
 
 
+# Affix-aware matching: a query term matches a longer document token that ENDS
+# with it (e.g. "permeability" ⊂ "hyperpermeability", "convulsant" ⊂
+# "anticonvulsant", "inflammatory" ⊂ "proinflammatory"). Suffix-only and
+# length-gated (≥ _MIN_AFFIX chars) so it captures real compound/prefixed
+# biomedical terms without short-token noise ("gut" never matches "foregut").
+_MIN_AFFIX = 6
+
+
+def _term_matches(q: str, tok: str) -> bool:
+    if q == tok:
+        return True
+    short, long = (q, tok) if len(q) <= len(tok) else (tok, q)
+    return len(short) >= _MIN_AFFIX and long.endswith(short)
+
+
 def _bm25_scores(
     query_tokens: list[str],
     docs: list[list[str]],
@@ -256,39 +285,54 @@ def _bm25_scores(
     k1: float,
     b: float,
 ) -> list[float]:
-    """Okapi BM25 over a small in-memory corpus (the candidate set itself)."""
+    """Okapi BM25 over a small in-memory corpus (the candidate set itself).
+
+    Term matching is affix-aware (:func:`_term_matches`) so a landmark trial
+    titled "...Hyper­permeability..." is credited for a "permeability" query —
+    the kind of compound-term gap that otherwise buries a high-design paper.
+    """
     n = len(docs)
     if n == 0:
         return []
-    qterms = set(query_tokens)
+    qterms = list(dict.fromkeys(query_tokens))  # unique, order-stable
     if not qterms:
         return [0.0] * n
 
-    df: dict[str, int] = {}
+    # Per-query-term: affix-aware document frequency + per-doc matched frequency.
+    doc_tf: list[dict[str, int]] = []
     for d in docs:
-        for t in set(d):
-            df[t] = df.get(t, 0) + 1
+        tf: dict[str, int] = {}
+        for t in d:
+            tf[t] = tf.get(t, 0) + 1
+        doc_tf.append(tf)
+
+    df: dict[str, int] = {q: 0 for q in qterms}
+    matched: list[dict[str, int]] = [dict() for _ in docs]
+    for q in qterms:
+        for i, tf in enumerate(doc_tf):
+            f = sum(c for tok, c in tf.items() if _term_matches(q, tok))
+            if f:
+                matched[i][q] = f
+                df[q] += 1
+
     avgdl = (sum(len(d) for d in docs) / n) or 1.0
     idf = {
-        t: math.log(1.0 + (n - df.get(t, 0) + 0.5) / (df.get(t, 0) + 0.5))
-        for t in qterms
+        q: math.log(1.0 + (n - df[q] + 0.5) / (df[q] + 0.5))
+        for q in qterms
     }
 
     scores: list[float] = []
-    for d in docs:
+    for i, d in enumerate(docs):
         if not d:
             scores.append(0.0)
             continue
         dl = len(d)
-        tf: dict[str, int] = {}
-        for t in d:
-            tf[t] = tf.get(t, 0) + 1
         s = 0.0
-        for t in qterms:
-            f = tf.get(t, 0)
+        for q in qterms:
+            f = matched[i].get(q, 0)
             if f == 0:
                 continue
-            s += idf[t] * (f * (k1 + 1.0)) / (f + k1 * (1.0 - b + b * dl / avgdl))
+            s += idf[q] * (f * (k1 + 1.0)) / (f + k1 * (1.0 - b + b * dl / avgdl))
         scores.append(s)
     return scores
 
@@ -299,6 +343,13 @@ def _design_weight(c: Candidate) -> tuple[float, str]:
     for needles, w, label in _DESIGN_TABLE:
         if any(nd in hay for nd in needles):
             return w, label
+    # Unclassified fallback: separate PRIMARY preclinical work from genuinely-
+    # unknown design and weight it below human evidence. Human-classified designs
+    # already returned above, so a human RCT with an in-vitro arm keeps its RCT
+    # weight — only truly unclassified animal / in-vitro studies are demoted.
+    text = f"{hay} {(c.title or '').lower()} {(c.abstract or '').lower()}"
+    if _PRECLINICAL_RE.search(text):
+        return _PRECLINICAL_WEIGHT, "preclinical/animal"
     return _DEFAULT_DESIGN_WEIGHT, "unclassified"
 
 

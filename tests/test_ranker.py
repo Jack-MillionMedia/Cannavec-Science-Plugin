@@ -128,6 +128,64 @@ class DesignPriorTests(unittest.TestCase):
         self.assertEqual(result.ranked[0].signals["design_label"], "meta-analysis")
 
 
+# ── Elite relevance: affix matching + preclinical detection ─────────────────
+
+
+class AffixAndPreclinicalTests(unittest.TestCase):
+    def test_affix_matcher_is_precise(self):
+        from cannavec_science.ranker import _term_matches
+        # Compound / prefixed biomedical terms match their root...
+        self.assertTrue(_term_matches("permeability", "hyperpermeability"))
+        self.assertTrue(_term_matches("convulsant", "anticonvulsant"))
+        self.assertTrue(_term_matches("inflammatory", "proinflammatory"))
+        # ...but short roots and non-suffix relations do not (no noise).
+        self.assertFalse(_term_matches("gut", "foregut"))            # < 6 chars
+        self.assertFalse(_term_matches("able", "permeable"))         # < 6 chars
+        self.assertFalse(_term_matches("cannabidiol", "cannabinoid"))  # not a suffix
+
+    def test_preclinical_animal_studies_demoted(self):
+        from cannavec_science.ranker import _design_weight
+        for title in ("CBD in a mouse model of colitis",
+                      "Cannabidiol in the gut of chickens",
+                      "CBD effect in a murine model",
+                      "Cannabidiol in Caco-2 cell lines in vitro"):
+            w, label = _design_weight(_c("x", title=title))
+            self.assertEqual(label, "preclinical/animal", title)
+            self.assertEqual(w, 0.50)
+        # A human-classified design is never demoted by an in-vitro arm.
+        w, label = _design_weight(_c(
+            "y", title="Cannabidiol human trial with in vitro sub-study",
+            study_types=("Randomized Controlled Trial",)))
+        self.assertEqual(label, "RCT")
+
+    def test_human_rcts_outrank_reviews_and_preclinical(self):
+        # The live "cannabidiol gut permeability" case, on the real titles:
+        # the human RCT (affix-credited for 'hyperpermeability') leads, and the
+        # animal studies sink below it as preclinical.
+        cands = [
+            _c("REVIEW", year=2024, study_types=("Review",),
+               title="Effects of Cannabinoids on Intestinal Motility, Barrier "
+                     "Permeability, and Therapeutic Potential in Gastrointestinal Diseases"),
+            _c("RCT", year=2019, study_types=("Randomized Controlled Trial",),
+               title="Palmitoylethanolamide and Cannabidiol Prevent Inflammation-induced "
+                     "Hyperpermeability of the Human Gut In Vitro and In Vivo - A "
+                     "Randomized, Placebo-controlled, Double-blind Controlled Trial"),
+            _c("MOUSE", year=2025, study_types=(),
+               title="Effect of intraperitoneal cannabidiol injection on intestine "
+                     "microbiome profile in a mouse model"),
+            _c("CHICKEN", year=2024, study_types=(),
+               title="Cannabidiol in the Gut of Chickens Applied to Different Conditions"),
+        ]
+        result = rank_candidates("cannabidiol gut permeability", cands, now_year=2026)
+        ids = _ranked_ids(result)
+        labels = {rc.candidate.identifier: rc.signals["design_label"] for rc in result.ranked}
+        self.assertEqual(ids[0], "RCT")
+        self.assertEqual(labels["MOUSE"], "preclinical/animal")
+        self.assertEqual(labels["CHICKEN"], "preclinical/animal")
+        self.assertLess(ids.index("RCT"), ids.index("MOUSE"))
+        self.assertLess(ids.index("RCT"), ids.index("CHICKEN"))
+
+
 # ── Recency ───────────────────────────────────────────────────────────────
 
 
@@ -321,7 +379,7 @@ class BackendIntegrationTests(unittest.TestCase):
                          "cannabidiol epilepsy dravet seizures cannabidiol epilepsy dravet seizures "
                          "cannabidiol epilepsy dravet seizures cannabidiol reduced seizures"),
                year=2021, study_types=("Review",)),
-            _c("MA", title="Comparative network meta-analysis of antiseizure add-on therapies",
+            _c("MA", title="Comparative network meta-analysis of adjunctive add-on therapies in childhood",
                abstract="we pooled randomized trials of stiripentol fenfluramine and cannabidiol for dravet using extensive frequentist methods across many comparisons reported at length here",
                year=2024, study_types=("Systematic Review", "Network Meta-Analysis")),
             _c("RCT", title="Trial of fenfluramine for convulsive seizures",
