@@ -215,6 +215,26 @@ _PERTWEE_2008 = MinorCannabinoidCitation(
     label="Pertwee RG, Br J Pharmacol 2008, ligand-binding profile of phytocannabinoids",
     pmid="17828291", year=2008,
 )
+# Pertwee 2008 (17828291) characterises only Δ⁹-THC, CBD and Δ⁹-THCV — it must
+# not anchor a receptor row for any other cannabinoid (enforced by
+# tests/test_citation_coverage.py). Turner 2017 is the panel-wide receptor
+# reference (THC, THCV, CBN, CBD, CBDV, CBG, CBC); Tagen 2022 is the Δ⁸-THC
+# comparative-pharmacology reference.
+_TURNER_2017 = MinorCannabinoidCitation(
+    label=(
+        "Turner SE et al., Prog Chem Org Nat Prod 2017 — molecular "
+        "pharmacology of the phytocannabinoids "
+        "(THC, THCV, CBN, CBD, CBDV, CBG, CBC)"
+    ),
+    pmid="28120231", doi="10.1007/978-3-319-45541-9_3", year=2017,
+)
+_TAGEN_2022 = MinorCannabinoidCitation(
+    label=(
+        "Tagen M & Klumpers LE, Br J Pharmacol 2022 — Δ⁸-THC comparative "
+        "pharmacology with Δ⁹-THC (CB1 partial agonist)"
+    ),
+    pmid="35523678", doi="10.1111/bph.15865", year=2022,
+)
 _THOMAS_2005 = MinorCannabinoidCitation(
     label="Thomas A et al., Br J Pharmacol 2005, THCV CB1 antagonism in vitro and in vivo",
     pmid="16205722", year=2005,
@@ -770,7 +790,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                     "doses but not at typical commercial product doses."
                 ),
                 assay="[³H]-CP55,940 competitive binding",
-                citations=(_PERTWEE_2008,),
+                citations=(_TURNER_2017,),
                 typical_clinical_exposure=(
                     "5–50 mg oral consumer dose; first-pass metabolism "
                     "substantial; estimated peak plasma low single-"
@@ -799,7 +819,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 activity="partial agonist",
                 affinity_note="Ki ≈ 100–300 nM (assay-dependent).",
                 assay="[³H]-CP55,940 competitive binding in CB2-transfected cells",
-                citations=(_PERTWEE_2008,),
+                citations=(_TURNER_2017,),
                 typical_clinical_exposure=(
                     "same 5–50 mg oral consumer-dose range as above"
                 ),
@@ -937,7 +957,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
             "CB1 partial agonist; at high oral doses it can produce "
             "mild THC-like subjective effects.",
         ),
-        citations=(_PERTWEE_2008, _STOUT_2014, _RUSSO_2018),
+        citations=(_TURNER_2017, _STOUT_2014, _RUSSO_2018),
     ),
 
     # ── CBG ───────────────────────────────────────────────────────────
@@ -979,7 +999,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                     "exposures."
                 ),
                 assay="competitive binding",
-                citations=(_PERTWEE_2008,),
+                citations=(_NAVARRO_2018,),
             ),
             ReceptorActivity(
                 target="CB2",
@@ -988,7 +1008,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 activity="partial agonist",
                 affinity_note="Modest CB2 affinity; assay-dependent.",
                 assay="competitive binding in CB2-transfected cells",
-                citations=(_PERTWEE_2008,),
+                citations=(_NAVARRO_2018,),
             ),
             ReceptorActivity(
                 target="5-HT1A",
@@ -1128,7 +1148,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
             "MISCONCEPTION: 'CBG is the focus / energy cannabinoid.' "
             "No human study supports a focus/energy claim.",
         ),
-        citations=(_PERTWEE_2008, _NAVARRO_2018, _RUSSO_2018),
+        citations=(_NAVARRO_2018, _TURNER_2017, _RUSSO_2018),
     ),
 
     # ── Δ⁸-THC (spec 002 US6) ──────────────────────────────────────────
@@ -1162,7 +1182,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                     "distinction commonly attributed to Δ⁸ in user reports."
                 ),
                 assay="[³H]-CP55,940 competitive binding",
-                citations=(_PERTWEE_2008,),
+                citations=(_TAGEN_2022,),
             ),
             ReceptorActivity(
                 target="CB2",
@@ -1171,7 +1191,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                 activity="partial agonist",
                 affinity_note="Ki ≈ 44 nM, comparable to Δ⁹-THC at CB2.",
                 assay="[³H]-CP55,940 competitive binding",
-                citations=(_PERTWEE_2008,),
+                citations=(_TAGEN_2022,),
             ),
         ),
         pharmacology_grade=MinorCannabinoidEvidenceClass.C,
@@ -1225,7 +1245,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
                     "Δ⁸-THC and uncharacterised by-products."
                 ),
                 grade=MinorCannabinoidEvidenceClass.D,
-                citations=(_PERTWEE_2008,),
+                citations=(_TAGEN_2022,),
             ),
         ),
         regulatory_status=(
@@ -1299,7 +1319,7 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
             "acute paediatric exposures to mislabelled Δ⁸ products "
             "argues the opposite at the population level.",
         ),
-        citations=(_PERTWEE_2008,),
+        citations=(_TAGEN_2022,),
     ),
 
     # ── HHC (spec 002 US6) ────────────────────────────────────────────

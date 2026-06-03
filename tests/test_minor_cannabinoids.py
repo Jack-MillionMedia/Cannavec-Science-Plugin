@@ -310,14 +310,18 @@ class TestComposeAnswerIntegration(unittest.TestCase):
         cite_pmids = {c.pmid for c in a.citations if c.pmid}
 
         # CBN-specific anchors must be present:
-        # PMID 17828291 (Pertwee 2008) is the receptor-pharmacology
-        # anchor; PMID 24160757 (Stout & Cimino 2014) is the
+        # PMID 28120231 (Turner 2017) is the panel-wide receptor-
+        # pharmacology anchor that actually covers CBN (Pertwee 2008 /
+        # 17828291 only characterises Δ⁹-THC, CBD and Δ⁹-THCV, so it must
+        # NOT anchor CBN); PMID 24160757 (Stout & Cimino 2014) is the
         # CYP3A4 PK / drug-interaction anchor. Both come from the
         # minor-cannabinoid registry.
-        self.assertIn("17828291", cite_pmids,
-                      "CBN sleep answer missing Pertwee 2008 anchor")
+        self.assertIn("28120231", cite_pmids,
+                      "CBN sleep answer missing Turner 2017 receptor anchor")
         self.assertIn("24160757", cite_pmids,
                       "CBN sleep answer missing Stout 2014 PK anchor")
+        self.assertNotIn("17828291", cite_pmids,
+                         "CBN must not cite Pertwee 2008 (does not cover CBN)")
 
         # Devinsky/Dravet (PMID 28538134) must NOT appear — it has
         # nothing to do with CBN or sleep. This is the v2.6 bug we
