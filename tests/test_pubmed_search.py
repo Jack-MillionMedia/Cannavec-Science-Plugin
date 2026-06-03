@@ -20,10 +20,79 @@ from cannavec_science.pubmed_search import (  # noqa: E402
     LivePubMedHit,
     PubMedSearcher,
     SearchRefused,
+    _parse_efetch_xml,
     render_markdown,
     render_json,
     suggested_grade_for_pubtypes,
 )
+
+
+_EFETCH_XML = """<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle><MedlineCitation><PMID>111</PMID>
+    <Article><Abstract><AbstractText>Cannabidiol reduced gut permeability in human patients.</AbstractText></Abstract>
+    <PublicationTypeList><PublicationType>Randomized Controlled Trial</PublicationType></PublicationTypeList></Article>
+    <MeshHeadingList><MeshHeading><DescriptorName>Humans</DescriptorName></MeshHeading></MeshHeadingList>
+  </MedlineCitation></PubmedArticle>
+  <PubmedArticle><MedlineCitation><PMID>222</PMID>
+    <Article><Abstract><AbstractText Label="METHODS">CBD in a mouse model of colitis.</AbstractText></Abstract>
+    <PublicationTypeList><PublicationType>Journal Article</PublicationType></PublicationTypeList></Article>
+    <MeshHeadingList><MeshHeading><DescriptorName>Animals</DescriptorName></MeshHeading>
+    <MeshHeading><DescriptorName>Mice</DescriptorName></MeshHeading></MeshHeadingList>
+  </MedlineCitation></PubmedArticle>
+</PubmedArticleSet>"""
+
+
+class EnrichmentTests(unittest.TestCase):
+    def test_parse_efetch_xml_extracts_abstract_pubtypes_species(self):
+        out = _parse_efetch_xml(_EFETCH_XML)
+        self.assertIn("permeability", out["111"]["abstract"])
+        self.assertEqual(out["111"]["species"], "human")
+        self.assertIn("Randomized Controlled Trial", out["111"]["pubtypes"])
+        self.assertEqual(out["222"]["species"], "animal")     # MeSH Animals + Mice
+        self.assertIn("mouse", out["222"]["abstract"])
+
+    def test_parse_efetch_xml_malformed_returns_empty(self):
+        self.assertEqual(_parse_efetch_xml("not xml at all"), {})
+
+    def _enriched_searcher(self, efetch_body=_EFETCH_XML, efetch=None):
+        recs = [
+            {"uid": "111", "title": "Cannabidiol trial", "source": "NEJM",
+             "pubdate": "2019", "authors": [{"name": "Smith J"}],
+             "pubtype": ["Journal Article"]},
+            {"uid": "222", "title": "Cannabidiol gut study", "source": "J Vet",
+             "pubdate": "2024", "authors": [{"name": "Lee K"}],
+             "pubtype": ["Journal Article"]},
+        ]
+        return PubMedSearcher(
+            esearch_fetcher=_stub_fetcher(_make_esearch_fixture(["111", "222"])),
+            esummary_fetcher=_stub_fetcher(_make_esummary_fixture(recs)),
+            efetch_fetcher=efetch or _stub_fetcher(efetch_body),
+        )
+
+    def test_enrich_adds_abstract_species_and_animal_tag(self):
+        hits = {h.pmid: h for h in
+                self._enriched_searcher().search("cbd gut", enrich=True)}
+        self.assertIn("permeability", hits["111"].abstract)
+        self.assertEqual(hits["111"].species, "human")
+        # MeSH-confirmed animal study gets an "animal model" design tag.
+        self.assertEqual(hits["222"].species, "animal")
+        self.assertIn("animal model", hits["222"].pubtypes)
+
+    def test_no_enrich_by_default(self):
+        hits = {h.pmid: h for h in
+                self._enriched_searcher().search("cbd gut")}  # enrich defaults False
+        self.assertEqual(hits["111"].abstract, "")
+        self.assertEqual(hits["111"].species, "")
+
+    def test_enrich_degrades_gracefully_on_efetch_failure(self):
+        def boom(url):
+            raise IOError("efetch down")
+        hits = {h.pmid: h for h in
+                self._enriched_searcher(efetch=boom).search("cbd gut", enrich=True)}
+        # Title-only hits still returned — enrichment is best-effort.
+        self.assertEqual(len(hits), 2)
+        self.assertEqual(hits["111"].abstract, "")
 
 
 # ── Fixture builders ──────────────────────────────────────────────────

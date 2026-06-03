@@ -99,7 +99,10 @@ def _rank_narrow(query: str, src: str, rows: list, n: int) -> list:
 
 def _run_pubmed(query: str, since: Optional[str], n: int):
     from cannavec_science.pubmed_search import PubMedSearcher
-    return PubMedSearcher().search(query, since=since, max_results=n)
+    # enrich=True: efetch abstracts + MeSH species so ranking scores content and
+    # human-vs-animal is the gold-standard MeSH tag (best-effort; degrades to
+    # title-only). Falls back gracefully if efetch is unavailable.
+    return PubMedSearcher().search(query, since=since, max_results=n, enrich=True)
 
 
 def _run_ctgov(query: str, since: Optional[str], n: int):

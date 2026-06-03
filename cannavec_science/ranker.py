@@ -84,21 +84,45 @@ _STOP = frozenset(
 )
 
 
+# Cannabinoid / cannabis synonyms folded to a canonical token so the ranker
+# matches the terminology experts (and PubMed) use interchangeably: a "CBD"
+# query scores a "cannabidiol" / "Epidiolex" title, a "THC" query scores a
+# "dronabinol" / "Δ⁹-THC" title (Δ⁹-THC tokenises to the bare "thc" run).
+# Applied identically to query and document tokens, after the plural fold.
+_SYNONYMS: dict[str, str] = {
+    "cbd": "cannabidiol", "epidiolex": "cannabidiol", "epidyolex": "cannabidiol",
+    "thc": "tetrahydrocannabinol", "dronabinol": "tetrahydrocannabinol",
+    "marinol": "tetrahydrocannabinol",
+    "thca": "tetrahydrocannabinolic", "cbda": "cannabidiolic",
+    "cbg": "cannabigerol", "cbga": "cannabigerolic",
+    "cbn": "cannabinol", "cbc": "cannabichromene",
+    "thcv": "tetrahydrocannabivarin", "cbdv": "cannabidivarin",
+    "cbgv": "cannabigerovarin",
+    "marijuana": "cannabis", "marihuana": "cannabis", "hashish": "cannabis",
+    "hash": "cannabis", "weed": "cannabis",
+}
+
+
 def _tokens(text: str) -> list[str]:
-    """Lowercase, split, drop stopwords, and fold trailing plural ``s``.
+    """Lowercase, split, drop stopwords, fold trailing plural ``s``, canonicalise.
 
     The plural fold is intentionally crude (``seizures`` → ``seizure``,
-    ``cannabinoids`` → ``cannabinoid``). It is applied identically to query
-    and document tokens, so even linguistically-wrong folds stay *consistent*
-    on both sides and only help recall.
+    ``cannabinoids`` → ``cannabinoid``) and the synonym fold (:data:`_SYNONYMS`)
+    maps cannabinoid name variants to a canonical token. Both are applied
+    identically to query and document tokens, so the matching stays *consistent*
+    on both sides and only helps recall.
     """
     out: list[str] = []
     for w in _TOKEN_RE.findall((text or "").lower()):
         if len(w) < 2 or w in _STOP:
             continue
+        # Synonym-fold brackets the plural-fold so both plural acronyms
+        # ("cbds" → "cbd" → "cannabidiol") and the plant name ("cannabis" /
+        # "marijuana" → "cannabi") canonicalise consistently.
+        w = _SYNONYMS.get(w, w)
         if len(w) > 3 and w.endswith("s"):
             w = w[:-1]
-        out.append(w)
+        out.append(_SYNONYMS.get(w, w))
     return out
 
 

@@ -407,8 +407,11 @@ def _cmd_discover(args: argparse.Namespace) -> int:
 
 def _run_pubmed(args):
     from cannavec_science.pubmed_search import PubMedSearcher
+    # enrich=True: efetch abstracts + MeSH species for content-aware ranking and
+    # gold-standard human-vs-animal classification (best-effort; degrades to
+    # title-only if efetch is unavailable).
     return PubMedSearcher().search(
-        args.query, since=args.since, max_results=args.max
+        args.query, since=args.since, max_results=args.max, enrich=True
     )
 
 

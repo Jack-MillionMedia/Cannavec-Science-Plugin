@@ -185,6 +185,38 @@ class AffixAndPreclinicalTests(unittest.TestCase):
         self.assertLess(ids.index("RCT"), ids.index("MOUSE"))
         self.assertLess(ids.index("RCT"), ids.index("CHICKEN"))
 
+    def test_cannabinoid_synonyms_match_across_forms(self):
+        from cannavec_science.ranker import _tokens
+        # Acronym / brand / generic all canonicalise to the same token.
+        self.assertEqual(_tokens("CBD"), _tokens("cannabidiol"))
+        self.assertEqual(_tokens("Epidiolex"), _tokens("cannabidiol"))
+        self.assertEqual(_tokens("THC"), _tokens("dronabinol"))
+        self.assertEqual(_tokens("marijuana"), _tokens("cannabis"))
+        # ...but distinct compounds stay distinct.
+        self.assertNotEqual(_tokens("CBD"), _tokens("THC"))
+        self.assertNotEqual(_tokens("THC"), _tokens("THCA"))
+
+    def test_acronym_query_ranks_spelled_out_title(self):
+        cands = [
+            _c("CBD_DOC", title="Cannabidiol reduces convulsive seizures",
+               study_types=("Randomized Controlled Trial",)),
+            _c("OTHER", title="Aspirin for headache",
+               study_types=("Randomized Controlled Trial",)),
+        ]
+        self.assertEqual(
+            _ranked_ids(rank_candidates("cbd seizures", cands, now_year=2026))[0],
+            "CBD_DOC")
+        # A "THC" query surfaces a "dronabinol" title (both → tetrahydrocannabinol).
+        cands2 = [
+            _c("THC_DOC", title="Dronabinol for chemotherapy nausea",
+               study_types=("Randomized Controlled Trial",)),
+            _c("OTHER2", title="Ondansetron for chemotherapy nausea",
+               study_types=("Randomized Controlled Trial",)),
+        ]
+        self.assertEqual(
+            _ranked_ids(rank_candidates("thc nausea", cands2, now_year=2026))[0],
+            "THC_DOC")
+
 
 # ── Recency ───────────────────────────────────────────────────────────────
 
@@ -280,13 +312,16 @@ class EscalationTests(unittest.TestCase):
 
     # ── weak-lexical-signal trigger (BM25's synonymy blind spot) ────────
     def test_low_lexical_confidence_on_synonymy_miss(self):
-        # "cbd" never lexically matches "cannabidiol" — BM25 is blind here.
+        # A genuine lexical miss the ranker does not bridge: "seizures" never
+        # lexically matches "epilepsy", and the plant name "cannabis" (folded
+        # from "marijuana") never matches the specific compound "cannabidiol".
+        # BM25 is blind; the LLM's semantic read is the effective ranker.
         cands = [
-            _c("A", title="Cannabidiol mechanisms", abstract="cannabidiol pharmacology"),
+            _c("A", title="Cannabidiol for refractory epilepsy", abstract="cannabidiol epilepsy"),
             _c("B", title="Cannabidiol clinical overview", abstract="cannabidiol clinical"),
             _c("C", title="Cannabidiol safety", abstract="cannabidiol safety"),
         ]
-        self.assertTrue(low_lexical_confidence("cbd", cands))
+        self.assertTrue(low_lexical_confidence("marijuana seizures", cands))
 
     def test_lexical_confident_when_terms_present(self):
         cands = [
@@ -403,11 +438,12 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(_ranked_ids(result)[0], "MA")
 
     def test_weak_lexical_signal_auto_escalates(self):
-        # "cbd" never lexically matches "cannabidiol", so BM25 is unreliable;
-        # the SR dominates on design (no top-tie, no inversion) but the LLM's
-        # semantic read is the effective ranker → escalate on weak lexical.
+        # "marijuana seizures" never lexically matches "cannabidiol epilepsy"
+        # (plant≠compound, seizures≠epilepsy), so BM25 is unreliable; the SR
+        # dominates on design (no top-tie, no inversion) but the LLM's semantic
+        # read is the effective ranker → escalate on weak lexical.
         cands = [
-            _c("A", title="Cannabidiol mechanisms of action", abstract="cannabidiol pharmacology",
+            _c("A", title="Cannabidiol for refractory epilepsy", abstract="cannabidiol epilepsy",
                year=2024, study_types=("Systematic Review",)),
             _c("B", title="Cannabidiol clinical overview", abstract="cannabidiol clinical",
                year=2022, study_types=("Review",)),
@@ -415,7 +451,8 @@ class BackendIntegrationTests(unittest.TestCase):
                year=2020, study_types=("Review",)),
         ]
         backend = _FakeBackend(order=["B", "A", "C"])
-        result = rank_candidates("cbd", cands, backend=backend, escalate=None, now_year=2026)
+        result = rank_candidates("marijuana seizures", cands, backend=backend,
+                                 escalate=None, now_year=2026)
         self.assertTrue(result.escalated)
         self.assertEqual(result.escalation_reason, "weak lexical signal")
         self.assertEqual(_ranked_ids(result)[0], "B")

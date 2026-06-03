@@ -46,7 +46,7 @@ from __future__ import annotations
 import json
 import re
 import urllib.parse
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, replace
 from typing import Callable, Optional
 
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
@@ -77,6 +77,20 @@ _PUBMED_ESUMMARY_URL_BULK = (
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
     "?db=pubmed&retmode=json&tool=cannavec&id={ids}"
 )
+# efetch (XML) enriches a hit with its abstract (so ranking scores content, not
+# just the title) and its MeSH headings (so human-vs-animal is the gold-standard
+# Humans/Animals tag, not a title guess).
+_PUBMED_EFETCH_URL_BULK = (
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+    "?db=pubmed&retmode=xml&rettype=abstract&tool=cannavec&id={ids}"
+)
+# MeSH descriptors that mark non-human work; "Humans" overrides them (a human
+# study with an animal/in-vitro arm is still a human study).
+_ANIMAL_MESH = {
+    "animals", "mice", "rats", "rodentia", "rabbits", "dogs", "cats", "swine",
+    "sheep", "cattle", "chickens", "zebrafish", "drosophila melanogaster",
+    "guinea pigs", "primates", "macaca", "models, animal", "disease models, animal",
+}
 
 
 _MAX_RESULTS_CEILING = 50
@@ -123,6 +137,9 @@ class LivePubMedHit:
     retraction_status: str
     suggested_grade: str
     provenance: str = Provenance.LIVE_PUBMED.value
+    # Populated by efetch enrichment (empty when not enriched / on failure).
+    abstract: str = ""
+    species: str = ""  # "human" | "animal" | "" (unknown)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -179,9 +196,11 @@ class PubMedSearcher:
         *,
         esearch_fetcher: Optional[Fetcher] = None,
         esummary_fetcher: Optional[Fetcher] = None,
+        efetch_fetcher: Optional[Fetcher] = None,
     ) -> None:
         self._esearch_fetcher = esearch_fetcher or default_pubmed_fetcher
         self._esummary_fetcher = esummary_fetcher or default_pubmed_fetcher
+        self._efetch_fetcher = efetch_fetcher or default_pubmed_fetcher
 
     def search(
         self,
@@ -189,6 +208,7 @@ class PubMedSearcher:
         *,
         since: Optional[str] = None,
         max_results: int = 10,
+        enrich: bool = False,
     ) -> tuple[LivePubMedHit, ...]:
         """Run an esearch + esummary pair and return typed hits.
 
@@ -240,11 +260,46 @@ class PubMedSearcher:
                 continue
             hits.append(self._record_to_hit(pmid, rec))
 
+        # Opt-in efetch enrichment: abstract (ranking scores content, not just
+        # the title) + MeSH species + authoritative publication types. Best-
+        # effort — any failure leaves the title-only hits intact.
+        if enrich and hits:
+            hits = self._enrich(hits)
+
         # Sort retracted to bottom; otherwise preserve esearch's
         # relevance order.
         return tuple(sorted(
             hits, key=lambda h: 1 if h.retraction_status == "retracted" else 0
         ))
+
+    def _enrich(self, hits: list[LivePubMedHit]) -> list[LivePubMedHit]:
+        """Best-effort efetch: add abstract + MeSH species + pubtypes to hits."""
+        pmids = tuple(h.pmid for h in hits)
+        try:
+            body = self._efetch_fetcher(
+                _PUBMED_EFETCH_URL_BULK.format(ids=",".join(pmids))
+            )
+            enr = _parse_efetch_xml(body)
+        except Exception:  # noqa: BLE001 — degrade to title-only on any failure
+            return hits
+        if not enr:
+            return hits
+        out: list[LivePubMedHit] = []
+        for h in hits:
+            e = enr.get(h.pmid)
+            if not e:
+                out.append(h)
+                continue
+            # MeSH-confirmed animal work adds a design tag so the ranker demotes
+            # it even when esummary gave only a bare "Journal Article" pubtype.
+            extra = ("animal model",) if e["species"] == "animal" else ()
+            merged = tuple(dict.fromkeys(h.pubtypes + e["pubtypes"] + extra))
+            out.append(replace(
+                h, abstract=e["abstract"], species=e["species"],
+                pubtypes=merged,
+                suggested_grade=suggested_grade_for_pubtypes(merged),
+            ))
+        return out
 
     # ── URL building ─────────────────────────────────────────────
 
@@ -340,6 +395,79 @@ class PubMedSearcher:
             suggested_grade=suggested_grade_for_pubtypes(pubtypes),
             provenance=Provenance.LIVE_PUBMED.value,
         )
+
+
+# ── efetch (XML) enrichment parser ───────────────────────────────────
+
+
+def _parse_efetch_xml(body: str) -> dict[str, dict]:
+    """Parse an efetch (XML) reply → ``{pmid: {abstract, pubtypes, species}}``.
+
+    Stdlib ``xml.etree``. Robust to missing fields and malformed XML (returns
+    ``{}`` so the searcher degrades to title-only). ``species`` is the MeSH
+    verdict: ``Humans`` → ``"human"`` (overrides any animal tag — a human study
+    with an animal arm is still human), else an animal/in-vitro descriptor →
+    ``"animal"``, else ``""``.
+    """
+    import xml.etree.ElementTree as ET
+
+    out: dict[str, dict] = {}
+    try:
+        root = ET.fromstring(body)
+    except Exception:  # noqa: BLE001 — unparseable reply → no enrichment
+        return out
+
+    for art in root.iter("PubmedArticle"):
+        cit = art.find("MedlineCitation")
+        if cit is None:
+            continue
+        pmid_el = cit.find("PMID")
+        pmid = (pmid_el.text or "").strip() if pmid_el is not None else ""
+        if not pmid:
+            continue
+        article = cit.find("Article")
+
+        abstract = ""
+        pubtypes: list[str] = []
+        if article is not None:
+            abst = article.find("Abstract")
+            if abst is not None:
+                parts: list[str] = []
+                for at in abst.findall("AbstractText"):
+                    txt = "".join(at.itertext()).strip()
+                    if not txt:
+                        continue
+                    label = at.get("Label")
+                    parts.append(f"{label}: {txt}" if label else txt)
+                abstract = " ".join(parts)
+            ptl = article.find("PublicationTypeList")
+            if ptl is not None:
+                pubtypes = [
+                    (pt.text or "").strip()
+                    for pt in ptl.findall("PublicationType")
+                    if (pt.text or "").strip()
+                ]
+
+        mesh: set[str] = set()
+        mhl = cit.find("MeshHeadingList")
+        if mhl is not None:
+            for mh in mhl.findall("MeshHeading"):
+                dn = mh.find("DescriptorName")
+                if dn is not None and dn.text:
+                    mesh.add(dn.text.strip().lower())
+        if "humans" in mesh:
+            species = "human"
+        elif mesh & _ANIMAL_MESH:
+            species = "animal"
+        else:
+            species = ""
+
+        out[pmid] = {
+            "abstract": abstract,
+            "pubtypes": tuple(pubtypes),
+            "species": species,
+        }
+    return out
 
 
 # ── Renderers ─────────────────────────────────────────────────────────
