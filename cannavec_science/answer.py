@@ -864,6 +864,7 @@ def compose_answer(
     include_claims: bool = True,
     retraction_policy: str = "strict",
     include_rigor: bool = True,
+    retrieval: str = "fallback",
 ) -> Answer:
     """Deterministically compose a typed :class:`Answer` from a prompt.
 
@@ -893,6 +894,24 @@ def compose_answer(
     include_rigor:
         When True (default), run the six phytochemistry rigor detectors
         on the prompt and record violations in ``rigor_violations``.
+    retrieval:
+        Cross-registry BM25 retrieval recovery for the
+        "we-have-it-but-didn't-find-it" failure (Improvement Plan §1). The
+        per-registry keyword detectors are brittle (word-order / phrasing
+        sensitive), so a prompt like "how does THC impair driving" can miss
+        the driving rows the KB holds. Modes:
+
+        - ``"fallback"`` (default) — run :mod:`cannavec_science.retrieval`
+          only when the deterministic detectors produced **no claims**, then
+          attach the best-matching curated rows. Fallback-only means it never
+          disturbs a prompt the detectors already answered, so it cannot
+          regress existing coverage; it only recovers misses.
+        - ``"augment"`` — always union retrieval hits with detector hits
+          (retrieval as the primary path; detectors as a precision booster).
+        - ``"off"`` — disable retrieval entirely (pre-§1 behaviour).
+
+        Retrieval surfaces **curated** rows only; each keeps its own
+        identifier-anchored citations and GRADE (§I / §VII / §IX).
     """
     from cannavec_science.banned_patterns import detect_banned_patterns
     from cannavec_science.safety import check_safety
@@ -1382,6 +1401,25 @@ def compose_answer(
                     "## Endocrinology registry\n"
                 ).strip(),
             )
+
+        # Improvement Plan §1 — retrieval recovery. The per-registry keyword
+        # detectors above are high-precision but brittle; when they surface no
+        # typed claim for a prompt the curated KB can actually answer, recover
+        # the missed rows by BM25 retrieval over every curated row (e.g. "how
+        # does THC impair driving" → the driving registry). ``"fallback"``
+        # (default) fires only on a 0-claim result, so it never disturbs a
+        # prompt the detectors already answered; ``"augment"`` unions retrieval
+        # with the detector hits as the primary path. Retrieval does NOT
+        # override the deliberate out-of-scope / deferred guidance notes
+        # (spec 003 US9) — those prompts are steered to the parent plugin / a
+        # later horizon on purpose, so retrieval is a recovery path for
+        # IN-SCOPE misses only.
+        if (retrieval == "augment" or (retrieval != "off" and not a.claims)) \
+                and not _ZERO_CLAIM_OUT_OF_SCOPE_AUDIENCE_RE.search(prompt) \
+                and not _ZERO_CLAIM_DEFERRED_RE.search(prompt):
+            _augment_with_retrieval(
+                a, prompt, retraction_policy, all_rows, cannabinoid_set,
+            )
     elif matched_minor_cb_rows or matched_major_cb_rows or matched_ecbome_rows:
         # Refused prompt: still surface the cannabinoid + eCBome
         # citations so downstream readers see the evidence base.
@@ -1762,6 +1800,83 @@ def _attach_claim_safely(
         # In strict-wording mode an over-claim is rejected; record but
         # do not crash composition.
         pass
+
+
+# Improvement Plan §1 — how many recovered rows the retrieval fallback may
+# attach. Small by design: it is a recovery path for a thin answer, not a
+# firehose. Each attached row still passes the retraction / GRADE / wording
+# checks in ``_attach_claim_safely``.
+_RETRIEVAL_FALLBACK_K = 6
+
+
+def _augment_with_retrieval(
+    a: Answer,
+    prompt: str,
+    retraction_policy: str,
+    matched_rows: Iterable,
+    cannabinoid_set: "NamedCannabinoidSet",
+) -> int:
+    """Recover curated rows the brittle keyword detectors missed (Plan §1).
+
+    BM25-retrieves the best-matching curated rows for ``prompt`` and attaches
+    any not already surfaced by a detector, through the normal claim path so
+    retraction / GRADE / wording enforcement all still apply. Best-effort: any
+    failure leaves the answer untouched and returns 0. Returns the number of
+    claims added.
+
+    Cannabinoid scope filter (spec 003 US2): when the prompt names specific
+    cannabinoids, a retrieved row that is specifically *about a different
+    cannabinoid* (e.g. a Δ⁹-THC adverse-event row surfacing for an HHC
+    question) is skipped, so retrieval never attributes one cannabinoid's
+    evidence to another. Cannabinoid-agnostic topic rows (PK, driving, CHS, …)
+    are unaffected.
+    """
+    try:
+        from cannavec_science.retrieval import retrieve
+        hits = retrieve(prompt, k=_RETRIEVAL_FALLBACK_K)
+    except Exception:  # noqa: BLE001 — retrieval is best-effort; never break compose
+        return 0
+    if not hits:
+        return 0
+    allowed = cannabinoid_set.all_names if cannabinoid_set else frozenset()
+    already = {id(r) for r in matched_rows}
+    added = 0
+    for h in hits:
+        if id(h.row) in already or not hasattr(h.row, "to_claim"):
+            continue
+        try:
+            claim = h.row.to_claim()
+        except Exception:  # noqa: BLE001
+            claim = None
+        if claim is None:
+            continue
+        if allowed:
+            # The prompt names a specific cannabinoid, so a recovered row must
+            # actually be about it. This skips both wrong-cannabinoid rows
+            # (a Δ⁹-THC AE row for an HHC query) and cannabinoid-agnostic rows
+            # (a generic FAAH-inhibitor row), so retrieval never attributes
+            # unrelated evidence to the queried cannabinoid (spec 003 US2). A
+            # topic row that names the cannabinoid in its claim (e.g. the
+            # driving rows cite Δ⁹-THC) still resolves into scope and passes.
+            disc = (
+                getattr(h.row, "cannabinoid", None)
+                or getattr(h.row, "compound", None)
+                or ""
+            )
+            row_cb = resolve_named_cannabinoid_set(
+                f"{disc} {claim.text}"
+            ).all_names
+            if not (row_cb & allowed):
+                continue
+        before = len(a.claims)
+        _attach_citations_from_row(a, h.row)
+        _attach_claim_safely(a, h.row, retraction_policy)
+        if len(a.claims) > before:
+            already.add(id(h.row))
+            added += 1
+    if added:
+        a.add_trace("retrieval.recovered", added)
+    return added
 
 
 def merge_citations(answers: Iterable[Answer]) -> list[Citation]:
