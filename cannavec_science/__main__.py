@@ -210,7 +210,7 @@ def _augment_with_live(a, args) -> None:
 _DEFAULT_RERANK_MODEL = "claude-sonnet-4-6"
 
 
-def _maybe_rank(args: argparse.Namespace, out_payload: dict):
+def _maybe_rank(args: argparse.Namespace, out_payload: dict, *, top_k: int | None = None):
     """Rank the fanned-out candidates across sources, or return ``None``.
 
     Deterministic ranking is on by default (free, offline, additive — it never
@@ -218,6 +218,11 @@ def _maybe_rank(args: argparse.Namespace, out_payload: dict):
     which fires only on a genuine top-of-list near-tie (the cost short-circuit)
     and degrades silently to the deterministic floor if the model, API key, or
     network is unavailable — the per-source results always stand.
+
+    ``top_k`` is the number of ranked rows to surface (the *display* count). It
+    is separate from how many candidates were *fetched*: discover over-fetches a
+    wider pool (so a relevant older trial is not cut before ranking) and ranks it
+    down to ``top_k`` — "retrieve wide, rank narrow".
     """
     if not getattr(args, "rank", True):
         return None
@@ -242,8 +247,50 @@ def _maybe_rank(args: argparse.Namespace, out_payload: dict):
         args.query,
         cands,
         backend=backend,
-        top_k=max(1, int(getattr(args, "max", 10) or 10)),
+        top_k=top_k or max(1, int(getattr(args, "max", 10) or 10)),
     )
+
+
+# Pool ceiling for the over-fetch (mirrors the searchers' own _MAX_RESULTS_CEILING).
+_DISCOVER_POOL_CEILING = 50
+
+
+def _row_identifier(r: dict) -> str:
+    """Headline primary identifier of a discovery row (mirrors Candidate.from_row)."""
+    return (
+        r.get("pmid") or r.get("nct_id") or r.get("activity_id") or r.get("cid")
+        or r.get("pdb_id") or r.get("accession_id") or r.get("ensembl_id")
+        or r.get("monomer_id") or r.get("chembl_id") or r.get("doi") or "?"
+    )
+
+
+def _ranked_per_source(out_payload: dict, rank_result, display_max: int) -> dict:
+    """Per-source rows restricted to the ranked top ``display_max`` (in rank order).
+
+    This is the "rank narrow" half: the wide fetched pool is ranked once across
+    all sources, and each source then shows only the rows that earned a place in
+    the ranked top — so a relevant older trial that PubMed ranked mid-pool but
+    the design-aware ranker lifted now actually appears. Falls back to the first
+    ``display_max`` per source when ranking is disabled.
+    """
+    sources = out_payload.get("sources", {})
+    if rank_result is None:
+        return {
+            s: (v[:display_max] if isinstance(v, list) else v)
+            for s, v in sources.items()
+        }
+    pos = {rc.candidate.identifier: i for i, rc in enumerate(rank_result.ranked[:display_max])}
+    out: dict = {}
+    for s, v in sources.items():
+        if not isinstance(v, list):
+            out[s] = v
+            continue
+        kept = sorted(
+            ((pos[_row_identifier(r)], r) for r in v if _row_identifier(r) in pos),
+            key=lambda t: t[0],
+        )
+        out[s] = [r for _, r in kept]
+    return out
 
 
 def _cmd_discover(args: argparse.Namespace) -> int:
@@ -265,6 +312,15 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     if getattr(args, "include_openalex", False):
         sources.add("openalex")
     out_payload: dict = {"query": args.query, "sources": {}}
+
+    # Retrieve wide, rank narrow: over-fetch a candidate POOL per source so a
+    # relevant older trial is not cut before ranking (the recall bug), then rank
+    # the pool down to the display count. ``--pool`` overrides the auto size.
+    display_max = max(1, int(getattr(args, "max", 10) or 10))
+    pool = int(getattr(args, "pool", 0) or 0) or min(
+        max(display_max * 5, 30), _DISCOVER_POOL_CEILING
+    )
+    args.max = pool  # the per-source runners fetch the wide pool
 
     sorted_sources = sorted(sources)
     parallel = max(1, int(getattr(args, "parallel", 1) or 1))
@@ -305,7 +361,7 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             synth_rows[src] = val
     block = synthesize(args.query, synth_rows)
 
-    rank_result = _maybe_rank(args, out_payload)
+    rank_result = _maybe_rank(args, out_payload, top_k=display_max)
 
     if args.json:
         out_payload["synthesis"] = block.to_dict()
@@ -319,27 +375,21 @@ def _cmd_discover(args: argparse.Namespace) -> int:
 
         print(_render_rank_md(rank_result))
 
+    display_payload = _ranked_per_source(out_payload, rank_result, display_max)
     for src in sorted(out_payload["sources"]):
         val = out_payload["sources"][src]
-        n = len(val) if isinstance(val, list) else 0
-        print(f"\n## Live {src} ({n})")
-        print("")
         if isinstance(val, dict) and "error" in val:
+            print(f"\n## Live {src} (0)")
+            print("")
             print(f"_(live source unavailable: {val['error']})_")
             continue
-        for r in val[: args.max]:
-            ident = (
-                r.get("pmid")
-                or r.get("nct_id")
-                or r.get("activity_id")
-                or r.get("cid")
-                or r.get("pdb_id")
-                or r.get("accession_id")
-                or r.get("ensembl_id")
-                or r.get("monomer_id")
-                or r.get("chembl_id")
-                or "?"
-            )
+        shown = display_payload.get(src, [])
+        fetched = len(val) if isinstance(val, list) else 0
+        suffix = f" (top {len(shown)} of {fetched} scanned)" if fetched > len(shown) else ""
+        print(f"\n## Live {src} ({len(shown)}){suffix}")
+        print("")
+        for r in shown:
+            ident = _row_identifier(r)
             yr = r.get("year") or r.get("start_year") or ""
             title = (
                 r.get("title")
@@ -1721,7 +1771,11 @@ def _build_parser() -> argparse.ArgumentParser:
     d.add_argument("query")
     d.add_argument("--since", default=None,
                    help="ISO date floor (e.g., 2024-01-01)")
-    d.add_argument("--max", type=int, default=10)
+    d.add_argument("--max", type=int, default=10,
+                   help="How many ranked results to display per source.")
+    d.add_argument("--pool", type=int, default=0,
+                   help="Candidates to FETCH per source before ranking "
+                        "(retrieve-wide/rank-narrow; 0 = auto ≈ 5×max, cap 50).")
     d.add_argument(
         "--sources",
         default="pubmed,chembl,ctgov",

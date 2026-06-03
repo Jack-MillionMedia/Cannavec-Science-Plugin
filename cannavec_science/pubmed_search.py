@@ -255,7 +255,12 @@ class PubMedSearcher:
             _PUBMED_ESEARCH_URL,
             f"&term={urllib.parse.quote(query)}",
             f"&retmax={retmax}",
-            "&sort=date",
+            # Sort by RELEVANCE, not date: a landmark older trial must not be
+            # pushed off the result set by a flurry of recent reviews/animal
+            # studies (the recall bug). Recency is then applied as a *ranking*
+            # signal downstream (ranker._recency_factor), and an explicit date
+            # window is still available via --since (mindate below).
+            "&sort=relevance",
         ]
         if since is not None:
             # NCBI expects YYYY/MM/DD with slashes; we accept dashes

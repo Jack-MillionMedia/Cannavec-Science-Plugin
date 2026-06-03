@@ -48,6 +48,33 @@ class RunDiscoveryTests(unittest.TestCase):
         self.assertIn("synthesis", result)
         self.assertIn("convergence", result["synthesis"])
 
+    def test_over_fetch_then_rank_narrow_surfaces_buried_rct(self):
+        # Retrieve wide, rank narrow: a relevant older RCT buried at the end of a
+        # recent-review-heavy pool must survive into the top-n after design-aware
+        # ranking — the recall fix (the live search returns a wider pool; the
+        # ranker, not the source's order, decides what the brief shows).
+        q = "cannabidiol gut permeability"
+        rows = [
+            _FakeHit(pmid=f"rev{i}", title="Cannabidiol gut review",
+                     abstract="cannabidiol gut permeability review", year=2025,
+                     pubtypes=["Review"], provenance="live_pubmed")
+            for i in range(5)
+        ]
+        rows.append(_FakeHit(
+            pmid="RCT2019",
+            title="Cannabidiol prevents human gut hyperpermeability",
+            abstract="cannabidiol gut permeability randomized controlled trial human",
+            year=2019, pubtypes=["Randomized Controlled Trial"],
+            provenance="live_pubmed"))
+        result = live.run_discovery(
+            q, sources=["pubmed"], max_results=3,
+            runners={"pubmed": _pubmed_runner(rows)},
+        )
+        pmids = [r["pmid"] for r in result["sources"]["pubmed"]]
+        self.assertEqual(len(pmids), 3)
+        self.assertIn("RCT2019", pmids)        # the buried RCT was lifted in
+        self.assertEqual(pmids[0], "RCT2019")  # design beats recency → it's #1
+
     def test_default_sources_when_none(self):
         # No runner invoked for a source we didn't fake → each unknown source
         # is captured as an error, but the default set is still consulted.

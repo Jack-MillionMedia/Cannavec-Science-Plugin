@@ -60,6 +60,39 @@ DEFAULT_SOURCES: tuple[str, ...] = ("pubmed", "ctgov")
 SUPPORTED_SOURCES: tuple[str, ...] = ("pubmed", "ctgov", "chembl", "europepmc")
 
 _MAX_RESULTS_CEILING = 25
+# Over-fetch pool ceiling (the searchers cap at 50). We fetch up to this many
+# candidates per source, then rank down to the caller's display count.
+_POOL_CEILING = 50
+
+
+def _rank_narrow(query: str, src: str, rows: list, n: int) -> list:
+    """Rank a source's over-fetched pool down to its ``n`` best rows (§IX ranker).
+
+    "Rank narrow" half of retrieve-wide/rank-narrow: a relevant older trial that
+    the source returned mid-pool but the design-aware ranker lifts now survives
+    into the ``n`` rows the brief actually shows. A pool already ≤ ``n`` is
+    returned unchanged (preserves order); ranking failure degrades to ``rows[:n]``.
+    """
+    if len(rows) <= n:
+        return rows
+    try:
+        from cannavec_science.ranker import Candidate, rank_candidates
+        by_id: dict = {}
+        cands = []
+        for r in rows:
+            try:
+                c = Candidate.from_row(src, r)
+            except Exception:  # noqa: BLE001 — skip an unparseable row
+                continue
+            if c.identifier and c.identifier not in by_id:
+                by_id[c.identifier] = r
+                cands.append(c)
+        ranked = rank_candidates(query, cands, top_k=n).ranked
+        return [by_id[rc.candidate.identifier] for rc in ranked
+                if rc.candidate.identifier in by_id][:n]
+    except Exception as exc:  # noqa: BLE001 — ranking is best-effort
+        _log.warning("rank-narrow failed for %s: %s", src, exc)
+        return rows[:n]
 
 
 # ── Production runners (thin wrappers over the tested searchers) ────────
@@ -135,6 +168,10 @@ def run_discovery(
 
     runners = dict(runners) if runners is not None else default_runners()
     n = max(1, min(int(max_results or 10), _MAX_RESULTS_CEILING))
+    # Retrieve wide, rank narrow: over-fetch a pool per source so a relevant
+    # older trial is not cut before ranking (the recall bug), then rank the pool
+    # down to ``n`` design-aware best rows per source.
+    pool = min(max(n * 5, 25), _POOL_CEILING)
     wanted = _clean_sources(sources)
 
     out: dict = {"query": query, "sources": {}}
@@ -144,8 +181,8 @@ def run_discovery(
             out["sources"][src] = {"error": f"unsupported source: {src!r}"}
             continue
         try:
-            rows = list(runner(query, since, n))
-            out["sources"][src] = [r.to_dict() for r in rows[:n]]
+            rows = list(runner(query, since, pool))
+            out["sources"][src] = _rank_narrow(query, src, [r.to_dict() for r in rows], n)
         except DiscoverRefused:
             raise
         except Exception as exc:  # noqa: BLE001 — degrade; never abort fan-out

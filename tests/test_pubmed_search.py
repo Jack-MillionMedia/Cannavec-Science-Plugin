@@ -301,6 +301,17 @@ class TestSinceAndMax(unittest.TestCase):
         url = esearch.calls[0]
         self.assertIn("retmax=50", url)
 
+    def test_esearch_sorts_by_relevance_not_date(self) -> None:
+        # Recall fix: a landmark older trial must not be pushed off the result
+        # set by a flurry of recent papers (date sort did exactly that).
+        esearch = _stub_fetcher(_make_esearch_fixture([]))
+        esummary = _stub_fetcher(_make_esummary_fixture([]))
+        s = PubMedSearcher(esearch_fetcher=esearch, esummary_fetcher=esummary)
+        s.search("cannabidiol gut permeability", max_results=8)
+        url = esearch.calls[0]
+        self.assertIn("sort=relevance", url)
+        self.assertNotIn("sort=date", url)
+
     def test_invalid_since_raises(self) -> None:
         esearch = _stub_fetcher(_make_esearch_fixture([]))
         esummary = _stub_fetcher(_make_esummary_fixture([]))
