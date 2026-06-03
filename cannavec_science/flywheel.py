@@ -78,12 +78,14 @@ __all__ = [
     "classify",
     "stage",
     "run_flywheel",
+    "sweep_holes",
     "apply_promotion",
     "reject_candidate",
     "revoke_promotion",
     "queue",
     "verified_sources",
     "verified_candidates",
+    "weave_verified_findings",
     "curated_identifiers",
     "stats",
 ]
@@ -93,6 +95,9 @@ _log = get_logger("flywheel")
 # The growth target the demand-prioritised flywheel exists to reach — through
 # the gate, one human-approved turn at a time (never auto-promoted).
 TARGET_VERIFIED = 1500
+
+# §VIII statuses that must be badged and pinned last when surfacing breadth.
+_RETRACT_FLAGGED = frozenset({"retracted", "expression_of_concern", "under_correction"})
 
 
 class Lane(str, Enum):
@@ -782,6 +787,51 @@ def run_flywheel(
     )
 
 
+def sweep_holes(
+    *,
+    n: int = 5,
+    min_misses: int = 1,
+    topics: Optional[Sequence[str]] = None,
+    live: bool = True,
+    sources: Optional[Sequence[str]] = None,
+    max_results: int = 25,
+    runners: Optional[Mapping] = None,
+    verify_fetcher=None,
+    check_identifier: Optional[bool] = None,
+    abstract_fetcher=None,
+    adjudicator=None,
+    store_dir: Optional[str] = None,
+    demand_store_dir: Optional[str] = None,
+    now: Optional[str] = None,
+) -> list[FlywheelReport]:
+    """Work down the demand-ranked holes — one flywheel turn per top topic.
+
+    The batch driver behind ``curate-sweep``: reads the demand report, takes the
+    top ``n`` holes (or an explicit ``topics`` list), maps each to a primary-
+    source query (:func:`cannavec_science.demand.topic_query`), and runs the full
+    fan-out → gate → classify → stage pipeline for each. Returns one
+    :class:`FlywheelReport` per topic.
+
+    Network is injected (``runners`` / ``verify_fetcher``), so the whole sweep
+    runs offline in tests; live by default for production use via ``--network``.
+    """
+    from cannavec_science.demand import priority_topics, topic_query
+
+    picks = list(topics) if topics else priority_topics(
+        n, min_misses=min_misses, store_dir=demand_store_dir
+    )
+    reports: list[FlywheelReport] = []
+    for topic in picks:
+        reports.append(run_flywheel(
+            topic_query(topic), topic=topic, live=live, sources=sources,
+            max_results=max_results, runners=runners,
+            verify_fetcher=verify_fetcher, check_identifier=check_identifier,
+            abstract_fetcher=abstract_fetcher, adjudicator=adjudicator,
+            store_dir=store_dir, now=now,
+        ))
+    return reports
+
+
 # ── human-gated apply / reject / revoke (§IX) ─────────────────────────────
 
 @dataclass(frozen=True)
@@ -1046,6 +1096,91 @@ def verified_candidates(
             retraction_status="clean",
         ))
     return out
+
+
+def _display_identifier(rec: dict) -> str:
+    """Human display label for a verified row's identifier (`PMID 12345`)."""
+    ident = rec.get("identifier", "")
+    id_type = rec.get("id_type", "")
+    if id_type in ("PMID", "PMC", "NCT", "ChEMBL") and ident:
+        return f"{id_type} {ident}"
+    return ident
+
+
+def weave_verified_findings(
+    answer,
+    *,
+    prompt: Optional[str] = None,
+    topic: Optional[str] = None,
+    store_dir: Optional[str] = None,
+) -> int:
+    """Weave verified-tier breadth onto ``answer`` (the §IX middle tier).
+
+    Pulls the human-approved verified sources for the prompt's topic, reranks
+    them by relevance to the prompt, **re-checks retraction at composition time**
+    (§VIII — a source retracted since promotion is badged and pinned last), and
+    attaches each via :meth:`~cannavec_science.answer.Answer.add_verified_finding`.
+
+    Offline and stdlib (reads the local verified store, no network). Never
+    touches ``answer.evidence_summary`` — breadth augments the curated core, it
+    never re-grades it. Returns the number of findings attached.
+    """
+    from cannavec_science.retraction import is_retracted
+
+    if topic is None and prompt:
+        from cannavec_science.demand import classify_topic
+        topic = classify_topic(prompt)
+    pick = topic if topic and topic != "unclassified" else None
+    rows = verified_sources(pick, store_dir=store_dir)
+    if not rows:
+        return 0
+
+    # Rerank by relevance to the prompt (BM25 × design × recency), best-effort.
+    if prompt:
+        try:
+            from cannavec_science.ranker import rank_candidates
+            order = {
+                rc.candidate.identifier: i
+                for i, rc in enumerate(
+                    rank_candidates(
+                        prompt, verified_candidates(pick, store_dir=store_dir),
+                        top_k=max(1, len(rows)),
+                    ).ranked
+                )
+            }
+            rows = sorted(rows, key=lambda r: order.get(r.get("identifier", ""), 1 << 30))
+        except Exception as exc:  # noqa: BLE001 — ranking is a best-effort reorder
+            _log.warning("verified weave rerank failed: %s", exc)
+
+    # §VIII at composition: re-check retraction, badge + pin flagged rows last.
+    scored = []
+    for r in rows:
+        ident = r.get("identifier", "")
+        id_type = r.get("id_type", "")
+        rec = is_retracted(
+            pmid=ident if id_type == "PMID" else None,
+            doi=ident if id_type == "DOI" else None,
+        )
+        status = getattr(getattr(rec, "status", None), "value", "clean") if rec else "clean"
+        scored.append((r, status))
+    scored.sort(key=lambda t: t[1] in _RETRACT_FLAGGED)
+
+    attached = 0
+    for r, status in scored:
+        before = len(answer.verified_findings)
+        answer.add_verified_finding(
+            label=r.get("claim_text", ""),
+            identifier=_display_identifier(r),
+            grade=r.get("grade", ""),
+            url=r.get("url", ""),
+            quote=r.get("support_quote", ""),
+            approver=r.get("approver", ""),
+            topic=r.get("topic", ""),
+            retraction_status=status,
+        )
+        if len(answer.verified_findings) > before:
+            attached += 1
+    return attached
 
 
 @lru_cache(maxsize=1)

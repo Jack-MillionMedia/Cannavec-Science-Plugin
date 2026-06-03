@@ -55,6 +55,26 @@ clinically-deep judgments are **deferred, not faked**.
 The flywheel **never** assigns Level A — Level A requires a systematic-review /
 ≥2-aligned-RCT judgment, which is exactly the call it defers (`evidence.py`).
 
+## The blended brief: three visibly-distinct tiers
+
+A single answer can carry all three tiers, each clearly fenced (Constitution
+§IX, "one blended brief"):
+
+1. **Curated core** — registry claims, GRADE inline at each citation.
+2. **Verified breadth** *(new)* — gate-passed, human-approved sources under
+   `## Verified breadth — gate-passed, human-approved`, each with a conservative
+   single-source grade (`[verified · Level C] PMID …`) and a verbatim quote.
+3. **Live frontier** — provisional `live_*` hits, reranked + retraction-checked.
+
+Verified breadth is woven by `weave_verified_findings()` (offline; reads the
+local verified store), is reranked by relevance, **re-checks retraction at
+composition time** (§VIII — a source retracted since promotion is badged and
+pinned last), and **never changes the curated grade**. Opt-in:
+
+```bash
+python3 -m cannavec_science answer "Is cannabis effective for Crohn's disease?" --verified
+```
+
 ## Demand instrumentation — promote what users actually ask
 
 `cannavec_science.demand` is the read-time half: every answer can record one
@@ -73,6 +93,10 @@ python3 -m cannavec_science demand-report
 
 # stage 1-3: fan out a demand topic, gate it, route to the queue
 python3 -m cannavec_science curate-scan "cannabidiol Crohn's disease" --network
+
+# batch driver: work down the top demand holes, one gated turn each
+python3 -m cannavec_science curate-sweep --holes 5            # dry preview (topics + queries)
+python3 -m cannavec_science curate-sweep --holes 5 --network  # execute the live fan-out
 
 # review the queue (default: pending)
 python3 -m cannavec_science curate-queue --lane basic_approvable

@@ -218,6 +218,60 @@ class TestRunFlywheel(_StoreCase):
         self.assertEqual(report.rejected, 1)
 
 
+# ── demand-driven sweep (§IX) ──────────────────────────────────────────────
+
+class _Hit:
+    def __init__(self, pmid, title, abstract):
+        self.pmid, self.title, self.abstract = pmid, title, abstract
+
+    def to_dict(self):
+        return {"pmid": self.pmid, "title": self.title, "abstract": self.abstract,
+                "year": 2021, "pubtypes": ["Randomized Controlled Trial"],
+                "provenance": "live_pubmed",
+                "url": f"https://pubmed.ncbi.nlm.nih.gov/{self.pmid}/"}
+
+
+class TestSweep(_StoreCase):
+    def test_topic_query_known_and_fallback(self) -> None:
+        from cannavec_science.demand import topic_query
+        self.assertIn("Crohn", topic_query("ibd"))
+        self.assertIn("fibromyalgia", topic_query("fibromyalgia"))
+        # unknown-but-classified topic → generic cannabis query over the name
+        self.assertIn("cannabis", topic_query("some_new_topic").lower())
+
+    def test_sweep_reads_holes_and_stages(self) -> None:
+        from cannavec_science import demand
+        dd = tempfile.mkdtemp()
+        try:
+            for _ in range(3):
+                demand.record_demand("cannabis for Crohn's", n_curated_claims=0,
+                                     store_dir=dd)
+
+            def runner(query, since, n):
+                return [_Hit("40000001", "Cannabidiol in Crohn's RCT",
+                             "In Crohn's disease, cannabidiol reduced disease activity "
+                             "versus placebo.")]
+
+            reports = fw.sweep_holes(
+                n=3, runners={"pubmed": runner}, sources=["pubmed"],
+                verify_fetcher=lambda u: esummary("40000001"),
+                store_dir=self.dir, demand_store_dir=dd,
+            )
+            self.assertEqual(len(reports), 1)
+            self.assertEqual(reports[0].topic, "ibd")
+            self.assertEqual(reports[0].basic_approvable, 1)
+            self.assertEqual([q["identifier"] for q in fw.queue(store_dir=self.dir)],
+                             ["40000001"])
+        finally:
+            import shutil
+            shutil.rmtree(dd, ignore_errors=True)
+
+    def test_sweep_explicit_topics(self) -> None:
+        reports = fw.sweep_holes(topics=["ibd", "fibromyalgia"], live=False,
+                                 store_dir=self.dir)
+        self.assertEqual([r.topic for r in reports], ["ibd", "fibromyalgia"])
+
+
 # ── human-gated apply / reject / revoke (§IX) ──────────────────────────────
 
 class TestApply(_StoreCase):

@@ -125,6 +125,21 @@ class CurateCLITest(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 main(["curate-apply", "--id", "30000001"])
 
+    # ── sweep ────────────────────────────────────────────────────────────────
+    def test_curate_sweep_dry_preview(self) -> None:
+        for _ in range(2):
+            demand.record_demand("cannabis for fibromyalgia", n_curated_claims=0,
+                                 store_dir=self.dir)
+        code, out = _run(["curate-sweep", "--holes", "3"])  # no --network → preview
+        self.assertEqual(code, 0)
+        self.assertIn("fibromyalgia", out)
+        # dry preview must not stage anything
+        self.assertEqual(fw.queue(store_dir=self.dir), [])
+
+    def test_curate_sweep_no_holes_exits_nonzero(self) -> None:
+        code, _ = _run(["curate-sweep"])
+        self.assertEqual(code, 1)
+
     # ── demand-report ────────────────────────────────────────────────────────
     def test_demand_report(self) -> None:
         demand.record_demand("fibromyalgia cannabis", n_curated_claims=0,

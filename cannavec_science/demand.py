@@ -32,6 +32,8 @@ __all__ = [
     "DemandEvent",
     "TopicDemand",
     "classify_topic",
+    "topic_covered",
+    "topic_query",
     "record_demand",
     "instrument_answer",
     "aggregate",
@@ -119,6 +121,47 @@ def topic_covered(topic: str, claim_texts) -> bool:
     if rx is None or not blob:
         return True
     return bool(rx.search(blob))
+
+
+# Good primary-source queries per topic — the fan-out target a demand hole maps
+# to. Used by the flywheel's demand-driven sweep (``curate-sweep``).
+_TOPIC_QUERY: dict[str, str] = {
+    "fibromyalgia": "(cannabis OR cannabidiol OR cannabinoid OR nabilone) AND fibromyalgia",
+    "migraine": "(cannabis OR cannabidiol OR cannabinoid) AND (migraine OR cluster headache)",
+    "ibd": "(cannabidiol OR cannabis OR cannabinoid) AND (inflammatory bowel disease OR Crohn OR ulcerative colitis)",
+    "epilepsy": "(cannabidiol OR cannabis) AND (epilepsy OR seizure OR Dravet OR Lennox-Gastaut)",
+    "cbd_pharmacokinetics": "cannabidiol AND (pharmacokinetics OR bioavailability OR plasma concentration)",
+    "driving": "(cannabis OR tetrahydrocannabinol) AND driving AND (impairment OR psychomotor)",
+    "terpenes": "(cannabis terpene OR myrcene OR limonene OR linalool OR caryophyllene) AND (analgesic OR anti-inflammatory OR clinical)",
+    "sleep": "(cannabis OR cannabidiol OR cannabinoid OR nabilone) AND (insomnia OR sleep quality)",
+    "ptsd_anxiety": "(cannabis OR cannabidiol OR cannabinoid OR nabilone) AND (PTSD OR posttraumatic OR anxiety)",
+    "psychosis": "(cannabis OR cannabidiol OR tetrahydrocannabinol) AND (psychosis OR schizophrenia)",
+    "nausea_cinv": "(cannabis OR cannabinoid OR nabilone OR dronabinol) AND (nausea OR vomiting OR chemotherapy-induced)",
+    "drug_interactions": "(cannabidiol OR cannabis) AND (drug interaction OR CYP OR cytochrome)",
+    "pain": "(cannabis OR cannabidiol OR cannabinoid) AND (chronic pain OR neuropathic pain)",
+    "multiple_sclerosis": "(cannabis OR nabiximols OR cannabinoid) AND multiple sclerosis AND spasticity",
+    "appetite_weight": "(cannabis OR dronabinol OR cannabinoid) AND (appetite OR cachexia OR weight)",
+    "cancer": "(cannabis OR cannabidiol OR cannabinoid) AND cancer AND (palliative OR symptom)",
+    "cardiovascular": "(cannabis OR cannabidiol OR tetrahydrocannabinol) AND (cardiovascular OR blood pressure)",
+    "liver": "(cannabidiol OR cannabis) AND (liver OR hepatotoxicity OR transaminase)",
+    "immune_autoimmune": "(cannabis OR cannabidiol OR cannabinoid) AND (autoimmune OR rheumatoid OR inflammation)",
+    "dermatology": "(cannabidiol OR cannabis OR cannabinoid) AND (skin OR dermatitis OR psoriasis OR eczema)",
+    "pharmacogenomics": "(cannabidiol OR cannabis OR tetrahydrocannabinol) AND (pharmacogenomics OR CYP2C9 OR genotype)",
+}
+
+
+def topic_query(topic: str) -> str:
+    """A good primary-source search query for a demand topic.
+
+    Known topics map to a hand-tuned cannabinoid × condition query; an unknown
+    (but classified) topic falls back to a generic cannabis query over the topic
+    name. This is what the demand-driven sweep fans out on per hole.
+    """
+    if topic in _TOPIC_QUERY:
+        return _TOPIC_QUERY[topic]
+    if topic and topic != UNCLASSIFIED:
+        return f"(cannabis OR cannabidiol OR cannabinoid) AND {topic.replace('_', ' ')}"
+    return "cannabis OR cannabidiol OR cannabinoid"
 
 
 @dataclass(frozen=True)

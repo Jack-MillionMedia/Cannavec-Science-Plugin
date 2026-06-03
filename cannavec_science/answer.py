@@ -211,6 +211,15 @@ class Answer:
     # ``compose_answer`` (the default) leaves the pinned JSON / Markdown
     # unchanged, and only a blended brief carries the verdict.
     live_synthesis: "dict | None" = None
+    # Verified-tier breadth (Constitution §IX flywheel): primary sources that
+    # cleared the SAME admission gate as a curated row AND were promoted by a
+    # named human curator. The middle tier — more than provisional live, less
+    # than a hand-authored registry claim. Provenance-tagged ``verified``,
+    # carries a conservative single-source GRADE + a verbatim quote, and NEVER
+    # touches the curated ``evidence_summary`` grade (breadth augments the core,
+    # it does not re-grade it). Empty by default so an un-woven brief's pinned
+    # JSON / Markdown is unchanged.
+    verified_findings: list[dict] = field(default_factory=list)
 
     def add_claim(self, claim: Claim) -> None:
         if (
@@ -288,6 +297,47 @@ class Answer:
             "source_tag": source_tag,
             "url": url,
             "provisional_grade": provisional_grade,
+            "year": str(year) if year not in (None, "") else "",
+            "retraction_status": retraction_status or "clean",
+        })
+
+    def add_verified_finding(
+        self,
+        *,
+        label: str,
+        identifier: str,
+        grade: str,
+        url: str = "",
+        quote: str = "",
+        approver: str = "",
+        topic: str = "",
+        year: "str | int | None" = None,
+        retraction_status: str = "clean",
+        source_tag: str = "verified",
+    ) -> None:
+        """Attach one verified-tier breadth source (Constitution §IX flywheel).
+
+        Unlike a live finding, a verified finding cleared the full admission
+        gate and a human curator approved it — so it carries a real conservative
+        GRADE and a verbatim support quote. Like a live finding, it is a
+        *breadth* row: clearly tagged, never folded into the curated claim set,
+        and it NEVER changes ``evidence_summary``. De-duplicated by identifier;
+        a flagged ``retraction_status`` is badged and pinned last by the weaver.
+        """
+        if not (label or identifier):
+            return
+        for existing in self.verified_findings:
+            if identifier and existing.get("identifier") == identifier:
+                return
+        self.verified_findings.append({
+            "label": label,
+            "identifier": identifier,
+            "source_tag": source_tag,
+            "grade": grade,
+            "url": url,
+            "quote": quote,
+            "approver": approver,
+            "topic": topic,
             "year": str(year) if year not in (None, "") else "",
             "retraction_status": retraction_status or "clean",
         })
@@ -434,6 +484,34 @@ class Answer:
             lines.append(f"## {heading}")
             lines.append("")
             lines.append(body)
+            lines.append("")
+
+        if self.verified_findings:
+            lines.append("## Verified breadth — gate-passed, human-approved")
+            lines.append("")
+            lines.append(
+                "_Primary sources that cleared the SAME admission gate as a "
+                "curated claim (identifier audit · not-retracted · claim-support "
+                "with a verbatim quote · phytochemistry rigor) AND were promoted "
+                "by a named curator (Constitution §IX flywheel). Each carries a "
+                "conservative single-source GRADE — the middle tier between the "
+                "curated core above and the provisional live frontier below, and "
+                "it never re-grades the core._"
+            )
+            lines.append("")
+            for f in self.verified_findings:
+                yr = f" ({f['year']})" if f.get("year") else ""
+                url = f" — {f['url']}" if f.get("url") else ""
+                by = f" — approved by {f['approver']}" if f.get("approver") else ""
+                status = f.get("retraction_status", "clean")
+                badge = f" ⚠ {status.upper()}" if status in _LIVE_FLAGGED_STATUSES else ""
+                grade = f.get("grade") or "verified"
+                lines.append(
+                    f"- [{f['source_tag']} · {grade}]{badge} `{f['identifier']}`{yr} "
+                    f"{f.get('label', '')}{by}{url}".rstrip()
+                )
+                if f.get("quote"):
+                    lines.append(f"  > “{f['quote']}”")
             lines.append("")
 
         if self.live_findings or self.live_synthesis:
@@ -601,6 +679,13 @@ class Answer:
             **(
                 {"live_synthesis": self.live_synthesis}
                 if self.live_synthesis
+                else {}
+            ),
+            # Likewise emitted only when verified-tier breadth was woven in, so a
+            # curated-only brief's pinned JSON shape is unchanged (§IX flywheel).
+            **(
+                {"verified_findings": list(self.verified_findings)}
+                if self.verified_findings
                 else {}
             ),
             "retractions_suppressed": list(self.retractions_suppressed),
@@ -946,6 +1031,8 @@ def compose_answer(
     live_sources: "Sequence[str] | None" = None,
     live_max: int = 5,
     live_since: "str | None" = None,
+    verified: bool = False,
+    verified_store_dir: "str | None" = None,
 ) -> Answer:
     """Deterministically compose a typed :class:`Answer` from a prompt.
 
@@ -1540,6 +1627,18 @@ def compose_answer(
 
     a.refresh_evidence_summary()
     _set_short_answer(a)
+
+    # ── Verified breadth: gate-passed, human-approved sources (§IX flywheel) ──
+    # The middle tier between the curated registry core and the provisional live
+    # frontier. Opt-in and fully offline (reads the local verified store — no
+    # network), so the default brief is unchanged. Never touches
+    # ``evidence_summary`` — breadth augments the core, it does not re-grade it.
+    if verified and not a.is_refusal:
+        try:
+            from cannavec_science.flywheel import weave_verified_findings
+            weave_verified_findings(a, prompt=prompt, store_dir=verified_store_dir)
+        except Exception:  # noqa: BLE001 — best-effort; the curated core stands
+            pass
 
     # ── Blend: weave citation-checked live breadth onto the curated core ──
     # Constitution §IX (live-discovery contract) + §IV (research-grade breadth

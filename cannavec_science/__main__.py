@@ -117,6 +117,10 @@ def _cmd_answer(args: argparse.Namespace) -> int:
         scaffolder_blocks.append(render_sof(sof_obj))
         scaffolders_dict["summary_of_findings"] = sof_obj.to_dict()
 
+    if getattr(args, "verified", False) and not a.is_refusal:
+        from cannavec_science.flywheel import weave_verified_findings
+        weave_verified_findings(a, prompt=args.question)
+
     if getattr(args, "augment_live", False):
         _augment_with_live(a, args)
 
@@ -1090,6 +1094,66 @@ def _cmd_curate_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_curate_sweep(args: argparse.Namespace) -> int:
+    """Work down the demand-ranked holes (§IX): fan out + gate each top topic.
+
+    Without ``--network`` this is a dry preview — it prints which holes it would
+    fan out on and the query for each. With ``--network`` it executes the live
+    fan-out + gate + stage for each hole and reports the per-topic lane counts.
+    """
+    from cannavec_science.demand import priority_topics, topic_query
+    from cannavec_science.discover_guard import DiscoverRefused
+    from cannavec_science.flywheel import sweep_holes
+
+    picks = priority_topics(args.holes, min_misses=args.min_misses)
+    if not picks:
+        print("[curate-sweep] no demand holes recorded yet — run `demand-report` "
+              "(or evals/demand_probe.py) first.", file=sys.stderr)
+        return 1
+
+    if not args.network:
+        plan = [{"topic": t, "query": topic_query(t)} for t in picks]
+        if args.json:
+            print(json.dumps(plan, indent=2, default=str))
+        else:
+            print(f"[curate-sweep] dry preview — {len(picks)} demand holes "
+                  f"(add --network to execute):")
+            for p in plan:
+                print(f"  {p['topic']:<22} {p['query']}")
+        return 0
+
+    sources = (
+        tuple(s.strip() for s in args.sources.split(",") if s.strip())
+        if getattr(args, "sources", None) else None
+    )
+    try:
+        reports = sweep_holes(
+            n=args.holes, min_misses=args.min_misses, live=True,
+            sources=sources, max_results=args.max, check_identifier=True,
+        )
+    except DiscoverRefused as exc:
+        print(f"[refused] {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        print(f"[error] curate-sweep failed: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps([r.to_dict() for r in reports], indent=2, default=str))
+        return 0
+    tb = te = tr = tc = 0
+    print(f"[curate-sweep] swept {len(reports)} demand holes:")
+    for r in reports:
+        tb += r.basic_approvable; te += r.needs_expert
+        tr += r.rejected; tc += r.candidates
+        print(f"  {r.topic:<22} cand={r.candidates:<3} basic={r.basic_approvable} "
+              f"expert={r.needs_expert} reject={r.rejected}")
+    print(f"  TOTAL  basic={tb}  needs_expert={te}  reject={tr}  (scanned {tc})")
+    print("  Review: `curate-queue --lane basic_approvable` · "
+          "Promote: `curate-apply --id ID --approver YOU`")
+    return 0
+
+
 def _cmd_curate_queue(args: argparse.Namespace) -> int:
     """Show the staging queue (latest state per identifier)."""
     from cannavec_science.flywheel import queue
@@ -1635,6 +1699,12 @@ def _build_parser() -> argparse.ArgumentParser:
                    default="fallback",
                    help=("Curated-row retrieval recovery for thin/no-claim "
                          "answers (default: fallback)."))
+    # Weave the verified tier — gate-passed, human-approved breadth (§IX
+    # flywheel) — onto the brief as a distinct band between the curated core
+    # and the live frontier. Offline + deterministic (reads the local verified
+    # store); never re-grades the curated core.
+    a.add_argument("--verified", action="store_true",
+                   help="Append the gate-passed, human-approved verified-tier band.")
     a.set_defaults(func=_cmd_answer)
 
     # discover
@@ -2006,6 +2076,23 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="Fan out live discovery and verify identifiers over the network.")
     cs.add_argument("--json", action="store_true")
     cs.set_defaults(func=_cmd_curate_scan)
+
+    csw = sub.add_parser(
+        "curate-sweep",
+        help="Work down the demand-ranked holes: fan out + gate each top topic (§IX).",
+    )
+    csw.add_argument("--holes", type=int, default=5,
+                     help="How many top demand holes to sweep (default 5).")
+    csw.add_argument("--min-misses", type=int, default=1, dest="min_misses",
+                     help="Only sweep topics with at least this many misses.")
+    csw.add_argument("--max", type=int, default=25,
+                     help="Max candidates fanned out per hole.")
+    csw.add_argument("--sources", default=None,
+                     help="Comma list of live lanes (pubmed,europepmc,ctgov,chembl).")
+    csw.add_argument("--network", action="store_true",
+                     help="Execute the live fan-out (without it, a dry preview).")
+    csw.add_argument("--json", action="store_true")
+    csw.set_defaults(func=_cmd_curate_sweep)
 
     cq = sub.add_parser("curate-queue", help="Show the staging queue (default: pending).")
     cq.add_argument("--lane", default=None,
