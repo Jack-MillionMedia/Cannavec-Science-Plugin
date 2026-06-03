@@ -1853,8 +1853,14 @@ def format_for_researcher(
                 )
         out.append("")
     if _want("clinical"):
+        # The header carries the *body-of-evidence* (aggregate) grade; the
+        # individual rows below each carry their own per-study grade. §VII:
+        # a single study caps at Level B, so a monograph can legitimately
+        # read "body-of-evidence grade: Level A" with every row at Level B
+        # when ≥2 aligned RCTs (+ SR/MA) underpin the aggregate.
         out.append(
-            f"{sub} Human clinical evidence (grade: {_format_grade(entry.clinical_grade)})"
+            f"{sub} Human clinical evidence "
+            f"(body-of-evidence grade: {_format_grade(entry.clinical_grade)})"
         )
         if not entry.clinical_evidence:
             out.append("- No clinical-evidence rows in the registry.")
