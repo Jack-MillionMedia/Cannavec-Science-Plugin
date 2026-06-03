@@ -1,14 +1,25 @@
 """Vercel serverless function — POST/GET ``/api/answer``.
 
-Phase 1: the curated, **offline**, deterministic research-brief path. No
-network, no API key, no database — it imports the stdlib-only
-``cannavec_science`` engine and returns a typed, GRADE-honest ``Answer``.
+One answer, not two endpoints. ``/api/answer`` returns the **blended brief**:
+the verified curated **core** (GRADE'd, retraction-checked) plus citation-
+checked live **breadth** (provenance-tagged ``live_<source>``, reranked) and
+the cross-source synthesis verdict (STRONG / MIXED / WEAK) — all in one
+``Answer``, so a researcher never has to call ``/api/discover`` separately and
+merge the two by hand.
+
+The curated core is always offline + deterministic. The live tier is opt-in:
+
+- ``blend=true`` (alias ``augment=true``) → weave live breadth + synthesis
+  onto the brief (the single-answer path; needs ``NCBI_API_KEY``).
+- default → curated core, with a Phase-3 auto-fallback to live discovery only
+  when curated coverage is *thin* (a genuinely novel question). Offline-safe.
+- ``augment=false`` / ``fallback=false`` → pure curated, no network.
 
 Request
 -------
-``GET  /api/answer?question=...&format=json|markdown&retraction_policy=strict|badge``
+``GET  /api/answer?question=...&format=json|markdown&retraction_policy=strict|badge&blend=true``
 ``POST /api/answer``  body ``{"question": "...", "format": "json",
-                              "retraction_policy": "strict"}``
+                              "retraction_policy": "strict", "blend": true}``
 
 Response
 --------
@@ -110,7 +121,9 @@ class handler(BaseHTTPRequestHandler):
         question = (q.get("question") or [""])[0].strip()
         fmt = (q.get("format") or ["json"])[0]
         policy = (q.get("retraction_policy") or ["strict"])[0]
-        aug = q.get("augment")
+        # ``blend`` is the researcher-facing alias for ``augment`` — the
+        # single-answer call that weaves curated core + live breadth.
+        aug = q.get("augment") or q.get("blend")
         augment = None if not aug else self._truthy(aug[0])
         fallback = self._truthy((q.get("fallback") or ["true"])[0])
         self._handle(question, fmt, policy, augment, fallback)
@@ -128,7 +141,13 @@ class handler(BaseHTTPRequestHandler):
         question = str(data.get("question", "")).strip()
         fmt = str(data.get("format", "json"))
         policy = str(data.get("retraction_policy", "strict"))
-        augment = None if "augment" not in data else self._truthy(data.get("augment"))
+        # ``blend`` is the researcher-facing alias for ``augment``.
+        if "augment" in data:
+            augment = self._truthy(data.get("augment"))
+        elif "blend" in data:
+            augment = self._truthy(data.get("blend"))
+        else:
+            augment = None
         fallback = self._truthy(data.get("fallback", True))
         self._handle(question, fmt, policy, augment, fallback)
 
@@ -137,7 +156,9 @@ class handler(BaseHTTPRequestHandler):
         """Compose the curated brief, then decide on live evidence.
 
         Three modes:
-        - ``augment=true``  → always weave live findings (Phase 2, forced).
+        - ``blend=true`` / ``augment=true`` → weave the live tier onto the
+          curated core: reranked, retraction-checked, provenance-tagged
+          findings + the cross-source synthesis verdict, in one brief.
         - default / ``fallback=true`` → **Phase 3 auto-fallback**: weave live
           findings only when curated coverage is *thin* (novel question).
         - ``augment=false`` or ``fallback=false`` → pure curated, no network.
@@ -180,5 +201,9 @@ class handler(BaseHTTPRequestHandler):
                 "is_refusal": a.is_refusal,
                 "augmented": n_live,
                 "fallback_used": fallback_used,
+                # Top-level convenience: the cross-source convergence verdict
+                # (STRONG / MIXED / WEAK / NONE) when the live tier was woven
+                # in, else null. Also present inside ``answer.live_synthesis``.
+                "synthesis": getattr(a, "live_synthesis", None),
                 "answer": a.to_dict(),
             }, cache_seconds=3600 if live_data else 86400)

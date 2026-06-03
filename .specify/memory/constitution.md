@@ -123,6 +123,16 @@ claims whose sole citation is retracted) with a visible
 Science artifact citing a retracted PMID is a credibility catastrophe;
 the constitution treats prevention as P0.
 
+This enforcement extends to the **live-discovery tier**. A live finding
+whose identifier matches the retraction registry MUST be badged (⚠
+retracted / expression-of-concern / under-correction) and pinned last in
+the reranked live breadth — never silently surfaced as citable, however
+query-relevant it is. A plain correction (the paper stands) is neither
+badged nor demoted. Curated claims follow the `strict` suppress-or-badge
+policy above; the live tier is *badged rather than suppressed* because it
+is already fenced as provisional and the warning itself is useful (the
+paper exists but must not be cited).
+
 ### IX. Read-Time Discovery Is As Important As Write-Time Checking
 
 The product ships live discovery across its primary scientific sources
@@ -131,6 +141,21 @@ addendum). Live rows carry per-source provenance tags (`live_pubmed`,
 `live_chembl`, `live_ctgov`, …) and a deterministic cross-source
 synthesis verdict (STRONG / MIXED / WEAK / NONE convergence). Live rows
 NEVER silently become curated facts at read time.
+
+**The canonical delivery is one blended brief, not two endpoints.** A
+single answer MAY merge the verified curated **core** with citation-
+checked live **breadth** in the same artifact — the realistic path to
+"answer any topic" (§IV) — provided the two tiers stay visibly distinct:
+curated claims keep their GRADE inline at each citation (§XI) under their
+own heading; live findings stay under a fenced, provenance-tagged,
+provisional section, reranked for relevance and retraction-checked (§VIII);
+and the cross-source synthesis verdict rides in the *same* brief rather
+than a separate surface. The blend MUST be opt-in and offline-testable per
+§X (the curated core composes with zero network; the live weave uses
+injected fetchers in tests) and MUST NOT raise or lower the curated GRADE —
+breadth augments the core, it never re-grades it. This converts the thin-
+curated-tier weakness into a strength without lowering the evidence bar
+(Primacy Of Evidence).
 
 **Knowledge-base growth is human-approved (the flywheel).** Discovered
 rows MAY be promoted into the curated knowledge base, but only through a
@@ -264,9 +289,22 @@ amendment that broadens audience scope MUST surface the trade-off in
 the spec's "Why this priority" section and document the new eval
 surface area.
 
-**Version**: 2.0.0 | **Ratified**: 2026-05-21 | **Last Amended**: 2026-06-01
+**Version**: 2.1.0 | **Ratified**: 2026-05-21 | **Last Amended**: 2026-06-03
 
 ### Amendment log
+
+- **v2.1.0 (2026-06-03)** — "One blended brief" amendment, ratified via
+  `specs/028-blended-answer/`. Additive and non-weakening: deepens §VIII
+  (retraction enforcement now extends to the live-discovery tier — a
+  retracted / EOC / under-correction live finding is badged and pinned last,
+  never silently surfaced) and §IX (names the curated-core + live-breadth
+  *single blended brief* as the canonical delivery, with three invariants:
+  provenance visibly distinct, GRADE inline at each curated citation, and the
+  cross-source synthesis verdict in the same brief). No evidence-or-safety
+  principle was weakened — §X is explicitly preserved (the blend is opt-in and
+  offline-testable; the curated core composes with zero network) and the live
+  tier still never raises the curated GRADE or auto-promotes (§IX). MINOR bump:
+  both changes strengthen existing principles without breaking any surface.
 
 - **v2.0.0 (2026-06-01)** — "Research-grade for every audience" amendment,
   ratified via `specs/010-constitution-amendment/`. Adds the **Primacy Of

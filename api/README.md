@@ -9,24 +9,31 @@ using the `BaseHTTPRequestHandler` pattern (zero dependencies).
 | Route | Method | Network | Purpose |
 |---|---|---|---|
 | `/api/health` | GET | none | Liveness + capability probe (reports `live_discovery`). |
-| `/api/answer` | GET/POST | none¹ | Curated, GRADE-honest research brief (`Answer.to_dict()` JSON, or `?format=markdown`). |
-| `/api/discover` | GET/POST | **live** | Multi-source primary-source fan-out + synthesis verdict (Phase 2). |
+| `/api/answer` | GET/POST | none¹ | **One blended brief** — curated core + live breadth + synthesis (`Answer.to_dict()` JSON, or `?format=markdown`). |
+| `/api/discover` | GET/POST | **live** | Multi-source primary-source fan-out + synthesis verdict, raw frontier view on its own (Phase 2). |
 | `/api/rigor` | GET/POST | none | Phytochemistry + banned-pattern audit of arbitrary text. |
 | `/api/registries` | GET | none | Curated-registry inventory (`?format=markdown`). |
 
-¹ `/api/answer` **auto-falls-back** to live discovery when curated coverage is
-thin (no curated claim, or best grade Unsupported) — a novel question returns
-a cited, provisionally-graded brief from live primary sources with no flag.
-Force it with `augment=true`; disable it with `fallback=false`. Always
-best-effort: it degrades to the curated brief if discovery is unavailable, and
-live findings are never promoted to curated facts (§IX).
+¹ **One answer, not two endpoints.** `blend=true` (alias `augment=true`) returns
+the verified curated **core** (GRADE'd, retraction-checked) merged with
+citation-checked live **breadth** (provenance-tagged `live_*`, reranked) and the
+cross-source synthesis verdict — the two tiers kept visibly distinct, so a client
+never has to also call `/api/discover` and merge by hand. Without the flag the
+default is the offline curated core, which **auto-falls-back** to live discovery
+only when curated coverage is thin (no curated claim, or best grade Unsupported);
+disable that with `fallback=false`. Always best-effort: it degrades to the
+curated brief if discovery is unavailable, the live tier never raises the curated
+GRADE, and live findings are never promoted to curated facts (§IX). A retracted
+live finding is badged (⚠) and pinned last, never silently cited (§VIII).
 
 ## Parameters
 
 - `/api/answer` — `question` (required), `format=json|markdown`,
-  `retraction_policy=strict|badge`, `augment=true|false` (force/skip live),
-  `fallback=true|false` (default true — auto-fallback when thin). Response adds
-  `augmented` (live findings attached) and `fallback_used`.
+  `retraction_policy=strict|badge`, `blend=true|false` (alias `augment`; weave
+  curated core + live breadth + synthesis), `fallback=true|false` (default true —
+  auto-fallback when thin). Response adds `augmented` (live findings attached),
+  `fallback_used`, and `synthesis` (the cross-source convergence verdict, also
+  inside `answer.live_synthesis`).
 - `/api/discover` — `query` (required), `sources=pubmed,ctgov,chembl,europepmc`
   (default `pubmed,ctgov`), `max=<int>` (≤25), `since=YYYY-MM-DD`,
   `format=json|markdown`. The CT.gov lane is relevance-gated to cannabinoid

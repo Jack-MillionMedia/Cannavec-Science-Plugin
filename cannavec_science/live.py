@@ -42,6 +42,7 @@ __all__ = [
     "DiscoverRefused",
     "run_discovery",
     "augment_answer",
+    "weave_live_findings",
     "answer_with_fallback",
     "is_thin",
     "default_runners",
@@ -158,6 +159,97 @@ def run_discovery(
     return out
 
 
+def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
+    """Weave a ``run_discovery`` result onto ``answer`` as the blended brief.
+
+    This is the single place the curated core and the live tier are merged
+    (Constitution §IX), so every surface that blends agrees on the result:
+
+    1. Capture the cross-source **synthesis verdict** (STRONG / MIXED / WEAK /
+       NONE) into ``answer.live_synthesis`` — so the convergence signal rides
+       in the same brief, not a separate ``/api/discover`` call.
+    2. **Rerank** the live rows deterministically (BM25 relevance × study-
+       design prior × recency, retracted rows sunk last) so the most useful
+       primary sources surface first — breadth that is ordered, not raw.
+    3. Attach each row as a provenance-tagged, retraction-checked, provisional
+       live finding (via :func:`~cannavec_science.answer.live_finding_from_row`).
+
+    Never touches the curated ``evidence_summary`` grade. Returns the number of
+    findings attached. Pure given ``result`` (no network here) and stdlib-only.
+    """
+    from cannavec_science.answer import (
+        _LIVE_FLAGGED_STATUSES,
+        live_finding_from_row,
+    )
+    from cannavec_science.ranker import (
+        Candidate,
+        candidates_from_discovery,
+        rank_candidates,
+    )
+
+    answer.live_synthesis = result.get("synthesis")
+    sources = result.get("sources", {}) or {}
+
+    # Map each row's headline identifier -> (source, row); first occurrence
+    # wins, mirroring the ranker's de-dup so order and attachment agree.
+    row_by_id: dict = {}
+    for src, rows in sources.items():
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            try:
+                ident = Candidate.from_row(src, row).identifier
+            except Exception:  # noqa: BLE001 — skip an unparseable row
+                ident = ""
+            if ident and ident not in row_by_id:
+                row_by_id[ident] = (src, row)
+
+    if not row_by_id:
+        return 0
+
+    try:
+        ranked = rank_candidates(
+            query,
+            candidates_from_discovery(result),
+            top_k=max(1, len(row_by_id)),
+        ).ranked
+        ordered_ids = [rc.candidate.identifier for rc in ranked]
+    except Exception:  # noqa: BLE001 — ranking is a best-effort reorder
+        ordered_ids = list(row_by_id)
+    # Any id the ranker dropped (shouldn't happen) is still attached, after the
+    # ranked ones, in stable insertion order — breadth is never silently lost.
+    for ident in row_by_id:
+        if ident not in ordered_ids:
+            ordered_ids.append(ident)
+
+    findings: list[dict] = []
+    for ident in ordered_ids:
+        sr = row_by_id.get(ident)
+        if sr is None:
+            continue
+        src, row = sr
+        finding = live_finding_from_row(src, row)
+        if finding:
+            findings.append(finding)
+
+    # §VIII hard guard: a retracted / EOC / under-correction live row must
+    # never lead the breadth, however query-relevant it is. Pin flagged
+    # findings last, preserving the relevance rank *within* each group (stable
+    # sort). A plain correction (paper stands) is not flagged, so it is not
+    # demoted. This does not depend on the ranker having seen the status.
+    findings.sort(
+        key=lambda f: f.get("retraction_status", "clean") in _LIVE_FLAGGED_STATUSES
+    )
+
+    attached = 0
+    for finding in findings:
+        before = len(answer.live_findings)
+        answer.add_live_finding(**finding)
+        if len(answer.live_findings) > before:
+            attached += 1
+    return attached
+
+
 def augment_answer(
     answer,
     *,
@@ -168,13 +260,15 @@ def augment_answer(
 ) -> int:
     """Attach clearly-tagged, provisional live findings to ``answer`` (§IX).
 
+    Fans out live discovery on ``answer.prompt`` and weaves the result onto the
+    answer via :func:`weave_live_findings` — reranked, retraction-checked
+    findings plus the cross-source synthesis verdict, in one brief.
+
     Returns the number of live findings attached. Degrades silently: a
     refused prompt, an offline lane, or any error leaves the curated answer
     untouched and returns ``0`` — the curated brief always stands. Never
     promotes a live row to the curated grade.
     """
-    from cannavec_science.answer import live_finding_from_row
-
     if getattr(answer, "is_refusal", False):
         return 0
     try:
@@ -191,16 +285,7 @@ def augment_answer(
         _log.warning("augment_answer fan-out failed: %s", exc)
         return 0
 
-    attached = 0
-    for src, rows in result.get("sources", {}).items():
-        if not isinstance(rows, list):
-            continue
-        for row in rows:
-            finding = live_finding_from_row(src, row)
-            if finding:
-                answer.add_live_finding(**finding)
-                attached += 1
-    return attached
+    return weave_live_findings(answer, result, query=answer.prompt)
 
 
 def is_thin(answer) -> bool:

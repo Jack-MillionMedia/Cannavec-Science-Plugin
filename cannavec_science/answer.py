@@ -35,6 +35,7 @@ Composition order (per Constitution §V — safety-layer sovereignty):
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Iterable
@@ -203,6 +204,13 @@ class Answer:
     # provisionally graded, never promoted into the curated grade — a fenced
     # "frontier" surface that augments a thin curated answer.
     live_findings: list[dict] = field(default_factory=list)
+    # Cross-source synthesis verdict over the live tier (Constitution §IX):
+    # STRONG / MIXED / WEAK / NONE convergence + per-source counts +
+    # disagreement, as produced by ``cannavec_science.synthesis.synthesize``.
+    # ``None`` until a live fan-out is woven into the brief — so an offline
+    # ``compose_answer`` (the default) leaves the pinned JSON / Markdown
+    # unchanged, and only a blended brief carries the verdict.
+    live_synthesis: "dict | None" = None
 
     def add_claim(self, claim: Claim) -> None:
         if (
@@ -256,12 +264,18 @@ class Answer:
         url: str = "",
         provisional_grade: str = "provisional (live, unverified)",
         year: "str | int | None" = None,
+        retraction_status: str = "clean",
     ) -> None:
         """Attach one unverified live-discovery hit (Constitution §IX).
 
         Live findings are tagged by provenance, carry only a *provisional*
         grade, and NEVER affect the curated ``evidence_summary`` grade or
         auto-promote into the knowledge base. De-duplicated by identifier.
+
+        ``retraction_status`` is the live tier's §VIII check: a finding whose
+        identifier matches the retraction registry is kept (so the researcher
+        is warned the paper exists) but badged ⚠ and pinned last by the ranker
+        — never silently surfaced as citable evidence.
         """
         if not (label or identifier):
             return
@@ -275,6 +289,7 @@ class Answer:
             "url": url,
             "provisional_grade": provisional_grade,
             "year": str(year) if year not in (None, "") else "",
+            "retraction_status": retraction_status or "clean",
         })
 
     def stamp_now(self) -> None:
@@ -421,22 +436,50 @@ class Answer:
             lines.append(body)
             lines.append("")
 
-        if self.live_findings:
+        if self.live_findings or self.live_synthesis:
             lines.append("## Live discovery — provisional, not curated")
             lines.append("")
             lines.append(
-                "_Unverified live-source hits, tagged by provenance "
-                "(Constitution §IX). They carry no curated grade, are not "
-                "retraction-checked here, and never auto-promote into the "
-                "knowledge base — verify each identifier before citing._"
+                "_Live-source breadth woven onto the verified curated core "
+                "above (Constitution §IX). Each hit is provenance-tagged "
+                "(`live_<source>`), reranked, and citation-checked against the "
+                "retraction registry, but carries NO curated grade and never "
+                "auto-promotes into the knowledge base — verify each identifier "
+                "before citing._"
             )
             lines.append("")
+            if self.live_synthesis:
+                conv = self.live_synthesis.get("convergence", "NONE")
+                counts = self.live_synthesis.get("per_source_counts", {}) or {}
+                present = ", ".join(
+                    f"{k} {v}" for k, v in sorted(counts.items()) if v
+                ) or "no live rows returned"
+                lines.append(
+                    f"**Cross-source synthesis: {conv}** — convergence across "
+                    f"the live primary-source tier ({present})."
+                )
+                dis = self.live_synthesis.get("disagreement")
+                if dis:
+                    lines.append(f"- Disagreement flagged: {dis}")
+                unreachable = self.live_synthesis.get("unreachable_sources") or []
+                if unreachable:
+                    lines.append(
+                        f"- Sources unreachable at fetch time: "
+                        f"{', '.join(unreachable)}"
+                    )
+                lines.append("")
             for f in self.live_findings:
                 yr = f" ({f['year']})" if f.get("year") else ""
                 url = f" — {f['url']}" if f.get("url") else ""
                 label = f" {f['label']}" if f.get("label") else ""
+                status = f.get("retraction_status", "clean")
+                badge = (
+                    f" ⚠ {status.upper()}"
+                    if status in _LIVE_FLAGGED_STATUSES
+                    else ""
+                )
                 lines.append(
-                    f"- [{f['source_tag']}] `{f['identifier']}`{yr}{label} "
+                    f"- [{f['source_tag']}]{badge} `{f['identifier']}`{yr}{label} "
                     f"— provisional grade: {f['provisional_grade']}{url}".rstrip()
                 )
             lines.append("")
@@ -553,6 +596,13 @@ class Answer:
             "cautions": list(self.cautions),
             "notes": list(self.notes),
             "live_findings": list(self.live_findings),
+            # Emitted only when a live fan-out was woven in, so the pinned
+            # offline-answer JSON shape stays unchanged for curated-only briefs.
+            **(
+                {"live_synthesis": self.live_synthesis}
+                if self.live_synthesis
+                else {}
+            ),
             "retractions_suppressed": list(self.retractions_suppressed),
             "rigor_violations": self.rigor_violations,
             "evidence_summary": (
@@ -814,6 +864,19 @@ def _set_short_answer(a: Answer) -> None:
 # Live lanes that are not peer-reviewed cap at Level D (preprint).
 _PREPRINT_LIVE_SOURCES = frozenset({"biorxiv", "medrxiv", "preprint"})
 
+# Live-tier §VIII statuses that warrant a "do not / verify before cite" badge
+# AND a last-place rank (a flagged paper must never lead the live breadth). A
+# plain CORRECTION is excluded — a correction means the paper stands, so it is
+# neither badged nor sunk.
+_LIVE_FLAGGED_STATUSES = frozenset(
+    {"retracted", "expression_of_concern", "under_correction"}
+)
+_LIVE_FLAG_LABEL = {
+    "retracted": "RETRACTED — do not cite",
+    "expression_of_concern": "EXPRESSION OF CONCERN — verify before citing",
+    "under_correction": "UNDER CORRECTION — verify before citing",
+}
+
 
 def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
     """Map a live-discovery row (a lane's ``.to_dict()``) to a provisional
@@ -846,6 +909,19 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
         if source_key in _PREPRINT_LIVE_SOURCES
         else "provisional (live, unverified)"
     )
+    # §VIII for the live tier: citation-check the row's identifier against the
+    # retraction registry. A retracted live hit is never silently surfaced —
+    # it is badged (and pinned last by the ranker) so a researcher does not
+    # cite it. Offline + deterministic (the registry is local).
+    from cannavec_science.retraction import is_retracted
+    rec = None
+    if row.get("pmid"):
+        rec = is_retracted(pmid=str(row.get("pmid")))
+    if rec is None and row.get("doi"):
+        rec = is_retracted(doi=str(row.get("doi")))
+    retraction_status = rec.status.value if rec is not None else "clean"
+    if retraction_status in _LIVE_FLAGGED_STATUSES:
+        grade = f"{_LIVE_FLAG_LABEL[retraction_status]} ({retraction_status})"
     return {
         "label": title,
         "identifier": ident_label,
@@ -853,6 +929,7 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
         "url": row.get("url") or row.get("link") or "",
         "provisional_grade": grade,
         "year": str(year) if year else "",
+        "retraction_status": retraction_status,
     }
 
 
@@ -865,6 +942,10 @@ def compose_answer(
     retraction_policy: str = "strict",
     include_rigor: bool = True,
     retrieval: str = "fallback",
+    live: "bool | Mapping[str, object] | None" = None,
+    live_sources: "Sequence[str] | None" = None,
+    live_max: int = 5,
+    live_since: "str | None" = None,
 ) -> Answer:
     """Deterministically compose a typed :class:`Answer` from a prompt.
 
@@ -912,6 +993,25 @@ def compose_answer(
 
         Retrieval surfaces **curated** rows only; each keeps its own
         identifier-anchored citations and GRADE (§I / §VII / §IX).
+    live:
+        Opt-in live-discovery blend (Constitution §IX / §IV) — the
+        "one answer, not two endpoints" path. When falsy / ``None``
+        (default) ``compose_answer`` stays fully offline and deterministic,
+        so the pinned test suite is unchanged. When truthy, after the
+        curated core is composed (and unless the prompt was refused), the
+        live primary-source tier is fanned out and woven onto the **same**
+        brief: provenance-tagged (`live_<source>`), reranked, retraction-
+        checked findings under a clearly fenced section, plus the
+        deterministic cross-source synthesis verdict
+        (STRONG / MIXED / WEAK / NONE) in ``Answer.live_synthesis``. The
+        curated claims keep their verified GRADE; the live tier never
+        promotes into it. ``True`` uses the production searchers; pass a
+        ``Mapping`` of ``{source: runner}`` to inject fakes for offline
+        tests. The blend degrades silently — any refusal, offline lane, or
+        error leaves the curated brief intact.
+    live_sources / live_max / live_since:
+        Forwarded to the live fan-out when ``live`` is truthy (which lanes,
+        per-lane row cap, and an optional ``YYYY-MM-DD`` recency floor).
     """
     from cannavec_science.banned_patterns import detect_banned_patterns
     from cannavec_science.safety import check_safety
@@ -1440,6 +1540,28 @@ def compose_answer(
 
     a.refresh_evidence_summary()
     _set_short_answer(a)
+
+    # ── Blend: weave citation-checked live breadth onto the curated core ──
+    # Constitution §IX (live-discovery contract) + §IV (research-grade breadth
+    # without lowering the bar). Opt-in via ``live`` and best-effort: the
+    # curated brief above always stands. The weave attaches reranked,
+    # retraction-checked, provenance-tagged live findings AND the cross-source
+    # synthesis verdict, but never touches ``evidence_summary`` (the curated
+    # grade is computed from curated claims only — a live row cannot raise it).
+    if live and not a.is_refusal:
+        from cannavec_science import live as _live
+
+        runners = live if isinstance(live, Mapping) else None
+        try:
+            _live.augment_answer(
+                a,
+                sources=live_sources,
+                max_results=live_max,
+                since=live_since,
+                runners=runners,
+            )
+        except Exception:  # noqa: BLE001 — blend is best-effort; curated stands
+            pass
     return a
 
 

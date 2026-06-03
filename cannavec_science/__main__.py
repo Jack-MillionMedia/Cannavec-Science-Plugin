@@ -148,16 +148,20 @@ def _cmd_answer(args: argparse.Namespace) -> int:
 
 
 def _augment_with_live(a, args) -> None:
-    """Flag-gated live-evidence weave (Constitution §IX).
+    """Flag-gated live-evidence weave — the blended brief (Constitution §IX).
 
     Re-uses the prompt as a discovery query, fans out to the requested live
-    lanes, and attaches provisional, provenance-tagged findings to the
-    Answer. Network only; a refusal or any lane failure degrades gracefully
-    — the curated brief still stands. Never promotes a live row to curated.
+    lanes, and weaves the result onto the curated Answer via the shared
+    :func:`cannavec_science.live.weave_live_findings`: reranked, retraction-
+    checked, provenance-tagged findings PLUS the cross-source synthesis verdict
+    (STRONG / MIXED / WEAK), so the CLI brief carries the same one-answer blend
+    as the web surface. Network only; a refusal or any lane failure degrades
+    gracefully — the curated brief still stands. Never promotes a live row.
     """
     from types import SimpleNamespace
-    from cannavec_science.answer import live_finding_from_row
+    from cannavec_science import live as _live
     from cannavec_science.discover_guard import DiscoverRefused, preflight
+    from cannavec_science.synthesis import synthesize
 
     if a.is_refusal:
         return
@@ -174,6 +178,7 @@ def _augment_with_live(a, args) -> None:
         for s in (getattr(args, "augment_sources", None) or "pubmed,ctgov").split(",")
         if s.strip()
     ]
+    per_source_rows: dict = {}
     for src in sources:
         runner = _DISCOVERER_REGISTRY.get(src)
         if runner is None:
@@ -183,10 +188,15 @@ def _augment_with_live(a, args) -> None:
         except Exception as exc:  # noqa: BLE001 — degrade; curated answer stands
             _log.warning("answer --augment-live lane %s failed: %s", src, exc)
             continue
-        for r in rows[:per_lane]:
-            finding = live_finding_from_row(src, r.to_dict())
-            if finding:
-                a.add_live_finding(**finding)
+        per_source_rows[src] = [r.to_dict() for r in rows[:per_lane]]
+    if not per_source_rows:
+        return
+    result = {
+        "query": a.prompt,
+        "sources": per_source_rows,
+        "synthesis": synthesize(a.prompt, per_source_rows).to_dict(),
+    }
+    _live.weave_live_findings(a, result, query=a.prompt)
 
 
 # Default model for the opt-in LLM rerank step. Sonnet 4.6 is accuracy-
