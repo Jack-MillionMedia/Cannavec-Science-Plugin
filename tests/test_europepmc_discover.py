@@ -166,10 +166,12 @@ class ErrorPathTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             s.search("CBD", since="not-a-date")
 
-    def test_unparseable_json_returns_empty(self):
+    def test_unparseable_json_is_unavailable_not_empty(self):
+        # A non-JSON reply is a failed fetch — surfaced as an error so the lane
+        # shows "unavailable", never a misleading "0 results".
         s = EuropePMCSearcher(fetcher=_stub_fetcher("not json {{{"))
-        hits = s.search("CBD")
-        self.assertEqual(hits, ())
+        with self.assertRaises(IOError):
+            s.search("CBD")
 
     def test_empty_payload_returns_empty(self):
         s = EuropePMCSearcher(fetcher=_stub_fetcher(_make_payload([])))

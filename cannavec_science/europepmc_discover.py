@@ -265,11 +265,14 @@ class EuropePMCSearcher:
         if open_access_only:
             terms.append("OPEN_ACCESS:Y")
         compound_query = " AND ".join(terms)
+        # No explicit sort → Europe PMC's default RELEVANCE order, so a landmark
+        # older paper is not pushed off the page by recent ones (the recall bug
+        # fixed for PubMed). Recency is applied downstream as a ranking signal,
+        # and --since still windows by date via the FIRST_PDATE filter above.
         return (
             f"{_EUROPEPMC_SEARCH_URL}"
             f"&query={urllib.parse.quote(compound_query)}"
             f"&pageSize={page_size}"
-            f"&sort=FIRST_PDATE+desc"
         )
 
     # ── Parsing ───────────────────────────────────────────────────
@@ -278,8 +281,11 @@ class EuropePMCSearcher:
     def _parse_search_payload(body: str) -> list[dict]:
         try:
             payload = json.loads(body)
-        except json.JSONDecodeError:
-            return []
+        except json.JSONDecodeError as exc:
+            # A non-JSON reply (truncated payload, rate-limit / error page) is a
+            # FAILED fetch, not "0 results". Raise so the discover fan-out shows
+            # the lane as unavailable instead of a misleading empty result set.
+            raise IOError("Europe PMC returned a non-JSON response") from exc
         result_list = payload.get("resultList", {}) or {}
         results = result_list.get("result") or []
         return [r for r in results if isinstance(r, dict)]
