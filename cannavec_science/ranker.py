@@ -35,7 +35,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Mapping, Optional, Protocol, Sequence
 
 __all__ = [
@@ -195,9 +195,11 @@ class Candidate:
     study_types: tuple[str, ...] = ()
     retraction_status: str = "clean"
     topic: str = ""
-    source: str = ""          # provenance lane, e.g. "live_pubmed"
+    source: str = ""          # primary provenance lane, e.g. "live_pubmed"
     curated: bool = False
     url: str = ""
+    doi: str = ""             # secondary identifier (cross-source dedup)
+    provenances: tuple[str, ...] = ()  # all lanes when merged across sources
 
     # Identifier resolution order mirrors answer.live_finding_from_row so the
     # ranker and the discover surface agree on a row's headline identifier.
@@ -246,6 +248,7 @@ class Candidate:
             source=str(row.get("provenance") or source or ""),
             curated=bool(row.get("curated", False)),
             url=str(row.get("url") or row.get("link") or ""),
+            doi=_norm_doi(row.get("doi")),
         )
 
     @classmethod
@@ -657,6 +660,8 @@ class RankedCandidate:
             "title": self.candidate.title,
             "year": self.candidate.year,
             "source": self.candidate.source,
+            "doi": self.candidate.doi,
+            "provenances": list(self.candidate.provenances),
             "retraction_status": self.candidate.retraction_status,
             "score": self.score,
             "rationale": self.rationale,
@@ -843,19 +848,101 @@ def rank_candidates(
 # ── Discovery-result adapters ─────────────────────────────────────────────
 
 
+def _norm_doi(value) -> str:
+    """Normalise a DOI for matching: lowercase, strip any resolver prefix."""
+    d = str(value or "").strip().lower()
+    for pre in ("https://doi.org/", "http://doi.org/", "doi.org/", "doi:"):
+        if d.startswith(pre):
+            d = d[len(pre):]
+            break
+    return d
+
+
+def _row_ids(row: dict) -> tuple[str, str]:
+    """A row's (pmid, normalised-doi) — the keys two sources share for one paper."""
+    pmid = str(row.get("pmid") or "").strip()
+    return (pmid if pmid.isdigit() else ""), _norm_doi(row.get("doi"))
+
+
 def candidates_from_discovery(result: Mapping) -> tuple[Candidate, ...]:
-    """Adapt a :func:`cannavec_science.live.run_discovery` result dict into
-    candidates. Unreachable lanes (``{"error": ...}``) and idless rows are
-    skipped."""
-    out: list[Candidate] = []
+    """Adapt a :func:`cannavec_science.live.run_discovery` result into candidates,
+    **deduplicated across sources**.
+
+    Rows that share a PMID or a DOI — e.g. the same paper returned by PubMed and
+    Europe PMC, or a preprint later indexed in PubMed — collapse into ONE
+    candidate carrying both identifiers and every provenance lane, so the ranked
+    list never shows the same work twice. Trial / compound rows (no PMID/DOI) are
+    never merged into a paper. Unreachable lanes and idless rows are skipped.
+    """
+    entries: list[tuple[str, dict]] = []
     for src, rows in (result.get("sources") or {}).items():
         if not isinstance(rows, list):
             continue
-        for row in rows:
-            c = Candidate.from_row(src, row)
-            if c.identifier:
-                out.append(c)
+        entries.extend((src, row) for row in rows if isinstance(row, dict))
+
+    # Union-find over entry indices, joined by any shared pmid / doi key.
+    parent = list(range(len(entries)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    owner: dict[str, int] = {}
+    for i, (_src, row) in enumerate(entries):
+        pmid, doi = _row_ids(row)
+        for key in (f"pmid:{pmid}" if pmid else None, f"doi:{doi}" if doi else None):
+            if key is None:
+                continue
+            if key in owner:
+                parent[find(i)] = find(owner[key])
+            else:
+                owner[key] = i
+
+    groups: dict[int, list[int]] = {}
+    for i in range(len(entries)):
+        groups.setdefault(find(i), []).append(i)
+
+    out: list[Candidate] = []
+    for members in groups.values():
+        merged = _merge_entries([entries[m] for m in members])
+        if merged is not None and merged.identifier:
+            out.append(merged)
     return tuple(out)
+
+
+def _merge_entries(members: list[tuple[str, dict]]) -> Optional[Candidate]:
+    """Collapse same-paper rows into one Candidate (union of ids + provenances)."""
+    triples = [(src, Candidate.from_row(src, row), row) for src, row in members]
+    triples = [t for t in triples if t[1].identifier]
+    if not triples:
+        return None
+    if len(triples) == 1:
+        _src, c, _row = triples[0]
+        return replace(c, provenances=((c.source,) if c.source else ()))
+    # Representative: prefer a PMID-headed row (most verifiable), then the
+    # richest text. Merge the union of identifiers, provenances, study types.
+    triples.sort(key=lambda t: (0 if t[1].identifier.isdigit() else 1,
+                                -len(t[1].abstract or ""), -len(t[1].title or "")))
+    rep = triples[0][1]
+    pmid = next((c.identifier for _s, c, _r in triples if c.identifier.isdigit()), "")
+    doi = next((c.doi for _s, c, _r in triples if c.doi), "")
+    title = max((c.title for _s, c, _r in triples), key=lambda x: len(x or ""))
+    abstract = max((c.abstract for _s, c, _r in triples), key=lambda x: len(x or ""))
+    year = next((c.year for _s, c, _r in triples if c.year), None)
+    study = tuple(dict.fromkeys(st for _s, c, _r in triples for st in c.study_types))
+    flagged = [c.retraction_status for _s, c, _r in triples
+               if c.retraction_status and c.retraction_status != "clean"]
+    url = rep.url or next((c.url for _s, c, _r in triples if c.url), "")
+    provenances = tuple(sorted({c.source for _s, c, _r in triples if c.source}))
+    return Candidate(
+        identifier=pmid or rep.identifier, title=title, abstract=abstract,
+        year=year, study_types=study,
+        retraction_status=flagged[0] if flagged else "clean",
+        topic=rep.topic, source=rep.source, url=url, doi=doi,
+        provenances=provenances,
+    )
 
 
 def rank_discovery_result(
@@ -893,9 +980,15 @@ def render_markdown(result: RankResult) -> str:
         if len(title) > 70:
             title = title[:67] + "..."
         marker = " ★" if r.reordered_by_llm else ""
+        # Show the merged provenance when a paper came from multiple sources.
+        if len(c.provenances) > 1:
+            src_disp = "+".join(p.replace("live_", "") for p in c.provenances)
+        else:
+            src_disp = c.source or "—"
+        ident = c.identifier + (f" · doi:{c.doi}" if c.doi and len(c.provenances) > 1 else "")
         lines.append(
-            f"| {r.rank}{marker} | {c.identifier}{flag} | {c.year or '—'} "
-            f"| {title} | {r.rationale} | {c.source or '—'} |"
+            f"| {r.rank}{marker} | {ident}{flag} | {c.year or '—'} "
+            f"| {title} | {r.rationale} | {src_disp} |"
         )
     for n in result.notes:
         lines.append("")

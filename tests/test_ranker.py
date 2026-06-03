@@ -555,5 +555,64 @@ class RendererTests(unittest.TestCase):
         self.assertEqual(payload["ranked"][0]["identifier"], "A")
 
 
+class CrossSourceDedupTests(unittest.TestCase):
+    """The same paper from multiple sources collapses into one candidate."""
+
+    def _cands(self, result):
+        from cannavec_science.ranker import candidates_from_discovery
+        return {c.identifier: c for c in candidates_from_discovery(result)}
+
+    def test_norm_doi(self):
+        from cannavec_science.ranker import _norm_doi
+        self.assertEqual(_norm_doi("https://doi.org/10.1/AB"), "10.1/ab")
+        self.assertEqual(_norm_doi("doi:10.1/ab"), "10.1/ab")
+        self.assertEqual(_norm_doi("10.1/AB"), "10.1/ab")
+
+    def test_merge_on_shared_pmid(self):
+        result = {"sources": {
+            "pubmed": [{"pmid": "111", "title": "CBD gut RCT", "year": 2019,
+                        "provenance": "live_pubmed"}],
+            "europepmc": [{"pmid": "111", "title": "CBD gut RCT (EPMC)",
+                           "provenance": "live_europepmc"}],
+        }}
+        cands = self._cands(result)
+        self.assertEqual(len(cands), 1)
+        self.assertEqual(set(cands["111"].provenances),
+                         {"live_pubmed", "live_europepmc"})
+
+    def test_merge_on_shared_doi_case_and_prefix_insensitive(self):
+        result = {"sources": {
+            "europepmc": [{"doi": "https://doi.org/10.1/X", "title": "CBD review",
+                           "provenance": "live_europepmc"}],
+            "biorxiv": [{"doi": "10.1/x", "title": "CBD review preprint",
+                         "provenance": "live_biorxiv"}],
+        }}
+        cands = self._cands(result)
+        self.assertEqual(len(cands), 1)
+        c = next(iter(cands.values()))
+        self.assertEqual(c.doi, "10.1/x")
+        self.assertEqual(set(c.provenances), {"live_europepmc", "live_biorxiv"})
+
+    def test_trials_and_distinct_papers_not_merged(self):
+        result = {"sources": {
+            "pubmed": [{"pmid": "111", "title": "Paper A", "provenance": "live_pubmed"},
+                       {"pmid": "222", "title": "Paper B", "provenance": "live_pubmed"}],
+            "ctgov": [{"nct_id": "NCT07", "title": "A trial", "provenance": "live_ctgov"}],
+        }}
+        cands = self._cands(result)
+        self.assertEqual(set(cands), {"111", "222", "NCT07"})
+        self.assertEqual(cands["NCT07"].provenances, ("live_ctgov",))
+
+    def test_merged_retraction_flag_wins(self):
+        result = {"sources": {
+            "pubmed": [{"pmid": "111", "title": "x", "retraction_status": "clean",
+                        "provenance": "live_pubmed"}],
+            "europepmc": [{"pmid": "111", "title": "x", "retraction_status": "retracted",
+                           "provenance": "live_europepmc"}],
+        }}
+        # A retraction flag on any source survives the merge (never hidden).
+        self.assertEqual(self._cands(result)["111"].retraction_status, "retracted")
+
+
 if __name__ == "__main__":
     unittest.main()

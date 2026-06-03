@@ -147,7 +147,8 @@ class LivePubMedHit:
     provenance: str = Provenance.LIVE_PUBMED.value
     # Populated by efetch enrichment (empty when not enriched / on failure).
     abstract: str = ""
-    species: str = ""  # "human" | "animal" | "" (unknown)
+    species: str = ""  # "human" | "animal" | "in_vitro" | "" (unknown)
+    doi: str = ""      # enables cross-source dedup (PubMed <-> Europe PMC / preprints)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -309,7 +310,7 @@ class PubMedSearcher:
             merged = tuple(dict.fromkeys(h.pubtypes + e["pubtypes"] + extra))
             out.append(replace(
                 h, abstract=e["abstract"], species=e["species"],
-                pubtypes=merged,
+                doi=e.get("doi", "") or h.doi, pubtypes=merged,
                 suggested_grade=suggested_grade_for_pubtypes(merged),
             ))
         return out
@@ -461,6 +462,17 @@ def _parse_efetch_xml(body: str) -> dict[str, dict]:
                     if (pt.text or "").strip()
                 ]
 
+        doi = ""
+        for aid in art.iter("ArticleId"):
+            if (aid.get("IdType") or "").lower() == "doi" and aid.text:
+                doi = aid.text.strip()
+                break
+        if not doi and article is not None:
+            for el in article.findall("ELocationID"):
+                if (el.get("EIdType") or "").lower() == "doi" and el.text:
+                    doi = el.text.strip()
+                    break
+
         mesh: set[str] = set()
         mhl = cit.find("MeshHeadingList")
         if mhl is not None:
@@ -481,6 +493,7 @@ def _parse_efetch_xml(body: str) -> dict[str, dict]:
             "abstract": abstract,
             "pubtypes": tuple(pubtypes),
             "species": species,
+            "doi": doi,
         }
     return out
 
