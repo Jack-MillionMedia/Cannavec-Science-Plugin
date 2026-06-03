@@ -1867,6 +1867,51 @@
       "expect": {
         "is_refusal": false
       }
+    },
+    {
+      "id": "routing_retrieval_thc_driving_wordorder",
+      "category": "routing_surfacing",
+      "prompt": "how does THC impair driving",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
+    },
+    {
+      "id": "routing_retrieval_thc_driving_blood_levels",
+      "category": "routing_surfacing",
+      "prompt": "blood THC levels and accident risk while driving",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
+    },
+    {
+      "id": "routing_retrieval_driving_caused_by_thc",
+      "category": "routing_surfacing",
+      "prompt": "driving impairment caused by THC",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
+    },
+    {
+      "id": "routing_retrieval_cbd_cyp_inhibition",
+      "category": "routing_surfacing",
+      "prompt": "what CYP enzymes does CBD inhibit",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
+    },
+    {
+      "id": "routing_retrieval_cbd_liver_metabolism_drugs",
+      "category": "routing_surfacing",
+      "prompt": "which drugs does cannabidiol affect through liver metabolism",
+      "expect": {
+        "is_refusal": false,
+        "min_claims": 1
+      }
     }
   ]
 }

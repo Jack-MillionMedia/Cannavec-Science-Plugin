@@ -49,6 +49,7 @@ def _cmd_answer(args: argparse.Namespace) -> int:
         include_registries=True,
         include_claims=True,
         include_rigor=True,
+        retrieval=getattr(args, "retrieval", "fallback"),
     )
 
     # v0.2 scaffolders — opt-in via flags. Each one is deterministic.
@@ -1482,6 +1483,15 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Max live findings per lane for --augment-live.")
     a.add_argument("--since", default=None,
                    help="Earliest date (YYYY-MM-DD) for --augment-live lanes.")
+    # Cross-registry BM25 retrieval recovery (Improvement Plan §1). Offline +
+    # deterministic; recovers curated rows the brittle keyword detectors miss
+    # (e.g. "how does THC impair driving"). ``fallback`` (default) fires only
+    # when the detectors produced no claim; ``augment`` makes retrieval the
+    # primary path; ``off`` restores pre-§1 detector-only routing.
+    a.add_argument("--retrieval", choices=["fallback", "augment", "off"],
+                   default="fallback",
+                   help=("Curated-row retrieval recovery for thin/no-claim "
+                         "answers (default: fallback)."))
     a.set_defaults(func=_cmd_answer)
 
     # discover

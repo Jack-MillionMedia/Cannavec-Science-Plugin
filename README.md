@@ -788,6 +788,12 @@ python3 -m cannavec_science registries --registry use_disorder                  
 python3 -m cannavec_science registries --registry hyperemesis_syndrome                             # 4 CHS rows
 python3 -m cannavec_science registries --registry ecbome_inhibitors                                # 5 eCBome-inhibitor rows
 python3 -m cannavec_science registries --registry biosynthesis                                     # 5 biosynthesis rows
+
+# retrieval recovery (Improvement Plan §1) — BM25 over every curated row finds
+# the evidence the brittle keyword detectors miss on awkward phrasings:
+python3 -m cannavec_science answer "how does THC impair driving"                                   # driving rows (detector wanted "thc driving impair")
+python3 -m cannavec_science answer "what CYP enzymes does CBD inhibit"                              # 100+ CYP interaction rows
+python3 -m cannavec_science answer "how does THC impair driving" --retrieval off                   # pre-§1 behaviour: 0 claims
 ```
 
 ## The five commands

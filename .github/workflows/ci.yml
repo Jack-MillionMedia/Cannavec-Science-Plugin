@@ -45,6 +45,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Offline unit suite (stdlib only — zero installs)
         run: python3 -m unittest discover -s tests
+      - name: Retrieval proof — whole-KB recall + negative controls (offline)
+        # Improvement Plan §1: proves the product reliably retrieves the curated
+        # knowledge it holds. Deterministic + offline; fails the build if engine
+        # recall, end-to-end recall, the retrieval lift, or the zero-false-
+        # positive controls regress below threshold.
+        run: python3 evals/prove_retrieval.py
 
   citation-audit:
     # Online integrity gate. Runs on every PR (so a wrong identifier blocks
