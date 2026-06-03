@@ -83,6 +83,23 @@ class DiscoverSequentialTests(unittest.TestCase):
         self.assertEqual(len(payload["sources"]["pubmed"]), 2)
         self.assertEqual(len(payload["sources"]["chembl"]), 2)
 
+    def test_ranked_output_capped_to_max(self):
+        # Retrieve wide, rank narrow: a 20-row pool is fetched and ranked, but
+        # only --max ranked rows are surfaced (the over-fetch must not dump the
+        # whole pool into the ranked table).
+        registry = {"pubmed": _runner("pubmed", n=20)}
+        with patch.dict(
+            "cannavec_science.__main__._DISCOVERER_REGISTRY",
+            registry, clear=True,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_discover(self._args(sources="pubmed", max=3))
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(len(payload["ranking"]["ranked"]), 3)   # ranked = top --max
+        self.assertEqual(len(payload["sources"]["pubmed"]), 20)  # full pool retained as raw
+
     def test_unknown_source_surfaces_error_not_crash(self):
         registry = {"pubmed": _runner("pubmed")}
         args = self._args(sources="pubmed,whatever")

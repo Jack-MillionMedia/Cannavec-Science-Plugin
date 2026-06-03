@@ -362,6 +362,12 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     block = synthesize(args.query, synth_rows)
 
     rank_result = _maybe_rank(args, out_payload, top_k=display_max)
+    # Rank narrow: the over-fetched pool is ranked, but only the top display_max
+    # are surfaced (the ranked table + JSON), matching --max. Without this the
+    # "Ranked candidates" table would dump the whole pool (e.g. 40+ rows).
+    if rank_result is not None and len(rank_result.ranked) > display_max:
+        from dataclasses import replace as _replace
+        rank_result = _replace(rank_result, ranked=rank_result.ranked[:display_max])
 
     if args.json:
         out_payload["synthesis"] = block.to_dict()
