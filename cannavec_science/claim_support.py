@@ -30,7 +30,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Mapping, Optional, Sequence
+from typing import Mapping, Optional, Protocol, Sequence
 
 __all__ = [
     "Verdict",
@@ -38,6 +38,15 @@ __all__ = [
     "extract_entities",
     "claimed_direction",
     "assess_support",
+    # ── optional LLM-adjudication layer (see claim_support_llm) ──
+    "Support",
+    "Adjudication",
+    "AdjudicatorBackend",
+    "ClaimReview",
+    "gates_to_llm",
+    "asserts_magnitude",
+    "verify_quote",
+    "review_claim",
 ]
 
 
@@ -293,3 +302,319 @@ def assess_support(
         Verdict.SUPPORTED, tuple(matched), (), cdir, abs_dirs,
         note="core entities and direction present in abstract",
     )
+
+
+# ── LLM-adjudication layer ───────────────────────────────────────────────────
+#
+# The deterministic flagger above answers, at high recall, "is the magnitude/
+# direction *evident in the abstract*?". The optional adjudicator closes the
+# loop on the flagged minority: an LLM (:mod:`cannavec_science.claim_support_llm`)
+# reads the cited text and returns an identifier-free verdict —
+# ``supported`` / ``partial`` / ``unverified`` — with the supporting sentence
+# quoted verbatim, and a human confirms the contested ones. This split mirrors
+# ``ranker`` / ``ranker_llm`` exactly: the types and the gating pipeline live
+# here (stdlib-only, import-safe, the always-present floor); the model adapter
+# lives in the optional module and is injected, duck-typed, never imported by
+# the core. The model can neither invent a citation (the payload is identifier-
+# free and the schema has no identifier field) nor assign a GRADE (no grade
+# field); and its quote is provenance-gated — :func:`verify_quote` drops any
+# sentence that is not a real span of the source text, so a fabricated quote
+# can never be surfaced as evidence. That gate is this layer's analog of the
+# ranker's provenance gate, and it is what makes the verdict trustworthy.
+
+
+class Support(str, Enum):
+    """The adjudicator's identifier-free, GRADE-free verdict surface."""
+
+    SUPPORTED = "supported"     # the source text states the claim's effect
+    PARTIAL = "partial"         # direction/entities present, not the full claim
+    UNVERIFIED = "unverified"   # effect absent, entity missing, or contradicted
+
+
+@dataclass(frozen=True)
+class Adjudication:
+    """One LLM adjudicator's reading of a single flagged claim.
+
+    ``verdict`` is one of :class:`Support`. ``quote`` is the supporting sentence
+    the model copied from the source text; ``quote_verified`` is set by the
+    pipeline (not the model) — a quote that is not a real span of the source is
+    dropped and this flag is ``False``. ``reason`` is a terse, identifier-free
+    rationale. There is deliberately no identifier field (§I) and no grade field
+    (§VII): the model cannot emit either.
+    """
+
+    verdict: Support
+    quote: str = ""
+    reason: str = ""
+    quote_verified: bool = False
+    model: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "verdict": self.verdict.value,
+            "quote": self.quote,
+            "reason": self.reason,
+            "quote_verified": self.quote_verified,
+            "model": self.model,
+        }
+
+
+# Deterministic verdict → surfaced Support when no LLM is consulted. WEAK maps to
+# PARTIAL (entities present, direction not yet evidenced); a missing entity, a
+# contradiction, and a missing abstract are all "not verified" until a closer
+# read says otherwise.
+_DET_TO_SUPPORT: dict[Verdict, Support] = {
+    Verdict.SUPPORTED: Support.SUPPORTED,
+    Verdict.WEAK: Support.PARTIAL,
+    Verdict.UNVERIFIED: Support.UNVERIFIED,
+    Verdict.CONTRADICTION: Support.UNVERIFIED,
+    Verdict.NO_TEXT: Support.UNVERIFIED,
+}
+
+
+class AdjudicatorBackend(Protocol):
+    """Duck-typed adjudication backend. ``name`` distinguishes the deterministic
+    floor from an LLM-backed reader so callers can tell whether a model ran."""
+
+    name: str
+
+    def adjudicate(
+        self,
+        claim_text: str,
+        source_text: str,
+        *,
+        cannabinoid: Optional[str] = None,
+        partner_drug: Optional[str] = None,
+        cyp_isoform: Optional[str] = None,
+        direction_hint: Optional[str] = None,
+    ) -> "Adjudication":
+        ...
+
+
+# A number bound to a magnitude unit ("14.8-fold", "30%", "2x", "150 ng/mL").
+# A trailing negative lookahead (not a word boundary) is used so symbol units
+# like "%" — which have no \b after them — still anchor the match.
+_MAGNITUDE_UNIT_RE = re.compile(
+    r"\b\d+(?:\.\d+)?\s?(?:%|percent|-?fold|x|times|ng/ml|mg/ml|mg|µg|mcg|ng|µm|um|nm)(?![a-z])"
+)
+
+
+def asserts_magnitude(text: str) -> bool:
+    """True when a claim states a checkable quantitative magnitude.
+
+    A specific number — "AUC ×14.8", "30% reduction", "2-fold" — is exactly
+    where a *right paper, wrong claim* defect hides: the cannabinoid, the
+    enzyme, and the direction can all match while the cited paper never reports
+    *that number*. The deterministic check above does not read magnitudes, so a
+    magnitude-bearing claim is worth a closer LLM read even when the cheap check
+    is otherwise satisfied — which is precisely the magnitude judgement the
+    adjudicator exists to make.
+    """
+    if not text:
+        return False
+    low = text.lower()
+    if _MAGNITUDE_UNIT_RE.search(low):
+        return True
+    # A bare number co-occurring with a PK magnitude keyword ("AUC 14.8").
+    return bool(re.search(r"\d", low)) and bool(_QUANT_RE.search(_norm(low)))
+
+
+def gates_to_llm(report: SupportReport, *, claim_text: str = "") -> bool:
+    """The deterministic flagger decides which claims need a closer LLM read.
+
+    Two kinds of claim are escalated. First, the **flagged minority** — ``WEAK``
+    / ``UNVERIFIED`` / ``CONTRADICTION`` — where the cheap check already found
+    the entities or direction not evident. Second, an otherwise-confident
+    ``SUPPORTED`` claim that **asserts a quantitative magnitude**
+    (:func:`asserts_magnitude`): the deterministic layer never reads numbers, so
+    "CBD raises clobazam AUC 5-fold" passes the entity/direction check while the
+    *5-fold* itself is unconfirmed — exactly the magnitude the LLM must judge.
+
+    A confident ``SUPPORTED`` claim with no magnitude needs no model, and
+    ``NO_TEXT`` has nothing to read; both gate out. This is the cost lever (the
+    analog of the ranker's ``should_escalate`` short-circuit) and it never costs
+    accuracy — it only skips the model where the deterministic floor was already
+    confident and there was no number left to check.
+    """
+    if report.verdict in (Verdict.WEAK, Verdict.UNVERIFIED, Verdict.CONTRADICTION):
+        return True
+    if report.verdict is Verdict.SUPPORTED and asserts_magnitude(claim_text):
+        return True
+    return False
+
+
+# Characters a model commonly wraps a quote in, or appends to signal truncation;
+# stripped before the substring check so a verbatim quote survives reflow.
+_QUOTE_WRAP = "\"'“”‘’"   # straight + smart quotes
+_QUOTE_TRIM = "…. \t\n"                  # ellipsis, period, whitespace
+
+
+def _collapse_ws(s: str) -> str:
+    """Lowercase and collapse runs of whitespace — applied to both sides of the
+    quote check so verbatim text survives reflow without loosening the match."""
+    return " ".join((s or "").lower().split())
+
+
+def verify_quote(quote: str, source_text: str, *, min_words: int = 3) -> bool:
+    """True when ``quote`` is a real, non-trivial span of ``source_text``.
+
+    Case and whitespace are normalised on both sides (a model may reflow a
+    verbatim sentence), and wrapping quote-marks / ellipses are stripped. A
+    span shorter than ``min_words`` tokens is rejected as non-evidence even if
+    it technically matches. Punctuation is *not* stripped from the interior, so
+    the match stays strict in the safe direction: a paraphrased or fabricated
+    sentence fails. This is the structural guarantee that the adjudicator cannot
+    invent its supporting evidence — :func:`review_claim` drops any quote that
+    fails it (Constitution §I, the provenance-gate analog).
+    """
+    if not quote or not source_text:
+        return False
+    q = quote.strip().strip(_QUOTE_WRAP).strip(_QUOTE_TRIM)
+    qn = _collapse_ws(q)
+    if len(qn.split()) < min_words:
+        return False
+    return qn in _collapse_ws(source_text)
+
+
+@dataclass(frozen=True)
+class ClaimReview:
+    """Deterministic flag + optional LLM adjudication for one claim.
+
+    ``report`` is always present (the floor). ``adjudication`` is present only
+    when a backend was consulted and returned a reading. The surfaced
+    :attr:`verdict` prefers the adjudicator when it ran and otherwise maps the
+    deterministic verdict; :attr:`quote` is the *verified* supporting sentence
+    (empty if none survived the gate); :attr:`needs_human` is the human-review
+    flag — a clean, quote-anchored ``supported`` is the trust-without-re-reading
+    case and needs no human, everything else is contested.
+    """
+
+    report: SupportReport
+    adjudication: Optional[Adjudication] = None
+    escalated: bool = False
+    note: str = ""
+
+    @property
+    def verdict(self) -> Support:
+        if self.adjudication is not None:
+            return self.adjudication.verdict
+        return _DET_TO_SUPPORT.get(self.report.verdict, Support.UNVERIFIED)
+
+    @property
+    def quote(self) -> str:
+        a = self.adjudication
+        return a.quote if (a is not None and a.quote_verified) else ""
+
+    @property
+    def needs_human(self) -> bool:
+        a = self.adjudication
+        if a is None:
+            # Not adjudicated: trust a deterministic SUPPORTED, flag the rest.
+            return self.report.verdict is not Verdict.SUPPORTED
+        # A deterministic CONTRADICTION (the abstract positively asserts the
+        # opposite direction) is never silently settled by the model. The
+        # model's read is still surfaced for transparency, but a human must
+        # confirm before an opposition signal is overturned — the same
+        # discipline that pins a retracted row in the ranker regardless of what
+        # the LLM proposes.
+        if self.report.verdict is Verdict.CONTRADICTION:
+            return True
+        # Otherwise only a quote-anchored "supported" is settled.
+        return not (a.verdict is Support.SUPPORTED and a.quote_verified)
+
+    def to_dict(self) -> dict:
+        return {
+            "verdict": self.verdict.value,
+            "quote": self.quote,
+            "needs_human": self.needs_human,
+            "escalated": self.escalated,
+            "deterministic": self.report.to_dict(),
+            "adjudication": self.adjudication.to_dict() if self.adjudication else None,
+            "note": self.note,
+        }
+
+
+def review_claim(
+    claim_text: str,
+    source_text: str,
+    *,
+    backend: Optional[AdjudicatorBackend] = None,
+    title: str = "",
+    cannabinoid: Optional[str] = None,
+    partner_drug: Optional[str] = None,
+    cyp_isoform: Optional[str] = None,
+    direction_hint: Optional[str] = None,
+    escalate: Optional[bool] = None,
+) -> ClaimReview:
+    """Deterministically flag a claim, then LLM-adjudicate the flagged minority.
+
+    :func:`assess_support` runs first and is the always-present floor. The LLM
+    ``backend`` — if supplied — is consulted ONLY on a claim the flagger flagged
+    (:func:`gates_to_llm`) that actually has text to read: a confident
+    deterministic ``SUPPORTED``, or a ``NO_TEXT`` claim, never spends a call.
+    ``escalate=None`` auto-decides via the gate; ``True`` forces a read on any
+    claim with text; ``False`` disables the model entirely.
+
+    Whatever the backend returns is quote-gated (:func:`verify_quote`) against
+    the *same* source text the model read, so a hallucinated supporting sentence
+    is dropped before it can be surfaced — the verdict degrades to the
+    deterministic floor and a human, it never silently fabricates evidence. A
+    backend that raises is caught and degrades to the floor as well.
+    """
+    report = assess_support(
+        claim_text,
+        source_text,
+        title=title,
+        cannabinoid=cannabinoid,
+        partner_drug=partner_drug,
+        cyp_isoform=cyp_isoform,
+        direction_hint=direction_hint,
+    )
+
+    # The text the model reads (and the text a quote is verified against) is the
+    # same title+abstract the deterministic check saw, so the three stay aligned.
+    full = f"{title}\n{source_text}".strip() if title else source_text
+    have_text = report.verdict is not Verdict.NO_TEXT
+
+    if escalate is None:
+        do_adjudicate = (
+            backend is not None
+            and have_text
+            and gates_to_llm(report, claim_text=claim_text)
+        )
+    else:
+        do_adjudicate = bool(escalate) and backend is not None and have_text
+
+    if not do_adjudicate:
+        return ClaimReview(report=report, adjudication=None, escalated=False)
+
+    try:
+        adj = backend.adjudicate(
+            claim_text,
+            full,
+            cannabinoid=cannabinoid,
+            partner_drug=partner_drug,
+            cyp_isoform=cyp_isoform,
+            direction_hint=direction_hint,
+        )
+    except Exception as exc:  # noqa: BLE001 — degrade to the floor, never abort
+        return ClaimReview(
+            report=report,
+            adjudication=None,
+            escalated=False,
+            note=f"adjudicator {getattr(backend, 'name', '?')!r} failed "
+            f"({exc}); used deterministic flag",
+        )
+
+    verified = verify_quote(adj.quote, full)
+    gated = Adjudication(
+        verdict=adj.verdict,
+        quote=adj.quote if verified else "",
+        reason=adj.reason,
+        quote_verified=verified,
+        model=adj.model,
+    )
+    note = "model quote not found in source text; dropped" if (
+        adj.quote and not verified
+    ) else ""
+    return ClaimReview(report=report, adjudication=gated, escalated=True, note=note)

@@ -55,5 +55,81 @@ class ClaimSupportHarness(unittest.TestCase):
         self.assertEqual(len(calls), len(set(calls)), "same PMID fetched more than once")
 
 
+class AdjudicateHarness(unittest.TestCase):
+    """The optional LLM-adjudication layer over the real registry, fully offline
+    via an injected fake client — proving the deterministic flagger gates which
+    rows reach the model and that surfaced quotes are provenance-gated."""
+
+    # A verbatim span of _RICH — a quote the provenance gate must accept.
+    _QUOTE = "increasing clobazam, warfarin, midazolam and tacrolimus exposure"
+
+    def _make_client(self, verdict: str, quote: str):
+        import json
+
+        body = json.dumps({"verdict": verdict, "quote": quote})
+
+        class _Block:
+            def __init__(self, t):
+                self.text = t
+
+        class _Resp:
+            def __init__(self, t):
+                self.content = [_Block(t)]
+
+        class _Msgs:
+            def create(self, **kwargs):
+                return _Resp(body)
+
+        class _Client:
+            def __init__(self):
+                self.messages = _Msgs()
+
+        return _Client()
+
+    def test_deterministic_only_review_queue(self) -> None:
+        # No adjudicator: the flagged minority still surfaces, verdict-only.
+        reviews, checked, inconclusive = audit_claim_support.adjudicate_interactions(
+            fetch=lambda pmid: _RICH
+        )
+        self.assertGreater(checked, 0)
+        self.assertEqual(inconclusive, 0)
+        self.assertGreater(len(reviews), 0)
+        for _cb, _drug, pmid, review in reviews:
+            self.assertTrue(pmid)
+            self.assertFalse(review.escalated)        # no backend ran
+            self.assertIsNone(review.adjudication)
+
+    def test_injected_adjudicator_attaches_verified_quotes(self) -> None:
+        from cannavec_science.claim_support_llm import LLMAdjudicator
+
+        adj = LLMAdjudicator(client=self._make_client("supported", self._QUOTE))
+        reviews, checked, inconclusive = audit_claim_support.adjudicate_interactions(
+            fetch=lambda pmid: _RICH, adjudicator=adj
+        )
+        self.assertEqual(inconclusive, 0)
+        self.assertGreater(len(reviews), 0)
+        # Every flagged row was escalated and carries the verbatim, verified quote.
+        for _cb, _drug, _pmid, review in reviews:
+            self.assertTrue(review.escalated)
+            self.assertIsNotNone(review.adjudication)
+            self.assertTrue(review.adjudication.quote_verified)
+            self.assertEqual(review.adjudication.model, "claude-opus-4-8")
+
+    def test_injected_adjudicator_drops_fabricated_quote(self) -> None:
+        from cannavec_science.claim_support_llm import LLMAdjudicator
+
+        adj = LLMAdjudicator(
+            client=self._make_client("supported", "this sentence is nowhere in the source")
+        )
+        reviews, _checked, _inc = audit_claim_support.adjudicate_interactions(
+            fetch=lambda pmid: _RICH, adjudicator=adj
+        )
+        self.assertGreater(len(reviews), 0)
+        for _cb, _drug, _pmid, review in reviews:
+            self.assertEqual(review.quote, "")          # fabricated → dropped
+            self.assertFalse(review.adjudication.quote_verified)
+            self.assertTrue(review.needs_human)         # contested → human
+
+
 if __name__ == "__main__":
     unittest.main()
