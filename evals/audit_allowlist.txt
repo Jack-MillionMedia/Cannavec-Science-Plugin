@@ -5,7 +5,13 @@
 #   * an author cited only by initials, or by a group/consortium name
 #   * a non-Latin-indexed surname that diacritic-folding cannot reconstruct
 #
+# A common cause: the first author's surname is < 4 characters (e.g. "Kim",
+# "Luo"), which the surname-token heuristic drops, and the label names no other
+# author — so a correct citation gets flagged. Confirm the label matches the
+# real title before allowlisting.
+#
 # One PMID per line; everything after "#" is a comment. Justify each entry
 # (verify at https://pubmed.ncbi.nlm.nih.gov/<PMID>/ before adding).
-#
-# (empty — add entries only after confirming a flag is a genuine false positive)
+
+25903855  # Kim HS et al., Acad Emerg Med 2015 — cyclic vomiting after marijuana liberalization, Colorado. "Kim" (<4 chars) dropped by heuristic; label matches real title. Verified 2026-06-02.
+30814733  # Luo X et al., Nature 2019 — complete biosynthesis of cannabinoids in yeast. "Luo" (<4 chars) dropped by heuristic; label matches real title. Verified 2026-06-02.

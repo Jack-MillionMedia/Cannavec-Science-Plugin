@@ -1349,27 +1349,30 @@ _REGISTRY: tuple[MinorCannabinoid, ...] = (
         clinical_grade=MinorCannabinoidEvidenceClass.UNSUPPORTED,
         preclinical_evidence=(
             PreclinicalEvidenceRow(
-                indication_or_model="behavioural — cataleptogenic / hypothermic",
-                species_or_assay="mouse, mid-20th-century pharmacology",
-                dose_or_concentration="5-25 mg/kg s.c. (historical)",
+                indication_or_model="receptor pharmacology — cannabinoid-receptor binding & function",
+                species_or_assay="in vitro cannabinoid-receptor assays",
+                dose_or_concentration="in vitro (binding / functional activity)",
                 outcome=(
-                    "Δ⁹-THC-like cataleptic + hypothermic effects at "
-                    "comparable doses for the 9R isomer."
+                    "(9R)-HHC shows Δ⁹-THC-like cannabinoid-receptor binding and "
+                    "activity, whereas the (9S)-HHC epimer binds but is markedly "
+                    "less active; HHC has been known since the 1940s and is sold "
+                    "as a mixture of the two isomers."
                 ),
                 bridging_to_clinic=(
-                    "Bridges essentially not at all to current clinical "
-                    "use. Historical mid-20th-century animal studies "
-                    "predate modern bioanalytical chemistry and use "
-                    "diastereomer mixtures the contemporary commercial "
-                    "product also delivers; the studies are not a "
-                    "substitute for modern human PK / efficacy / safety "
-                    "data."
+                    "Bridges essentially not at all to current clinical use. HHC "
+                    "is a semi-synthetic Δ⁹-THC analogue characterised in vitro "
+                    "and sold as a diastereomer mixture; there are no human "
+                    "PK / efficacy / safety data to substitute for."
                 ),
                 grade=MinorCannabinoidEvidenceClass.D,
                 citations=(
                     MinorCannabinoidCitation(
-                        label="Adams R et al., J Am Chem Soc 1942, synthesis of HHC",
-                        doi="10.1021/ja01258a047", year=1942,
+                        label="Nasrallah & Garg 2023 — HHC isomers: (9R)-HHC is "
+                              "Δ⁹-THC-like, (9S) diminished; HHC known since the "
+                              "1940s (ACS Chem Biol)",
+                        pmid="37578929",
+                        doi="10.1021/acschembio.3c00254",
+                        year=2023,
                     ),
                 ),
             ),

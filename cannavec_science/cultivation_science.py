@@ -171,7 +171,7 @@ _MAGAGNINI_2018 = CultivationCitation(
 _LIVINGSTON_2020 = CultivationCitation(
     label="Livingston SJ et al., Plant J 2020, cannabis glandular trichomes "
           "alter morphology and metabolite content during flower maturation",
-    pmid="31867754", year=2020,
+    pmid="31469934", year=2020,
 )
 _TANNEY_2021 = CultivationCitation(
     label="Tanney CAS et al., Front Plant Sci 2021, cannabis glandular "
@@ -187,7 +187,7 @@ _ONOFRI_2015 = CultivationCitation(
     label="Onofri C et al., Phytochemistry 2015, sequence heterogeneity "
           "of cannabidiolic- and tetrahydrocannabinolic acid-synthase in "
           "Cannabis sativa L. and its relationship with chemical phenotype",
-    pmid="25801039", year=2015,
+    pmid="25865737", year=2015,
 )
 _VAN_BAKEL_2011 = CultivationCitation(
     label="van Bakel H et al., Genome Biol 2011, the draft genome and "

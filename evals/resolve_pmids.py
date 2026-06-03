@@ -159,7 +159,7 @@ def candidates_for(fname: str, ln: int):
 
 
 def main() -> int:
-    suspects = find_suspects(collect_claimed_pmids())
+    suspects, _inconclusive = find_suspects(collect_claimed_pmids())
     print(f"\nGathering candidates for {len(suspects)} suspects "
           f"({'with' if _API_KEY else 'no'} NCBI_API_KEY)...\n")
     for old_pmid, fname, ln, _real, _ctx in suspects:

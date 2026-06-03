@@ -198,13 +198,16 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         citations=(
             PGxCitation(
                 label="Sachse-Seeboth 2009 — CYP2C9 polymorphism and THC pharmacokinetics",
-                doi="10.1038/clpt.2008.229",
+                pmid="19005461",
+                doi="10.1038/clpt.2008.213",
                 year=2009,
             ),
             PGxCitation(
-                label="Stott 2013 — Cannabis pharmacokinetics review",
-                doi="10.2217/fca.13.87",
-                year=2013,
+                label="Stout 2014 — cannabinoids as substrates/inhibitors/inducers "
+                      "of human drug-metabolising enzymes (systematic review)",
+                pmid="24160757",
+                doi="10.3109/03602532.2013.849268",
+                year=2014,
             ),
         ),
     ),
@@ -234,9 +237,11 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         ),
         citations=(
             PGxCitation(
-                label="Stott 2013 — Cannabis pharmacokinetics review",
-                doi="10.2217/fca.13.87",
-                year=2013,
+                label="Stout 2014 — cannabinoids as substrates/inhibitors/inducers "
+                      "of human drug-metabolising enzymes (systematic review)",
+                pmid="24160757",
+                doi="10.3109/03602532.2013.849268",
+                year=2014,
             ),
         ),
     ),
@@ -335,9 +340,11 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         ),
         citations=(
             PGxCitation(
-                label="Stout 2012 — CBD CYP inhibition in vitro (Drug Metabolism Letters)",
-                doi="10.2174/187231212800229578",
-                year=2012,
+                label="Bansal 2022 — cannabinoid CYP inhibition predictions in human "
+                      "liver microsomes (in vitro)",
+                pmid="35115300",
+                doi="10.1124/dmd.121.000734",
+                year=2022,
             ),
             PGxCitation(
                 label="Devinsky 2017 — CBD in Dravet (NEJM) — clobazam interaction reported",
@@ -374,9 +381,11 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         ),
         citations=(
             PGxCitation(
-                label="Stout 2012 — CBD CYP inhibition in vitro",
-                doi="10.2174/187231212800229578",
-                year=2012,
+                label="Bansal 2022 — cannabinoid CYP inhibition predictions in human "
+                      "liver microsomes (in vitro)",
+                pmid="35115300",
+                doi="10.1124/dmd.121.000734",
+                year=2022,
             ),
         ),
     ),
@@ -407,8 +416,10 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         ),
         citations=(
             PGxCitation(
-                label="Hajos 2014 — Cannabis and drug interactions (Curr Psychiatry Rep)",
-                doi="10.1007/s11920-014-0524-4",
+                label="Stout 2014 — smoked cannabis induces CYP1A2; cannabinoid drug-"
+                      "metabolising-enzyme systematic review",
+                pmid="24160757",
+                doi="10.3109/03602532.2013.849268",
                 year=2014,
             ),
         ),
@@ -438,9 +449,11 @@ _REGISTRY: tuple[PGxRecord, ...] = (
         ),
         citations=(
             PGxCitation(
-                label="Stout 2012 — CBD CYP/UGT inhibition in vitro",
-                doi="10.2174/187231212800229578",
-                year=2012,
+                label="Stout 2014 — cannabinoids as substrates/inhibitors of CYP and "
+                      "UGT enzymes (systematic review)",
+                pmid="24160757",
+                doi="10.3109/03602532.2013.849268",
+                year=2014,
             ),
         ),
     ),
