@@ -1,0 +1,74 @@
+name: API smoke
+
+# Post-deploy live check: runs the constitution-invariant smoke harness
+# (evals/smoke_api.py) against a real deployment. Complements ci.yml, which is
+# the offline gate (the full unit suite + retrieval proof) on every push/PR.
+#
+#   * deployment_status — fires when Vercel reports a finished deploy; we run on
+#     success and test that exact deployment's URL (preview or production).
+#   * workflow_dispatch — manual run against any URL.
+#   * schedule          — nightly production health check, including the live
+#     PubMed / CT.gov fan-out (the one upstream-dependent check).
+#
+# NOTE: deployment_status / schedule / workflow_dispatch only trigger from the
+# workflow as it exists on the DEFAULT branch, so this activates once it merges
+# to main. Until then, run `python3 evals/smoke_api.py <url> --live` locally.
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Base URL to smoke-test"
+        required: false
+        default: "https://cannavec-science-plugin.vercel.app"
+  schedule:
+    - cron: "23 7 * * *"   # 07:23 UTC nightly
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    # On a Vercel deploy event, only run for a successful deployment.
+    if: ${{ github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve target URL
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "deployment_status" ]; then
+            URL="${{ github.event.deployment_status.target_url }}"
+          elif [ -n "${{ github.event.inputs.url }}" ]; then
+            URL="${{ github.event.inputs.url }}"
+          else
+            URL="${{ vars.CANNAVEC_API_BASE }}"
+          fi
+          [ -n "$URL" ] || URL="https://cannavec-science-plugin.vercel.app"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Smoke target: $URL  (event: ${{ github.event_name }})"
+
+      - name: Smoke + contract checks
+        env:
+          # Sent as x-vercel-protection-bypass when set — lets the harness
+          # through Vercel Deployment Protection. Harmless (empty) if unset.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          # Gate a deploy on the offline-engine invariants only; the live
+          # /api/discover check depends on NCBI, so it shouldn't fail a deploy on
+          # an upstream hiccup. Add --live on scheduled / manual health runs.
+          LIVE=""
+          if [ "${{ github.event_name }}" != "deployment_status" ]; then
+            LIVE="--live"
+          fi
+          python3 evals/smoke_api.py "${{ steps.target.outputs.url }}" $LIVE

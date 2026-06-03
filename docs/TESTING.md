@@ -86,10 +86,18 @@ python3 evals/audit_claim_support.py   # the cited paper actually supports the c
 python3 evals/run_evals.py             # the canonical-question regression suite
 ```
 
-## CI recommendation
+## CI (already wired)
 
-- **Every push / PR:** `python3 -m unittest discover -s tests` (layers 1–4).
-- **Post-deploy (per environment):** `python3 evals/smoke_api.py "$DEPLOY_URL"`
-  with `VERCEL_AUTOMATION_BYPASS_SECRET` set — fail the deploy on a red check.
-- **Nightly:** the `evals/audit_*.py` citation audits (catch upstream retractions
-  / metadata drift without flaking the per-push gate on network).
+- **`.github/workflows/ci.yml`** — the `tests` job runs the offline gate
+  (`unittest discover -s tests`, i.e. layers 1–4) on Python 3.11/3.12 for every
+  push + PR, plus a retrieval proof; the `citation-audit` job runs the online
+  `evals/audit_*.py` suite on PRs and weekly (catching upstream retractions /
+  metadata drift off the per-push critical path).
+- **`.github/workflows/smoke.yml`** — runs `evals/smoke_api.py` against the live
+  deployment: on every Vercel deploy (`deployment_status` success → tests that
+  exact preview/prod URL, offline-engine invariants only), nightly with `--live`,
+  and on manual dispatch. Set the `VERCEL_AUTOMATION_BYPASS_SECRET` repo secret
+  if you turn on Deployment Protection, and optionally the `CANNAVEC_API_BASE`
+  repo variable to override the default URL. `deployment_status` / `schedule` /
+  `workflow_dispatch` only fire from the default branch, so this activates once
+  the workflow lands on `main`.
