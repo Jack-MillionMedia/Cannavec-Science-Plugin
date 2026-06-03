@@ -48,10 +48,12 @@ from functools import lru_cache
 from typing import Optional, Sequence
 
 from cannavec_science.ranker import Candidate, provenance_gate, score_candidates
-# ``_tokens`` is ranker's internal tokenizer. We reuse it so the query-coverage
-# gate tokenizes identically to the BM25 corpus (same stoplist + plural fold);
-# any divergence would make the coverage fraction meaningless.
+# ``_tokens`` is ranker's internal tokenizer and ``_term_matches`` its affix-aware
+# match predicate. We reuse both so the query-coverage gate tokenizes and matches
+# IDENTICALLY to the BM25 corpus (same stoplist + plural + synonym fold, same
+# affix matching) — any divergence would make the coverage fraction meaningless.
 from cannavec_science.ranker import _tokens as _rank_tokens
+from cannavec_science.ranker import _term_matches
 
 __all__ = [
     "RetrievedRow",
@@ -314,8 +316,14 @@ def retrieve(
         bm25 = sb.bm25
         if bm25 <= 0.0:
             continue
-        matched = qtokens & d.token_set
-        n_matched = len(matched)
+        # Affix-aware coverage, consistent with the affix-aware BM25 signal: a
+        # query term is "covered" when it equals OR affix-matches a doc token
+        # (e.g. "permeability" in "hyperpermeability", "cbd"→"cannabidiol" via
+        # the shared synonym fold). Exact membership is the fast common case.
+        n_matched = sum(
+            1 for q in qtokens
+            if q in d.token_set or any(_term_matches(q, t) for t in d.token_set)
+        )
         coverage = n_matched / len(qtokens)
         strong_single = n_matched >= 1 and bm25 >= strong_bm25
         multi_term = (

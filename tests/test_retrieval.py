@@ -214,5 +214,32 @@ class RetrievalRecoveryTests(unittest.TestCase):
         self.assertEqual(self._recovered(a), 0)
 
 
+class SynonymAffixRetrievalTests(unittest.TestCase):
+    """The discovery relevance stack (synonyms + affix-aware matching) reaches
+    the curated answer engine — query and corpus canonicalise identically."""
+
+    def _registries(self, query: str) -> set:
+        return {h.registry for h in R.retrieve(query, k=8)}
+
+    def test_acronym_canonical_and_brand_all_reach_driving(self):
+        # "THC" / "tetrahydrocannabinol" / "marijuana"(→cannabis) all canonicalise
+        # so each reaches the driving registry — the synonym fold is applied to
+        # the query AND the curated corpus.
+        for q in ("how does THC impair driving",
+                  "how does tetrahydrocannabinol impair driving",
+                  "does marijuana impair driving performance"):
+            self.assertIn("driving_impairment", self._registries(q), q)
+
+    def test_cbd_acronym_reaches_pharmacokinetics(self):
+        regs = self._registries("CBD oral bioavailability pharmacokinetics")
+        self.assertIn("pharmacokinetics", regs, regs)
+
+    def test_synonyms_do_not_leak_generic_definitions(self):
+        # Canonicalising a bare drug name must NOT turn a definitional query
+        # into a spurious curated hit (the zero-leak guarantee holds).
+        self.assertEqual(R.retrieve("marijuana"), [])
+        self.assertEqual(R.retrieve("what is dronabinol"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

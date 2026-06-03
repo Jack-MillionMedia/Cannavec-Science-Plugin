@@ -51,6 +51,12 @@ jobs:
         # recall, end-to-end recall, the retrieval lift, or the zero-false-
         # positive controls regress below threshold.
         run: python3 evals/prove_retrieval.py
+      - name: Discovery ranking proof — elite-ranking invariants (offline)
+        # Pins the discovery ranker's behaviour (human-trial-first, animal /
+        # in-vitro demotion, cannabinoid synonyms, affix matching, cross-source
+        # dedup, recency-never-beats-design, retraction sink) against a battery
+        # of real-query fixtures so it can never silently regress. Deterministic.
+        run: python3 evals/prove_ranking.py
 
   citation-audit:
     # Online integrity gate. Runs on every PR (so a wrong identifier blocks
