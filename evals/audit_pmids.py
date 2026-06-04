@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Audit every PMID shipped by the curated registries against live PubMed.
 
-For each ``pmid="..."`` literal in ``cannavec_science/*.py`` this fetches the
+For each PMID shipped by the curated registries (``pmid="..."`` literals in
+``cannavec_science/*.py``) — and each PMID re-cited in the prose docs
+(``README.md`` / ``pyproject.toml``, written as "PMID 1234") — this fetches the
 real PubMed record (NCBI E-utilities ``esummary``) and flags any where the
 paper matches **neither the author nor the title** named next to the citation
 in the source — i.e. the identifier points at a different paper than the
 registry claims (the failure mode that shipped an abdominal-infection case
-report as "Gaston 2017", and a rat study as "Hjorthoj 2023").
+report as "Gaston 2017", and a rat study as "Hjorthoj 2023"). Auditing the prose
+too catches doc drift — the version-history prose once accumulated ~37 PMIDs
+that resolved to unrelated papers.
 
 The author-OR-title test is deliberate: a cite is sound if the real paper's
 author is named near it (matched against *all* listed authors, whole-word, so
@@ -49,6 +53,9 @@ _PKG = os.path.join(
     "cannavec_science",
 )
 _PMID_RE = re.compile(r'pmid\s*=\s*["\'](\d{4,9})["\']')
+# Prose (README, pyproject) cites PMIDs as "PMID 1234" / "PMID: 1234", not as a
+# ``pmid="..."`` literal — match that shape too so documentation drift is audited.
+_PROSE_PMID_RE = re.compile(r'PMID[:\s]\s*(\d{4,9})', re.IGNORECASE)
 _API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
 _SLEEP = 0.11 if _API_KEY else 0.34
 _ALLOWLIST_PATH = os.path.join(
@@ -82,18 +89,35 @@ def _norm(s: str) -> str:
 
 
 def collect_claimed_pmids() -> dict[str, tuple[str, int, str]]:
-    """Map each registry PMID -> (filename, line, nearby source context)."""
+    """Map each claimed PMID -> (filename, line, nearby source context).
+
+    Scans the curated registries (``cannavec_science/*.py``) and the prose that
+    re-cites the same identifiers (``README.md``, ``pyproject.toml``) so a PMID
+    that drifts to the wrong paper in the docs is caught too, not only in the
+    registry code. Registry literals use ``pmid="..."`` (tight 6-line window so
+    one citation's label does not bleed into a neighbour); prose uses "PMID 1234"
+    and wraps across lines, so prose files get a wider backward window. Registry
+    sources are scanned first, so a PMID cited in both keeps the authoritative
+    registry context (``setdefault``).
+    """
+    root = os.path.dirname(_PKG)
+    sources: list[tuple[str, "re.Pattern[str]", int]] = [
+        (p, _PMID_RE, 6) for p in sorted(glob.glob(os.path.join(_PKG, "*.py")))
+    ]
+    for prose in ("README.md", "pyproject.toml"):
+        path = os.path.join(root, prose)
+        if os.path.exists(path):
+            sources.append((path, _PROSE_PMID_RE, 12))
+
     claims: dict[str, tuple[str, int, str]] = {}
-    for path in sorted(glob.glob(os.path.join(_PKG, "*.py"))):
+    for path, rx, window in sources:
         lines = open(path, encoding="utf-8").read().splitlines()
         for i, line in enumerate(lines):
-            for m in _PMID_RE.finditer(line):
+            for m in rx.finditer(line):
                 pmid = m.group(1)
                 if pmid.startswith("99000"):  # documented synthetic seeds
                     continue
-                # Tight window: capture this citation's own label without
-                # bleeding into a neighbouring citation (avoids false negatives).
-                ctx = " ".join(lines[max(0, i - 6):i + 1])
+                ctx = " ".join(lines[max(0, i - window):i + 1])
                 claims.setdefault(pmid, (os.path.basename(path), i + 1, ctx))
     return claims
 

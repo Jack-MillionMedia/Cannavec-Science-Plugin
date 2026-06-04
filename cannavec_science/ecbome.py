@@ -103,9 +103,9 @@ _DI_MARZO_2018 = EcbomeCitation(
     label="Di Marzo V et al., Nat Rev Drug Discov 2018, eCBome overview",
     pmid="30116049", year=2018,
 )
-_BISOGNO_2005 = EcbomeCitation(
-    label="Bisogno T et al., J Biol Chem 2005, DAGLα cloning",
-    pmid="14610053", year=2005,
+_BISOGNO_2003 = EcbomeCitation(
+    label="Bisogno T et al., J Cell Biol 2003, DAGLα cloning",
+    pmid="14610053", year=2003,
 )
 _DINH_2002 = EcbomeCitation(
     label="Dinh TP et al., PNAS 2002, MAGL identification",
@@ -438,7 +438,7 @@ _ENZYMES: tuple[EcbomeEntry, ...] = (
             "neurons during retrograde signalling."
         ),
         binds_to=("2-AG",),
-        citations=(_BISOGNO_2005,),
+        citations=(_BISOGNO_2003,),
     ),
     EcbomeEntry(
         name="DAGLβ",
@@ -451,7 +451,7 @@ _ENZYMES: tuple[EcbomeEntry, ...] = (
             "tightens macrophage / microglial 2-AG signalling axis."
         ),
         binds_to=("2-AG",),
-        citations=(_BISOGNO_2005,),
+        citations=(_BISOGNO_2003,),
     ),
     EcbomeEntry(
         name="NAPE-PLD",

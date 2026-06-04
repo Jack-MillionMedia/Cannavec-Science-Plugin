@@ -21,7 +21,7 @@ Topic coverage:
   topical capsaicin treatment with caveat that cessation remains
   the only definitive long-term resolution.
 - ``cyclic_vomiting_dx`` — CVS vs CHS differential and post-
-  legalization ED epidemiology (Kim 2018 PMID 25903855).
+  legalization ED epidemiology (Kim 2015 PMID 25903855).
 
 Each row carries `to_claim()` returning a typed Claim, identifier-
 anchored citations per §I, and is matched by a topic-keyword regex
@@ -180,7 +180,7 @@ _RICHARDS_2017 = HyperemesisSyndromeCitation(
           "cannabinoid hyperemesis syndrome — a systematic review",
     pmid="28370228", year=2017,
 )
-_KIM_2018 = HyperemesisSyndromeCitation(
+_KIM_2015 = HyperemesisSyndromeCitation(
     label="Kim HS et al., Acad Emerg Med 2015, cyclic vomiting presentations "
           "following marijuana liberalization in Colorado — emergency "
           "department visits before and after legalization",
@@ -302,28 +302,28 @@ _CYCLIC_VOMITING_DIFFERENTIAL = HyperemesisSyndromeRow(
     name="CHS vs CVS differential and post-legalization ED epidemiology",
     topic=HyperemesisSyndromeTopic.CYCLIC_VOMITING_DX,
     claim_text=(
-        "Kim 2018 BMJ Open analysed Colorado emergency-department data "
-        "before and after recreational-cannabis legalization (2014) and "
-        "found that cyclic-vomiting ED presentations per 100,000 ED "
-        "visits approximately doubled in the post-legalization period, "
+        "Kim 2015 (Acad Emerg Med) analysed Colorado emergency-department "
+        "data before and after medical-marijuana liberalization (2009) and "
+        "found that cyclic-vomiting ED presentations approximately doubled "
+        "(prevalence ratio ≈ 1.92) in the post-liberalization period, "
         "consistent with previously under-diagnosed CHS becoming more "
         "common (or more recognised) as cannabis use prevalence rose. "
         "Differential diagnosis remains important: CHS requires chronic "
         "cannabis exposure and cessation-response; idiopathic CVS, "
         "gastroparesis (especially diabetic), intracranial mass, and "
-        "metabolic causes must be excluded. The post-legalization data "
+        "metabolic causes must be excluded. The post-liberalization data "
         "also raise calibration concerns — some excess presentations may "
         "be acute cannabis intoxication or edible-overdose, not true CHS."
     ),
     claim_type=ClaimType.EDUCATIONAL,
     evidence_level=EvidenceLevel.C,
     source_tier=SourceTier.SINGLE_ARM_OR_MECH,
-    citations=(_KIM_2018, _VENKATESAN_2019),
+    citations=(_KIM_2015, _VENKATESAN_2019),
     key_clinical_notes=(
-        "Kim 2018 used ICD-coding-based identification of cyclic-"
+        "Kim 2015 used ICD-coding-based identification of cyclic-"
         "vomiting cases; the granularity does not separate CHS from "
         "idiopathic CVS within the cyclic-vomiting bucket. The "
-        "interpretation that legalization-associated rise reflects "
+        "interpretation that liberalization-associated rise reflects "
         "increased CHS is inferential.",
         "The post-legalization rise in acute-cannabis ED presentations "
         "is well-documented across multiple US states — it is "
@@ -389,7 +389,7 @@ _TOPIC_KEYWORDS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"\b("
             r"cyclic\s+vomiting\s+syndrome|cvs\s+(?:vs|differential|cyclic)|"
             r"(?:chs|hyperemesis).{0,20}(?:differential|cvs)|"
-            r"kim\s+2018\s+(?:colorado|legali[sz]ation|cyclic)|"
+            r"kim\s+2015\s+(?:colorado|legali[sz]ation|cyclic)|"
             r"post[- ]?legali[sz]ation\s+(?:ed|emergency|chs|cyclic|cannabis)"
             r")\b",
             re.IGNORECASE,

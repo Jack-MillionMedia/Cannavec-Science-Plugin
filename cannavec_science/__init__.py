@@ -20,7 +20,7 @@ a **thirteenth primary-source live lane**:
   Lancet Psychiatry narrative review.
 - **Driving-impairment science** (≥ 5 rows): Compton 2017 NHTSA
   Virginia Beach case-control crash-risk (DOT HS 812 411), Hartman
-  2015 Clin Chem plasma-THC dose-response (PMID 26144593), Marcotte
+  2015 Drug Alcohol Depend plasma-THC dose-response (PMID 26144593), Marcotte
   2022 JAMA Psychiatry driving-simulator RCT (PMID 35080588),
   Brubacher 2022 NEJM BC post-legalization cohort (PMID 35020985),
   Bondallaz 2016 Forensic Sci Int SR (PMID 27701009). The SCIENCE,

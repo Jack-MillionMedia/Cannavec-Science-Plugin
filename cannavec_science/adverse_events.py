@@ -453,7 +453,7 @@ _REGISTRY: tuple[AdverseEvent, ...] = (
             AdverseEventCitation(
                 label="Hartman & Huestis 2013 Clin Chem — cannabis effects on driving skills (review)",
                 pmid="23220273",
-                year=2015,
+                year=2013,
             ),
         ),
     ),
@@ -811,7 +811,7 @@ _REGISTRY: tuple[AdverseEvent, ...] = (
             AdverseEventCitation(
                 label="Hartman & Huestis 2013 Clin Chem — cannabis effects on driving skills (review)",
                 pmid="23220273",
-                year=2015,
+                year=2013,
             ),
         ),
     ),

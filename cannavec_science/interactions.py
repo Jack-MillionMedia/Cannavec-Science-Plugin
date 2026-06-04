@@ -434,8 +434,10 @@ _REGISTRY: tuple[CannabinoidInteraction, ...] = (
         population="adults co-using alcohol and inhaled / oral THC",
         citations=(
             InteractionCitation(
-                label="Hartman 2015 — Cannabis-alcohol co-use PK",
-                pmid="23220273",
+                label="Hartman RL et al. 2015 Clin Chem — controlled cannabis "
+                      "vaporizer + alcohol PK (co-ingested alcohol raises blood "
+                      "THC Cmax)",
+                pmid="26019183",
                 year=2015,
             ),
         ),

@@ -455,7 +455,7 @@ green (2,336 unit tests).
    NHTSA Virginia Beach case-control crash-risk study (DOT HS 812 411,
    the most-cited AND most-mis-cited result in the cannabis-driving
    literature — unadjusted OR ≈ 1.25, adjusted OR ≈ 1.05 after
-   demographics + alcohol), Hartman 2015 Clin Chem plasma-Δ⁹-THC
+   demographics + alcohol), Hartman 2015 Drug Alcohol Depend plasma-Δ⁹-THC
    dose-response (PMID 26144593), Marcotte 2022 JAMA Psychiatry
    driving-simulator dose-and-duration RCT (PMID 35080588, ~1.5 h
    peak impairment / ~5 h return-to-baseline), Brubacher 2022 NEJM
@@ -544,7 +544,7 @@ eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
    for why edibles produce a longer / different subjective profile),
    nabiximols oromucosal per Karschner 2011 (PMID 21078841), plasma
    protein binding + adipose sequestration per Garrett 1977, and
-   SAMHSA-cutoff urine detection window per Huestis 1996 (PMID 1320536).
+   SAMHSA-cutoff urine detection window per Huestis 1996 (PMID 8889681).
 2. **Cannabis use disorder & withdrawal registry (≥ 6 curated rows)** —
    DSM-5 CUD framework per Hasin 2013 (PMID 23903334), CUDIT-R
    screening instrument per Adamson 2010 (PMID 20347232), Cannabis

@@ -31,7 +31,7 @@ Topic coverage:
   distribution reference.
 - ``detection_window`` — urine cannabinoid detection window. THC-COOH
   metabolite detectable for days-to-weeks after cessation depending on
-  chronicity of use; Huestis 1996 (PMID 1320536) is the classic
+  chronicity of use; Huestis 1996 (PMID 8889681) is the classic
   controlled-dose reference.
 
 Every row carries a `to_claim()` returning a typed
@@ -209,10 +209,10 @@ _GARRETT_1977 = PharmacokineticsCitation(
     pmid="845807", year=1977,
 )
 _HUESTIS_1996 = PharmacokineticsCitation(
-    label="Huestis MA et al., J Anal Toxicol 1996, characterization of the "
-          "absorption phase of marijuana smoking — urine cannabinoid "
-          "detection window",
-    pmid="1320536", year=1996,
+    label="Huestis MA et al., J Anal Toxicol 1996, urinary excretion profiles "
+          "of 11-nor-9-carboxy-Δ⁹-THC after single smoked doses of marijuana — "
+          "urine cannabinoid detection window",
+    pmid="8889681", year=1996,
 )
 _DEVINSKY_2018_LGS = PharmacokineticsCitation(
     label="Devinsky O et al., NEJM 2018, effect of cannabidiol on drop "
