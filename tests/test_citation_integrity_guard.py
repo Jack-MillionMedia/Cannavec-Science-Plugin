@@ -31,6 +31,26 @@ Confirmed via PubMed cross-check on 2026-06-02:
   31867754  → 31469934   cultivation "flower maturation" cite pointed at a
                           helical-nanographene chemistry paper. Correct:
                           Livingston SJ et al., Plant J 2019/2020.
+
+Confirmed via PubMed cross-check on 2026-06-04:
+
+  1320536   → 8889681    pharmacokinetics urine-detection row cited Huestis
+                          "Characterization of the absorption phase of marijuana
+                          smoking" (Clin Pharmacol Ther 1992 — a plasma paper)
+                          for a urine-detection-window claim. Correct: Huestis MA
+                          et al., "Urinary excretion profiles of 11-nor-9-carboxy
+                          -THC after single smoked doses of marijuana," J Anal
+                          Toxicol 1996.
+
+  Not denylisted — PMID 23220273 (Hartman & Huestis, "Cannabis effects on
+  driving skills," Clin Chem 2013 review) was the WRONG paper for the THC×alcohol
+  co-use-PK interaction row (corrected there to 26019183, the controlled
+  vaporizer + alcohol PK study), but it is the RIGHT paper for the driving-
+  impairment adverse-event / contraindication rows, where it correctly stays. A
+  global PMID denylist cannot express "wrong here, right there", and the live
+  PubMed audit (author/title match) cannot catch it either since "Hartman"
+  matches both — so reviewers must keep the THC×alcohol interaction row on
+  26019183.
 """
 
 from __future__ import annotations
@@ -52,6 +72,7 @@ _WRONG_TO_RIGHT = {
     "19429692": "19918051",
     "25801039": "25865737",
     "31867754": "31469934",
+    "1320536": "8889681",
 }
 
 # DOIs that shipped pointing at the wrong paper (confirmed via PubMed/Crossref
