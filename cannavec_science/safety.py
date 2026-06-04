@@ -282,11 +282,78 @@ _OVERDOSE = _ci(
     r"how (?:much|many) (?:would|to) (?:kill|overdose|harm))\b"
 )
 
+# Flammable-solvent home extraction is a fire / explosion hazard
+# (§V REFUSE_HARMFUL). The original pattern only gated a handful of
+# product nouns ("hash oil|shatter|wax|live resin") and "butane
+# (extraction|hash)", so DEFECT #9 — a solvent extraction framed around
+# the everyday product noun "THC oil" / "cannabis oil" / "cannabis
+# extract" — slipped through to live fan-out.
+#
+# The hazard is a *flammable solvent applied to cannabis to make a
+# concentrate*. To stay high-precision (and not refuse benign chemistry
+# prose like "propane prices are running high" or "the GC method was run
+# with hexane"), the broadened branches require BOTH a flammable solvent
+# AND a cannabis substrate / concentrate-product cue, joined by an
+# extraction action OR adjacency. Pure solvent chemistry with no cannabis
+# context proceeds.
+_EXTRACTION_SOLVENT = (
+    r"(?:bho|butane|propane|hexane|naphtha|"
+    r"petroleum ether|pentane|isobutane|n-butane)"
+)
+# Things the solvent is applied to: the plant substrate or the concentrate
+# product. This cannabis/product cue is what separates a home-extraction
+# hazard from generic solvent chemistry.
+_EXTRACTION_TARGET = (
+    r"(?:hash oil|hashish oil|shatter|budder|crumble|"
+    r"live resin|live rosin|thc oil|cannabis oil|cannabis extract|"
+    r"weed oil|marijuana oil|concentrate|distillate|crude oil|"
+    r"rso|rick simpson oil|dabs?|honey oil|"
+    r"cannabis|marijuana|weed|flower|trim|bud|kief|plant material|"
+    r"trichomes?)"
+)
+_EXTRACTION_ACTION = (
+    r"(?:extract\w*|blast\w*|purg\w*|wash\w*|run\b|running\b|"
+    r"soak\w*|strip\w*|dissolv\w*|process\w*|"
+    r"make|making|produc\w*)"
+)
+# Concentrate *products* only (the output of a solvent extraction). A
+# flammable solvent directly next to one of these names is the home-BHO
+# hazard even without an explicit action verb. The bare plant ("cannabis",
+# "weed", "flower") is deliberately excluded here so it can only fire via
+# the action-verb branches above — this prevents an incidental
+# solvent-mention + "cannabis" elsewhere in a sentence from refusing.
+_EXTRACTION_CONCENTRATE = (
+    r"(?:hash oil|hashish oil|shatter|budder|crumble|"
+    r"live resin|live rosin|thc oil|cannabis oil|cannabis extract|"
+    r"weed oil|marijuana oil|concentrate|distillate|"
+    r"rso|rick simpson oil|dabs?|honey oil)"
+)
 _EXTRACTION_HAZARD = _ci(
     r"\b(?:bho|butane (?:extraction|hash)|blasting|"
     r"open[-\s]?blast|open blasting|"
     r"closed[-\s]?loop extractor|"
     r"how to (?:make|extract|process) (?:hash oil|shatter|wax|live resin))\b"
+    r"|"
+    # Branch A (DEFECT #9): flammable solvent + extraction action +
+    # cannabis/product target, in any of the natural orders. Requiring
+    # the target cue keeps benign solvent chemistry from refusing.
+    rf"\b{_EXTRACTION_SOLVENT}\b[^.\n]{{0,40}}\b{_EXTRACTION_ACTION}\b[^.\n]{{0,40}}\b{_EXTRACTION_TARGET}\b"
+    r"|"
+    rf"\b{_EXTRACTION_ACTION}\b[^.\n]{{0,40}}\b{_EXTRACTION_TARGET}\b[^.\n]{{0,40}}\b{_EXTRACTION_SOLVENT}\b"
+    r"|"
+    rf"\b{_EXTRACTION_ACTION}\b[^.\n]{{0,40}}\b{_EXTRACTION_SOLVENT}\b[^.\n]{{0,40}}\b{_EXTRACTION_TARGET}\b"
+    r"|"
+    rf"\b{_EXTRACTION_TARGET}\b[^.\n]{{0,40}}\b{_EXTRACTION_ACTION}\b[^.\n]{{0,40}}\b{_EXTRACTION_SOLVENT}\b"
+    r"|"
+    # Branch B (DEFECT #9): flammable solvent directly adjacent to a
+    # *concentrate product* noun (the "purge the butane out of my BHO
+    # concentrate" / "THC oil with butane" shape) — the extraction action
+    # is implicit in the solvent+concentrate pairing, so no action verb is
+    # required. Restricted to concentrate products (NOT the bare plant) so
+    # "boiling point of butane" + "cannabis" in separate clauses can't trip.
+    rf"\b{_EXTRACTION_SOLVENT}\b[^.\n]{{0,40}}\b{_EXTRACTION_CONCENTRATE}\b"
+    r"|"
+    rf"\b{_EXTRACTION_CONCENTRATE}\b[^.\n]{{0,40}}\b{_EXTRACTION_SOLVENT}\b"
 )
 
 _ILLEGAL_ACQUISITION = _ci(
@@ -380,6 +447,27 @@ _SYNTH_CANN_NAMES = (
     r"5f-adb|5f-mdmb-pinaca|ur-144|xlt-11|pb-22|"
     r"fake weed|fake pot|herbal incense)"
 )
+# Noun-head framings of a synthesis route. The verb-only `_SYNTH_VERB`
+# detector let prompts like "synthesis route for X", "reaction scheme
+# for X", "synthetic route to X", "synthesis protocol for X" bypass the
+# §V hard-refuse while routing into the live network. These noun heads
+# carry the same instruction intent in declarative dress. Critically,
+# the noun head is ALWAYS co-gated with `_SYNTH_CANN_NAMES` below, so a
+# plant phytochemistry question ("biosynthesis of THCA", "reaction
+# scheme for THCA decarboxylation") can never trip it — THCA/CBD/CBGA
+# are not in the designer-cannabinoid name list. `synthesis` is
+# matched with a leading boundary that a preceding "bio" defeats, as a
+# second layer of defence for plant-biosynthesis prose.
+_SYNTH_NOUN_HEAD = (
+    r"(?:"
+    r"(?<![a-z])synthesis(?:\s+(?:route|scheme|protocol|procedure|"
+    r"pathway|method|recipe|steps?))?"
+    r"|synthetic\s+(?:route|pathway|scheme|procedure|protocol)"
+    r"|total\s+synthesis"
+    r"|reaction\s+scheme"
+    r"|lab(?:oratory)?\s+(?:protocol|procedure|scheme|recipe)"
+    r")"
+)
 _SYNTHETIC_CANNABINOID_SYNTHESIS = _ci(
     # Branch 1: synthesis verb before the cannabinoid name.
     rf"\b{_SYNTH_VERB}\b[^.\n]{{0,80}}\b{_SYNTH_CANN_NAMES}\b"
@@ -395,6 +483,15 @@ _SYNTHETIC_CANNABINOID_SYNTHESIS = _ci(
     r"\b(?:step[-\s]?by[-\s]?step|recipe (?:for|to)|diy|home[-\s]?lab|"
     r"homemade)\b"
     rf"[^.\n]{{0,80}}\b{_SYNTH_CANN_NAMES}\b"
+    r"|"
+    # Branch 4 (DEFECT #4): synthesis NOUN-HEAD before the cannabinoid
+    # name (e.g. "synthesis route for AB-FUBINACA", "reaction scheme
+    # for JWH-018", "total synthesis of 5F-MDMB-PINACA").
+    rf"\b{_SYNTH_NOUN_HEAD}\b[^.\n]{{0,80}}\b{_SYNTH_CANN_NAMES}\b"
+    r"|"
+    # Branch 5 (DEFECT #4): cannabinoid name before the synthesis
+    # noun-head (e.g. "JWH-018 synthesis route", "AB-FUBINACA scheme").
+    rf"\b{_SYNTH_CANN_NAMES}\b[^.\n]{{0,80}}\b{_SYNTH_NOUN_HEAD}\b"
 )
 
 # Delta-8 / delta-10 THC and related semi-synthetic cannabinoids are a
