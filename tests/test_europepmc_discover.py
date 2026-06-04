@@ -245,9 +245,45 @@ class SuggestedGradeTests(unittest.TestCase):
             "Level D (provisional)",
         )
 
-    def test_unknown_to_unsupported(self):
+    def test_journal_article_floors_to_level_d(self):
+        # A real primary article of unverified design is admissible-but-unranked
+        # evidence (Level D provisional), NOT "Unsupported" / no-evidence. This
+        # also matches the OpenAlex lane, which already floors journal-article.
         self.assertEqual(
             suggested_grade_for_pubtypes(("Journal Article",)),
+            "Level D (provisional)",
+        )
+
+    def test_research_article_token_floors_to_level_d(self):
+        # The lowercase EuropePMC token seen on recent live records.
+        self.assertEqual(
+            suggested_grade_for_pubtypes(("research-article", "Journal Article")),
+            "Level D (provisional)",
+        )
+
+    def test_empty_pubtypes_stays_unsupported(self):
+        # Genuinely empty / design-signal-free metadata is the ONLY remaining
+        # Unsupported case.
+        self.assertEqual(
+            suggested_grade_for_pubtypes(()),
+            "Unsupported (provisional)",
+        )
+
+    def test_non_evidence_types_with_journal_article_stay_unsupported(self):
+        # Corrections / letters / news frequently co-carry "Journal Article" but
+        # are NOT admissible primary evidence — the floor must not over-grade
+        # them to Level D.
+        for pt in ("Published Erratum", "Retraction of Publication",
+                   "Comment", "Editorial"):
+            self.assertEqual(
+                suggested_grade_for_pubtypes((pt, "Journal Article")),
+                "Unsupported (provisional)",
+                f"{pt!r} co-carrying Journal Article must stay Unsupported",
+            )
+
+    def test_newspaper_article_not_floored(self):
+        self.assertEqual(
+            suggested_grade_for_pubtypes(("Newspaper Article",)),
             "Unsupported (provisional)",
         )
 
@@ -295,7 +331,7 @@ class RenderJsonTests(unittest.TestCase):
                 journal="J Test",
                 pubtypes=("Journal Article",),
                 is_open_access=False,
-                suggested_grade="Unsupported (provisional)",
+                suggested_grade="Level D (provisional)",
             ),
         )
         out = render_json("cannabis", hits)

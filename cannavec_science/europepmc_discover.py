@@ -183,6 +183,22 @@ def suggested_grade_for_pubtypes(pubtypes: tuple[str, ...]) -> str:
         return "Level D (provisional)"
     if has("preprint"):
         return "Level D (provisional)"
+    # Non-evidence record types — corrections, letters, news, biography —
+    # frequently co-carry "Journal Article" but are NOT admissible primary
+    # evidence; keep them Unsupported rather than floor them to Level D.
+    if has("erratum", "retraction", "comment", "editorial", "newspaper",
+           "biography", "historical"):
+        return "Unsupported (provisional)"
+    # Journal-article floor: a real primary research article whose design we
+    # could not classify above (the generic "Journal Article" / "research-
+    # article" token nearly every MEDLINE / Europe PMC record carries) is
+    # admissible-but-unranked evidence, not "no evidence" — floor it to Level D
+    # rather than mislabel it Unsupported. Match the specific generic-article
+    # tokens (not a bare "article" substring, which over-matches "Newspaper
+    # Article" etc.). Matches the OpenAlex lane. Only a genuinely empty /
+    # design-signal-free pubtype set stays Unsupported.
+    if has("journal article", "research-article", "journal-article"):
+        return "Level D (provisional)"
     return "Unsupported (provisional)"
 
 
