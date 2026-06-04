@@ -66,6 +66,9 @@ class BibliographyEntry:
     authors: tuple[str, ...] = ()
     year: int | None = None
     journal: str = ""
+    volume: str = ""
+    issue: str = ""
+    pages: str = ""
     pmid: str | None = None
     doi: str | None = None
     url: str | None = None
@@ -93,6 +96,12 @@ class BibliographyEntry:
             out["issued"] = {"date-parts": [[self.year]]}
         if self.journal:
             out["container-title"] = self.journal
+        if self.volume:
+            out["volume"] = self.volume
+        if self.issue:
+            out["issue"] = self.issue
+        if self.pages:
+            out["page"] = self.pages
         if self.pmid:
             out["PMID"] = self.pmid
         if self.doi:
@@ -113,74 +122,151 @@ class BibliographyEntry:
         return out
 
 
+_YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
+# A token like "RG", "MF", "PF", "AS" — author initials in the
+# "Surname INITIALS" convention used by Cannavec labels.
+_INITIALS_RE = re.compile(r"^[A-Z]{1,4}$")
+# "et al." / "et al" markers that are NOT author names.
+_ETAL_RE = re.compile(r"\bet\s+al\.?", re.IGNORECASE)
+
+
 def _parse_author_to_csl(name: str) -> dict:
-    """Best-effort author parsing into CSL ``{family, given}`` shape."""
-    name = name.strip()
+    """Parse one author display string into CSL ``{family, given}`` shape.
+
+    Handles the conventions that actually appear in Cannavec labels:
+
+    - ``"Pertwee RG"`` → family ``Pertwee``, given ``RG`` (Surname INITIALS).
+    - ``"de Wit H"``   → family ``de Wit``, given ``H`` (particled surname).
+    - ``"Devinsky"``   → family ``Devinsky`` (surname only).
+    - ``"Smith, J."``  → family ``Smith``, given ``J.`` (comma convention).
+    """
+    name = _ETAL_RE.sub("", name).strip().strip(",").strip()
     if not name:
         return {"literal": ""}
-    # If the label is "Surname YYYY" or "Surname et al.", take the first
-    # token as the family name. If it's "Surname, F." use the comma split.
     if "," in name:
         family, _, given = name.partition(",")
         return {"family": family.strip(), "given": given.strip()}
     parts = name.split()
     if len(parts) == 1:
         return {"family": parts[0]}
-    # Heuristic: last token is family in Western convention; "et al."
-    # / "and colleagues" / year-only tokens get dropped from the given
-    # field.
-    drop = {"et", "al.", "al", "and", "colleagues", "co-authors"}
-    given_parts = [p for p in parts[:-1] if p.lower() not in drop and not p.isdigit()]
-    return {"family": parts[-1], "given": " ".join(given_parts)}
+    # Cannavec convention is "Surname [particle] INITIALS": the trailing
+    # all-caps token is the initials (the *given* field); everything
+    # before it is the (possibly particled) family name. If the last
+    # token is NOT initials, fall back to Western "given ... family".
+    last = parts[-1]
+    if _INITIALS_RE.match(last) and len(parts) >= 2:
+        return {"family": " ".join(parts[:-1]), "given": last}
+    return {"family": last, "given": " ".join(parts[:-1])}
 
 
-def _extract_authors_from_label(label: str) -> tuple[str, ...]:
-    """Pull author strings out of a Cannavec citation label.
+def _split_author_segment(segment: str) -> list[str]:
+    """Split one author *block* into individual authors.
 
-    The conventional label shape is ``"<Surname> <Year> — <Title>"`` or
-    ``"<Surname> <Year>, <Title>"``. We extract the leading surname token
-    and return it as the single-author list. Multi-author labels using
-    ``"<S1> & <S2>"`` or ``"<S1>, <S2>, <S3>"`` are also handled.
+    A block may join people with ``&`` or ``and`` (``"Gaoni Y &
+    Mechoulam R"``, ``"Lutz JA & de Wit H"``). Parenthetical asides
+    (``"Ofek O et al. (Bab I, Zimmer A)"``) and ``et al.`` markers are
+    dropped — they are not citable author names.
     """
-    # Strip year and trailing title body.
-    head = re.split(r"\s+(?:—|--|–|:|,|\()\s*", label, maxsplit=1)[0]
-    head = re.sub(r"\b\d{4}\b", "", head).strip()
-    if not head:
-        return ()
-    # Split on common separators.
-    parts = re.split(r"\s*(?:and|&|,)\s*", head)
+    segment = re.sub(r"\([^)]*\)", "", segment)         # drop parentheticals
+    segment = _ETAL_RE.sub("", segment).strip().strip(",").strip()
+    if not segment:
+        return []
     out: list[str] = []
-    for p in parts:
-        p = p.strip()
-        if p and p.lower() not in {"et al.", "et al", "the", "for", "a"}:
-            out.append(p)
-    return tuple(out)
+    for piece in re.split(r"\s*(?:&|\band\b)\s*", segment):
+        piece = piece.strip().strip(",").strip()
+        if piece:
+            out.append(piece)
+    return out
+
+
+def _parse_label(label: str) -> tuple[tuple[str, ...], str]:
+    """Derive ``(authors, journal)`` from a Cannavec citation label.
+
+    Cannavec labels follow two dominant conventions:
+
+    1. **Comma form** — ``"<Authors>, <Journal> <Year>[, <title>]"``
+       (e.g. ``"Pertwee RG, Br J Pharmacol 2008, ligand-binding ..."``).
+       The journal lives in the comma-segment that carries the 4-digit
+       year; everything before it is authors; everything after is title.
+
+    2. **Inline-year form** — ``"<Authors> <Year> [<Journal>] — <Title>
+       (<Journal>)"`` (e.g. ``"Devinsky 2017 — CBD in Dravet (NEJM)"`` or
+       ``"Bansal et al. 2022 Drug Metab Dispos — ..."``).
+
+    The cardinal rule (Constitution §I citation integrity, §XI Zotero
+    promise): a journal name or title fragment must NEVER be emitted as an
+    author. When the structure is ambiguous we prefer *fewer* authors over
+    fabricated ones.
+    """
+    label = label.strip()
+    if not label:
+        return (), ""
+
+    segments = [s.strip() for s in label.split(",")]
+    # Comma form: locate the first segment that carries a year — that is
+    # the "<Journal> <Year>" segment. Authors precede it.
+    if len(segments) >= 2:
+        for idx, seg in enumerate(segments):
+            if idx == 0:
+                # The leading segment is the author block; a bare year in
+                # it (rare) does not make it the journal segment.
+                continue
+            if _YEAR_RE.search(seg):
+                journal = _YEAR_RE.sub("", seg)
+                journal = re.sub(r"\([^)]*\)", "", journal)
+                # The journal name lives before any title separator; an
+                # em-dash / colon introduces the title, which must NOT leak
+                # into the journal field (mirrors _extract_inline_journal).
+                journal = re.split(r"\s*(?:—|--|–|:)\s*", journal, maxsplit=1)[0]
+                journal = re.sub(r"\s{2,}", " ", journal).strip()
+                authors: list[str] = []
+                for auth_seg in segments[:idx]:
+                    authors.extend(_split_author_segment(auth_seg))
+                return tuple(authors), journal
+
+    # Inline-year form (or no comma at all). Split on the first year.
+    m = _YEAR_RE.search(label)
+    if not m:
+        # No year and no journal-bearing comma segment → this is not an
+        # author-bearing citation label (e.g. a section/monograph title
+        # like "Adverse events", or an FDA-label stub). Emit no authors.
+        return (), ""
+    head = label[: m.start()].strip()
+    tail = label[m.end():].strip()
+    authors = _split_author_segment(head.rstrip("(").strip())
+    journal = _extract_inline_journal(tail)
+    return tuple(authors), journal
+
+
+def _extract_inline_journal(tail: str) -> str:
+    """Extract the journal from the post-year tail of an inline-year label.
+
+    Two placements occur:
+    - between the year and the em-dash: ``"... 2022 Drug Metab Dispos — t"``
+    - in a trailing parenthesis: ``"... — CBD in Dravet syndrome (NEJM)"``
+    """
+    tail = tail.lstrip(") ").strip()
+    # Trailing parenthesis wins when present (the canonical journal slot).
+    parens = re.findall(r"\(([^)]*)\)", tail)
+    if parens:
+        cand = parens[-1].split(",")[0].strip()
+        if cand:
+            return cand
+    # Otherwise the run between the year and the em-dash/colon is the
+    # journal hint — but only if it is short (a journal abbreviation),
+    # not a sentence (which would be the title).
+    before_dash = re.split(r"\s*(?:—|--|–|:)\s*", tail, maxsplit=1)[0].strip()
+    before_dash = before_dash.rstrip(".")
+    if before_dash and len(before_dash.split()) <= 6 and before_dash[:1].isupper():
+        return before_dash
+    return ""
 
 
 def _extract_year_from_label(label: str) -> int | None:
-    m = re.search(r"\b(19\d{2}|20\d{2})\b", label)
+    m = _YEAR_RE.search(label)
     if m:
         return int(m.group(1))
     return None
-
-
-def _extract_journal_from_label(label: str) -> str:
-    """Pull a journal hint from the citation label.
-
-    Cannavec labels often carry the journal name after the title
-    em-dash, but the convention is irregular. We only return a hint when
-    the label contains a recognizable journal abbreviation pattern.
-    """
-    # Conservative: if the label has " - <Journal>" or " (Journal Name)"
-    # we extract the trailing capitalised phrase.
-    m = re.search(r"[-—–]\s*([A-Z][A-Za-z][A-Za-z\s&]+(?:Journal|Med|"
-                  r"Lancet|JAMA|NEJM|BMJ|Nature|Cell|Science|Pharm\w*|"
-                  r"Cannabis\w*|Epilep\w*|Neuro\w*|Oncol\w*|Cardiol\w*|"
-                  r"Psychiat\w*|Hepatol\w*))\b",
-                  label)
-    if m:
-        return m.group(1).strip()
-    return ""
 
 
 def _bibtex_cite_key(citation: "Citation") -> str:
@@ -264,13 +350,25 @@ def bibliography_from_answer(answer: "Answer") -> tuple[BibliographyEntry, ...]:
 
 def _entry_from_citation(citation: "Citation",
                          *, answer: "Answer | None" = None) -> BibliographyEntry:
-    """Build a single BibliographyEntry from a Citation."""
+    """Build a single BibliographyEntry from a Citation.
+
+    Author and journal are derived from the label's *structure* (never by
+    naive comma tokenization) so the export drops cleanly into Zotero /
+    Mendeley with real surnames and the real journal — see
+    :func:`_parse_label`. Volume / issue / pages are emitted only when the
+    Citation carries them (the curated data model does not, so they are
+    left empty rather than fabricated).
+    """
+    authors, journal = _parse_label(citation.label)
     return BibliographyEntry(
         cite_key=_bibtex_cite_key(citation),
         title=citation.label,
-        authors=_extract_authors_from_label(citation.label),
+        authors=authors,
         year=citation.year or _extract_year_from_label(citation.label),
-        journal=_extract_journal_from_label(citation.label),
+        journal=journal,
+        volume=str(getattr(citation, "volume", "") or ""),
+        issue=str(getattr(citation, "issue", "") or ""),
+        pages=str(getattr(citation, "pages", "") or ""),
         pmid=citation.pmid,
         doi=citation.doi,
         url=citation.url,
@@ -282,8 +380,20 @@ def _entry_from_citation(citation: "Citation",
 # ── Renderers ──────────────────────────────────────────────────────────
 
 
+def _split_pages(pages: str) -> tuple[str, str]:
+    """Split a page range ``"2011-2020"`` into ``("2011", "2020")``.
+
+    Accepts hyphen, en-dash, or em-dash separators. A single page (no
+    separator) returns ``(page, "")`` so the RIS ``EP`` line is omitted.
+    """
+    m = re.match(r"\s*([0-9A-Za-z]+)\s*[-–—]\s*([0-9A-Za-z]+)\s*$", pages)
+    if m:
+        return m.group(1), m.group(2)
+    return pages.strip(), ""
+
+
 def _bibtex_escape(s: str) -> str:
-    """Escape BibTeX metacharacters in field values.
+    r"""Escape BibTeX metacharacters in field values.
 
     Conservative: BibTeX treats ``{`` / ``}`` / ``%`` / ``\`` /
     ``#`` specially. We wrap the whole field in braces so most
@@ -303,8 +413,9 @@ def render_bibtex(entries: Iterable[BibliographyEntry]) -> str:
     """Render a sequence of :class:`BibliographyEntry` as a BibTeX file.
 
     Each entry is one ``@article{...}`` record with the fields
-    ``title``, ``author``, ``year``, ``journal``, ``pmid``, ``doi``,
-    ``url``, ``note``. Empty fields are omitted.
+    ``title``, ``author``, ``year``, ``journal``, ``volume``,
+    ``number``, ``pages``, ``pmid``, ``doi``, ``url``, ``note``. Empty
+    fields are omitted.
     """
     lines: list[str] = []
     lines.append("% Cannavec Science bibliography — BibTeX export")
@@ -321,6 +432,12 @@ def render_bibtex(entries: Iterable[BibliographyEntry]) -> str:
             lines.append(f"  year    = {{{e.year}}},")
         if e.journal:
             lines.append(f"  journal = {{{_bibtex_escape(e.journal)}}},")
+        if e.volume:
+            lines.append(f"  volume  = {{{_bibtex_escape(e.volume)}}},")
+        if e.issue:
+            lines.append(f"  number  = {{{_bibtex_escape(e.issue)}}},")
+        if e.pages:
+            lines.append(f"  pages   = {{{_bibtex_escape(e.pages)}}},")
         if e.pmid:
             lines.append(f"  pmid    = {{{_bibtex_escape(e.pmid)}}},")
         if e.doi:
@@ -349,7 +466,10 @@ def render_ris(entries: Iterable[BibliographyEntry]) -> str:
     ``TI  - <title>``
     ``AU  - <author>`` (one per line)
     ``PY  - <year>``
-    ``JF  - <journal>``
+    ``JO  - <journal>``
+    ``VL  - <volume>``
+    ``IS  - <issue>``
+    ``SP  - <start page>`` / ``EP  - <end page>``
     ``M2  - PMID:<pmid>`` (the de-facto PMID line in Zotero RIS exports)
     ``DO  - <doi>``
     ``UR  - <url>``
@@ -365,7 +485,16 @@ def render_ris(entries: Iterable[BibliographyEntry]) -> str:
         if e.year is not None:
             lines.append(f"PY  - {e.year}")
         if e.journal:
-            lines.append(f"JF  - {e.journal}")
+            lines.append(f"JO  - {e.journal}")
+        if e.volume:
+            lines.append(f"VL  - {e.volume}")
+        if e.issue:
+            lines.append(f"IS  - {e.issue}")
+        if e.pages:
+            start, end = _split_pages(e.pages)
+            lines.append(f"SP  - {start}")
+            if end:
+                lines.append(f"EP  - {end}")
         if e.pmid:
             lines.append(f"M2  - PMID:{e.pmid}")
         if e.doi:

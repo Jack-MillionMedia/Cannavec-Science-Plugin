@@ -951,18 +951,28 @@ def _cmd_bibliography(args: argparse.Namespace) -> int:
     from cannavec_science.answer import Answer, Citation
     from cannavec_science.evidence import EvidenceLevel
 
-    payload = json.loads(Path(args.answer_json).read_text(encoding="utf-8"))
-    citations = [
-        Citation(
-            label=c["label"],
-            pmid=c.get("pmid"),
-            doi=c.get("doi"),
-            url=c.get("url"),
-            year=c.get("year"),
-            grade=EvidenceLevel(c["grade"]) if c.get("grade") else None,
-        )
-        for c in payload.get("citations", [])
-    ]
+    try:
+        payload = json.loads(Path(args.answer_json).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"[error] cannot read answer JSON {args.answer_json!r}: {exc}",
+              file=sys.stderr)
+        return 2
+    try:
+        citations = [
+            Citation(
+                label=c["label"],
+                pmid=c.get("pmid"),
+                doi=c.get("doi"),
+                url=c.get("url"),
+                year=c.get("year"),
+                grade=EvidenceLevel(c["grade"]) if c.get("grade") else None,
+            )
+            for c in payload.get("citations", [])
+        ]
+    except (KeyError, TypeError, ValueError) as exc:
+        print(f"[error] malformed citation in {args.answer_json!r}: {exc}",
+              file=sys.stderr)
+        return 2
     # _entry_from_citation accepts ``answer`` only as a keyword argument
     # (its evidence-level lookup uses Answer.claims). Re-rendering from a
     # saved Answer JSON does not reconstruct the Claim graph, so pass
