@@ -151,6 +151,17 @@ class UrlBuildingTests(unittest.TestCase):
         url = fetcher.calls[0]
         self.assertIn("OPEN_ACCESS", url)
 
+    def test_url_omits_sort_param(self):
+        # Regression: a `sort=` token (e.g. the legacy `FIRST_PDATE desc`) is
+        # silently REJECTED by the current Europe PMC REST API — it returns a
+        # degenerate `{"version": ...}` body with no resultList, so every query
+        # returned zero hits and the lane was dead. We rely on the default
+        # RELEVANCE ranking and pass no sort param; assert it stays out of the
+        # URL so the lane cannot regress to the silent-failure mode.
+        fetcher = _stub_fetcher(_make_payload([]))
+        EuropePMCSearcher(fetcher=fetcher).search("CBD", max_results=3)
+        self.assertNotIn("sort=", fetcher.calls[0])
+
 
 # ── Edge cases / error paths ──────────────────────────────────────────
 
@@ -165,6 +176,14 @@ class ErrorPathTests(unittest.TestCase):
         s = EuropePMCSearcher(fetcher=_stub_fetcher("{}"))
         with self.assertRaises(ValueError):
             s.search("CBD", since="not-a-date")
+
+    def test_degenerate_version_only_payload_returns_empty(self):
+        # The EXACT real-world failure mode that killed the lane: Europe PMC
+        # returns `{"version": "6.9"}` (well-formed JSON, but no resultList and
+        # no hitCount) for a malformed request. The lane must degrade to zero
+        # hits gracefully, never raise.
+        s = EuropePMCSearcher(fetcher=_stub_fetcher('{"version": "6.9"}'))
+        self.assertEqual(s.search("CBD", max_results=3), ())
 
     def test_unparseable_json_returns_empty(self):
         s = EuropePMCSearcher(fetcher=_stub_fetcher("not json {{{"))

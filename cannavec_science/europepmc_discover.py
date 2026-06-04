@@ -253,10 +253,19 @@ class EuropePMCSearcher:
         open_access_only: bool,
     ) -> str:
         # Europe PMC query syntax is rich; we use a minimal subset for
-        # the cannabis-research use case: the raw user query plus
-        # optional date floor + optional open-access filter. Sorting
-        # by publication date (most recent first) matches the PubMed
-        # lane.
+        # the cannabis-research use case: the raw user query plus an
+        # optional date floor + optional open-access filter.
+        #
+        # We deliberately pass NO ``sort`` parameter and rely on Europe PMC's
+        # default RELEVANCE ranking. The current Europe PMC REST API silently
+        # returns a degenerate ``{"version": ...}`` body — no ``resultList``,
+        # no ``hitCount`` — for an unrecognised sort token (e.g. the legacy
+        # ``FIRST_PDATE desc`` / ``P_PDATE_D``) instead of an HTTP error, which
+        # had silently killed this lane (every query returned zero hits).
+        # Relevance is robust to that and is the right default for a
+        # research-lead surface; a date floor is still available via ``since``
+        # (``FIRST_PDATE:[since TO *]`` is QUERY syntax, not sort syntax, and is
+        # accepted). See tests/test_europepmc_discover.py::test_url_omits_sort_*.
         terms: list[str] = [query.strip()]
         if since is not None:
             # Europe PMC accepts FIRST_PDATE:[2023-01-01 TO *]
@@ -269,7 +278,6 @@ class EuropePMCSearcher:
             f"{_EUROPEPMC_SEARCH_URL}"
             f"&query={urllib.parse.quote(compound_query)}"
             f"&pageSize={page_size}"
-            f"&sort=FIRST_PDATE+desc"
         )
 
     # ── Parsing ───────────────────────────────────────────────────
