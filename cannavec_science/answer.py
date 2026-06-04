@@ -1677,6 +1677,15 @@ def compose_answer(
         for row in matched_endocrine_rows:
             _attach_claim_safely(a, row, retraction_policy)
 
+        # c04 — the population detector fans a seizure/epilepsy keyword out to
+        # all three paediatric epilepsy rows (Dravet / LGS / TSC) for recall;
+        # when the prompt names a *specific* sub-condition, drop the sibling
+        # efficacy claims so a citation binds to a claim only for the indication
+        # the prompt actually named. Runs after every primary attach (so it sees
+        # the full sibling set) and before the MECHANISM block + all downstream
+        # BLUF / grade / zero-claim consumers, which key off ``a.claims``.
+        _drop_wrong_sibling_indication_claims(a, prompt)
+
         # c08 — when the question is specifically about MECHANISM ("CBD at
         # 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding affinity", "CBG α2-adrenoceptor",
         # "THCV CB1"), surface the matched cannabinoid's curated receptor
@@ -2440,6 +2449,17 @@ def _attach_claim_safely(
 _RETRIEVAL_FALLBACK_K = 6
 
 
+# c04 — the curated epilepsy family (Dravet / LGS / TSC) is the one place where
+# several curated indications share a broader family tag ('epilepsy'), so a
+# plain indication-tag intersection cannot separate a query for one
+# sub-condition from a sibling's claim. These specific sub-tags drive the
+# sibling-precision filter (``_drop_wrong_sibling_indication_claims``) and the
+# matching refinement inside ``_recovered_claim_is_wrong_indication``.
+_SPECIFIC_INDICATION_SUBTAGS: "frozenset[str]" = frozenset(
+    {"dravet", "lennox-gastaut", "tsc"}
+)
+
+
 def _recovered_claim_is_wrong_indication(
     claim: Claim,
     prompt_indications: "frozenset[str]",
@@ -2462,16 +2482,17 @@ def _recovered_claim_is_wrong_indication(
       mechanism / phytochemistry — the driving, CYP, CHS, withdrawal rows the
       retrieval layer exists to recover) are never gated; they answer the
       question regardless of indication.
-    - It fires only when the prompt actually NAMES a recognised condition
-      (``prompt_indications`` non-empty) AND none of those condition tags
-      overlap the claim's own condition tags. A query that names no condition
-      cannot signal a mismatch, so the claim passes (unchanged behaviour).
+    - For a condition-specific claim (its own ``indication_terms`` are
+      non-empty), it fires when the prompt's condition tags do NOT overlap the
+      claim's — including the case where the prompt names NO condition at all
+      (a condition-less query must not be answered with a specific
+      clinical-efficacy claim recovered by BM25; that is the retrieval layer
+      overreaching). A claim that itself names no recognised condition is kept
+      (we cannot prove a mismatch).
     """
     from cannavec_science.intent import indication_terms
 
     if claim.claim_type != ClaimType.CLINICAL_EFFICACY or not claim.population:
-        return False
-    if not prompt_indications:
         return False
     claim_indications = indication_terms(
         f"{claim.population} {claim.text}"
@@ -2481,7 +2502,75 @@ def _recovered_claim_is_wrong_indication(
     # condition is *known and different*).
     if not claim_indications:
         return False
+    # The claim IS about a specific condition. If the prompt names NO condition
+    # at all, a condition-specific clinical-efficacy claim surfaced by BM25 is
+    # answering a question the user did not ask — e.g. a generic "muscle spasm"
+    # / assay-timing query ("...200 ms after stimulation") recovering the
+    # MS-spasticity nabiximols claim (Level B). The retrieval layer exists for
+    # condition-AGNOSTIC recoveries (driving / CYP / PK), not for binding a
+    # specific clinical-efficacy claim to a condition-less query — so drop it.
+    if not prompt_indications:
+        return True
+    # Sub-tag precision (c04): siblings in one condition family share the family
+    # tag (Dravet / LGS / TSC all carry 'epilepsy'), so a plain intersection
+    # cannot tell "CBD for TSC" apart from the Dravet row. When the prompt names
+    # a *specific* sub-condition and the claim is about a *different* specific
+    # sub-condition, it is the wrong indication even though the family tag
+    # overlaps. (When the prompt names no specific sub-tag, this is inert and the
+    # original family-level intersection governs — broad-query recall preserved.)
+    prompt_specific = prompt_indications & _SPECIFIC_INDICATION_SUBTAGS
+    claim_specific = claim_indications & _SPECIFIC_INDICATION_SUBTAGS
+    if prompt_specific and claim_specific and not (prompt_specific & claim_specific):
+        return True
     return not (prompt_indications & claim_indications)
+
+
+def _drop_wrong_sibling_indication_claims(a: Answer, prompt: str) -> int:
+    """Drop efficacy claims for the WRONG sibling sub-condition (closes c04).
+
+    The population detector is deliberately high-recall: a seizure/epilepsy
+    keyword fans out to all three paediatric epilepsy rows (Dravet, LGS, TSC)
+    because they share the 'epilepsy' family tag. When the prompt names a
+    *specific* sub-condition, only that sub-condition's clinical-efficacy claim
+    is on-topic — the siblings are real, correctly-cited rows that answer a
+    *different* question (e.g. "CBD for TSC seizures" must not lead the BLUF
+    with the Dravet trial's 10-20 mg/kg/day convulsive-seizure numbers).
+
+    This guards the PRIMARY detector attach path; the BM25 recovery path applies
+    the same sub-tag rule via ``_recovered_claim_is_wrong_indication``. A dropped
+    sibling's CITATIONS stay in the bibliography (attached upstream, independent
+    of claim gating — §I); only Cannavec's own answer-claim is withheld.
+
+    No-op when the prompt names no specific sub-condition (a broad "CBD for
+    epilepsy" / "CBD for seizures" keeps all three — recall preserved). Returns
+    the number of claims dropped, also recorded as the
+    ``binding.wrong_sibling_dropped`` trace counter (fail-loud, no silent
+    swallow).
+    """
+    from cannavec_science.intent import indication_terms
+
+    prompt_specific = indication_terms(prompt) & _SPECIFIC_INDICATION_SUBTAGS
+    if not prompt_specific:
+        return 0
+    kept: list[Claim] = []
+    dropped = 0
+    for claim in a.claims:
+        if (
+            claim.claim_type == ClaimType.CLINICAL_EFFICACY
+            and claim.population
+        ):
+            claim_specific = (
+                indication_terms(f"{claim.population} {claim.text}")
+                & _SPECIFIC_INDICATION_SUBTAGS
+            )
+            if claim_specific and not (claim_specific & prompt_specific):
+                dropped += 1
+                continue
+        kept.append(claim)
+    if dropped:
+        a.claims = kept
+        a.add_trace("binding.wrong_sibling_dropped", dropped)
+    return dropped
 
 
 def _augment_with_retrieval(

@@ -31,7 +31,12 @@ from __future__ import annotations
 
 import unittest
 
-from cannavec_science.answer import compose_answer
+from cannavec_science.answer import (
+    _recovered_claim_is_wrong_indication,
+    compose_answer,
+)
+from cannavec_science.evidence import Claim, ClaimType
+from cannavec_science.intent import indication_terms
 
 
 def _recovered(a) -> int:
@@ -223,6 +228,139 @@ class EffectEstimatePrecisionAtCitationSite(unittest.TestCase):
                 "effect_estimates", c,
                 "effect block attached to a non-populations claim",
             )
+
+
+# ── c04 same-family sibling leak (binding precision on the PRIMARY path) ─────
+
+
+class SiblingIndicationPrecision(unittest.TestCase):
+    """A query naming a *specific* epilepsy sub-condition must not be answered
+    with a sibling sub-condition's efficacy claim.
+
+    The population detector fans a seizure/epilepsy keyword out to all three
+    paediatric epilepsy rows (Dravet / LGS / TSC) because they share the
+    'epilepsy' family tag — high recall. When the prompt names a specific
+    member, the siblings are real, correctly-cited rows that answer a
+    *different* question, and must be dropped at composition time (c04).
+    """
+
+    _TSC = "paediatric tuberous sclerosis complex (TSC)"
+    _DRAVET = "paediatric Dravet syndrome"
+    _LGS = "paediatric Lennox-Gastaut syndrome"
+
+    def test_tsc_seizures_query_drops_dravet_and_lgs_siblings(self):
+        a = compose_answer("What is the trial evidence for CBD in TSC seizures?")
+        self.assertEqual(_efficacy_populations(a), [self._TSC])
+
+    def test_tsc_seizures_short_answer_leads_with_tsc_not_dravet(self):
+        a = compose_answer("What is the trial evidence for CBD in TSC seizures?")
+        sa = a.short_answer.lower()
+        self.assertIn("tuberous", sa)
+        # The Dravet trial's dose / endpoint / PMID must NOT lead the BLUF.
+        self.assertNotIn("10-20 mg/kg", sa)
+        self.assertNotIn("convulsive seizure", sa)
+        self.assertNotIn("28538134", a.short_answer)
+
+    def test_dravet_query_drops_lgs_and_tsc_siblings(self):
+        a = compose_answer("CBD efficacy for Dravet syndrome convulsive seizures")
+        self.assertEqual(_efficacy_populations(a), [self._DRAVET])
+
+    def test_dravet_and_lgs_named_keeps_both_drops_tsc(self):
+        a = compose_answer("CBD for Dravet and Lennox-Gastaut seizures")
+        pops = set(_efficacy_populations(a))
+        self.assertIn(self._DRAVET, pops)
+        self.assertIn(self._LGS, pops)
+        self.assertNotIn(self._TSC, pops)
+
+    def test_wrong_sibling_drop_is_traced(self):
+        # TSC-seizures drops exactly the two siblings (Dravet + LGS) — recorded
+        # as a fail-loud trace counter, never silently swallowed.
+        a = compose_answer("What is the trial evidence for CBD in TSC seizures?")
+        dropped = sum(
+            h for d, h in a.trace if d == "binding.wrong_sibling_dropped"
+        )
+        self.assertEqual(dropped, 2)
+
+    def test_dropped_sibling_citation_still_in_bibliography(self):
+        # §I: the Dravet trial's CLAIM is dropped, but its CITATION stays in the
+        # evidence base (attached upstream, independent of claim gating). Assert
+        # BOTH halves so the test genuinely pins the drop-preserves-citation
+        # invariant (not just that the citation is present regardless).
+        a = compose_answer("What is the trial evidence for CBD in TSC seizures?")
+        self.assertNotIn("paediatric Dravet syndrome", _efficacy_populations(a))
+        pmids = [c.pmid for c in a.citations if getattr(c, "pmid", None)]
+        self.assertIn("28538134", pmids)
+
+
+class SiblingFilterPreservesRecallAndUnrelated(unittest.TestCase):
+    """The sibling filter is a no-op unless the prompt names a specific
+    sub-condition — broad queries keep all three rows, and unrelated curated
+    conditions are never touched."""
+
+    _ALL_THREE = {
+        "paediatric Dravet syndrome",
+        "paediatric Lennox-Gastaut syndrome",
+        "paediatric tuberous sclerosis complex (TSC)",
+    }
+
+    def test_broad_epilepsy_query_keeps_all_three_rows(self):
+        a = compose_answer("What is the evidence for CBD in epilepsy?")
+        self.assertEqual(set(_efficacy_populations(a)), self._ALL_THREE)
+
+    def test_broad_seizures_query_keeps_all_three_rows(self):
+        a = compose_answer("What does CBD do for seizures?")
+        self.assertEqual(set(_efficacy_populations(a)), self._ALL_THREE)
+
+    def test_neuropathic_pain_query_unaffected(self):
+        a = compose_answer("THC for chronic neuropathic pain")
+        self.assertIn("adult chronic neuropathic pain", _efficacy_populations(a))
+
+    def test_existing_tourette_disjoint_case_still_blocked(self):
+        # The original disjoint-tag defect (retrieval path) must still be
+        # blocked once the primary-path sibling filter is in place.
+        a = compose_answer("cannabidiol for Tourette syndrome tics")
+        self.assertEqual(_efficacy_populations(a), [])
+
+
+class RecoveredClaimWrongIndicationUnit(unittest.TestCase):
+    """Direct unit coverage for the BM25 recovery-path guard. compose_answer's
+    primary sibling drop usually removes wrong siblings before this runs, so the
+    guard would otherwise be untested (a dead §I safeguard could rot). These
+    pin the sub-tag rule AND the no-condition-prompt rule at the unit level."""
+
+    def _dravet_claim(self) -> Claim:
+        return Claim(
+            text=("cannabidiol has trial-supported evidence for convulsive "
+                  "seizures"),
+            claim_type=ClaimType.CLINICAL_EFFICACY,
+            population="paediatric Dravet syndrome",
+        )
+
+    def test_tsc_prompt_rejects_dravet_sibling(self):
+        # Sub-tag precision: {tsc} prompt vs {dravet} claim (share 'epilepsy').
+        self.assertTrue(_recovered_claim_is_wrong_indication(
+            self._dravet_claim(), indication_terms("CBD for TSC")))
+
+    def test_dravet_prompt_keeps_dravet_claim(self):
+        self.assertFalse(_recovered_claim_is_wrong_indication(
+            self._dravet_claim(), indication_terms("CBD for Dravet syndrome")))
+
+    def test_broad_epilepsy_prompt_keeps_dravet_claim(self):
+        self.assertFalse(_recovered_claim_is_wrong_indication(
+            self._dravet_claim(), indication_terms("CBD for epilepsy")))
+
+    def test_condition_less_prompt_rejects_specific_efficacy_claim(self):
+        # A query naming no condition must not recover a condition-specific
+        # efficacy claim (the BM25 MS-spasticity / muscle-spasm leak).
+        self.assertTrue(_recovered_claim_is_wrong_indication(
+            self._dravet_claim(),
+            indication_terms("muscle spasm 200 ms after dosing")))
+
+    def test_condition_agnostic_claim_never_gated(self):
+        c = Claim(text="THC inhibits CYP2C9",
+                  claim_type=ClaimType.DRUG_INTERACTION)
+        self.assertFalse(_recovered_claim_is_wrong_indication(
+            c, indication_terms("CBD for TSC")))
 
 
 if __name__ == "__main__":
