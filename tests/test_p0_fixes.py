@@ -84,28 +84,40 @@ class TestC04TscCitation(unittest.TestCase):
                     )
 
 
-@unittest.skip(
-    "c08 deferred (audit P1): the BM25 fallback recovers a Δ⁹-THC CB1-"
-    "desensitization MECHANISM row for a CBD/5-HT1A/TRPV1 query. The row "
-    "genuinely discusses the THC:CBD ratio (so its text names BOTH "
-    "cannabinoids), defeating a compound-scope guard; and it is about CB1, "
-    "not the queried 5-HT1A/TRPV1. The correct fix is receptor-aware "
-    "fallback relevance and/or promoting CBD's 5-HT1A (Russo 2005, PMID "
-    "16258853) + TRPV1 (Bisogno 2001, PMID 11606325) receptor activity to "
-    "first-class retrievable claims — a recall change tracked separately, "
-    "not a fragile guard bundled here."
-)
 class TestC08CompoundScope(unittest.TestCase):
-    """c08 — a CBD-named mechanism query must not surface a Δ⁹-THC-only claim."""
+    """c08 (fixed in P1) — a CBD mechanism query surfaces CBD's own receptor
+    activity as first-class typed claims and no longer recovers an off-target
+    Δ⁹-THC CB1-desensitization claim via the thin-answer BM25 fallback."""
 
-    def test_cbd_mechanism_query_excludes_thc_desensitization_claim(self):
-        a = compose_answer("CBD mechanism at 5-HT1A and TRPV1 receptors")
+    def _cbd_mechanism_answer(self):
+        return compose_answer("CBD mechanism at 5-HT1A and TRPV1 receptors")
+
+    def test_excludes_offtarget_thc_desensitization_claim(self):
+        a = self._cbd_mechanism_answer()
         for c in a.claims:
             self.assertNotIn(
                 "homologous desensitization", c.text,
-                "a CBD query must not surface the Δ⁹-THC CB1-desensitization "
-                "claim (wrong compound)",
+                "a CBD mechanism query must not surface the Δ⁹-THC CB1-"
+                "desensitization claim (off-target / wrong compound)",
             )
+
+    def test_surfaces_cbd_5ht1a_and_trpv1_mechanism_claims(self):
+        a = self._cbd_mechanism_answer()
+        texts = " ||| ".join(c.text for c in a.claims)
+        self.assertIn(
+            "5-HT1A", texts,
+            "CBD's 5-HT1A receptor activity (Russo 2005) must surface as a "
+            "typed mechanism claim",
+        )
+        self.assertIn(
+            "TRPV1", texts,
+            "CBD's TRPV1 receptor activity (Bisogno 2001) must surface as a "
+            "typed mechanism claim",
+        )
+        # the on-target claims must carry their primary-source citations
+        pmids = {s.pmid for c in a.claims for s in c.sources if s.pmid}
+        self.assertIn("16258853", pmids, "Russo 2005 (CBD/5-HT1A) must be cited")
+        self.assertIn("11606325", pmids, "Bisogno 2001 (CBD/TRPV1) must be cited")
 
 
 class TestD5GradeLevelACap(unittest.TestCase):
