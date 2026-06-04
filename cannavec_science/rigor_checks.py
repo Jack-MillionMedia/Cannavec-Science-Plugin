@@ -271,8 +271,39 @@ _RECEPTOR_PATTERNS: tuple[tuple[str, Pattern[str]], ...] = tuple(
 )
 
 
+# A `.` that belongs to a dotted route abbreviation (p.o., i.v., s.c.,
+# …) is NOT a sentence boundary. The dotted forms all have the shape
+# `<letter>.<letter>.` — two single-letter segments each closed by a
+# period. The period at index ``i`` can be EITHER the inner period
+# (``p|.|o.``) or the trailing period (``p.o|.|``); we match both.
+_ROUTE_ABBREV_HEAD = re.compile(r"^[a-z]\.[a-z]\.", re.IGNORECASE)
+_ROUTE_ABBREV_TAIL = re.compile(r"[a-z]\.[a-z]\.$", re.IGNORECASE)
+
+
+def _is_route_abbrev_period(text: str, i: int) -> bool:
+    """True if ``text[i]`` is a period that is part of a dotted route
+    abbreviation (``p.o.``, ``i.v.``, ``s.c.``, …) and therefore must
+    NOT be treated as a sentence boundary.
+
+    A dotted route abbreviation is exactly ``<letter>.<letter>.``. The
+    period at ``i`` qualifies if it is the FIRST period (the 4-char run
+    starting one char back is ``p.o.``) or the SECOND period (the 4-char
+    run ending here is ``p.o.``).
+    """
+    if i >= len(text) or text[i] != ".":
+        return False
+    # i is the first period: text[i-1 : i+3] == "p.o."
+    if _ROUTE_ABBREV_HEAD.match(text[max(0, i - 1):i + 3]):
+        return True
+    # i is the second period: text[i-3 : i+1] == "p.o."
+    if _ROUTE_ABBREV_TAIL.search(text[max(0, i - 3):i + 1]):
+        return True
+    return False
+
+
 def _sentence_window_bounds(text: str, span: tuple[int, int],
-                            radius: int = 140) -> tuple[int, int]:
+                            radius: int = 140,
+                            abbrev_safe: bool = False) -> tuple[int, int]:
     """Return the (start, end) bounds of the sentence-window around ``span``.
 
     Walks outward from ``span`` until either a sentence-boundary
@@ -280,27 +311,47 @@ def _sentence_window_bounds(text: str, span: tuple[int, int],
     have been consumed. The returned bounds are absolute offsets into
     ``text`` — callers that need the slice should call
     :func:`_sentence_window` (a thin wrapper that returns ``text[start:end]``).
+
+    When ``abbrev_safe`` is True, periods that belong to a dotted route
+    abbreviation (``p.o.``, ``i.v.``, …) are stepped over rather than
+    treated as boundaries. This keeps the dose-route detector from
+    chopping "1-2 mg p.o." mid-abbreviation while leaving the receptor /
+    entourage detectors' strict per-sentence isolation unchanged.
     """
     start = span[0]
     end = span[1]
+
+    def _is_boundary(idx: int) -> bool:
+        ch = text[idx]
+        if ch == "\n":
+            return True
+        if ch == ".":
+            if abbrev_safe and _is_route_abbrev_period(text, idx):
+                return False
+            return True
+        return False
+
     # Walk back to a sentence boundary or `radius` chars.
     left = start
-    while left > 0 and left > start - radius and text[left - 1] not in ".\n":
+    while left > 0 and left > start - radius and not _is_boundary(left - 1):
         left -= 1
     right = end
     while (right < len(text) and right < end + radius
-           and text[right] not in ".\n"):
+           and not _is_boundary(right)):
         right += 1
     return left, right
 
 
 def _sentence_window(text: str, span: tuple[int, int],
-                     radius: int = 140) -> str:
+                     radius: int = 140,
+                     abbrev_safe: bool = False) -> str:
     """Return the surrounding text within `radius` chars (or to a period/
     newline boundary, whichever is closer). Used to ask whether an
     identifier appears alongside the receptor mention.
+
+    ``abbrev_safe`` is forwarded to :func:`_sentence_window_bounds`.
     """
-    left, right = _sentence_window_bounds(text, span, radius)
+    left, right = _sentence_window_bounds(text, span, radius, abbrev_safe)
     return text[left:right]
 
 
@@ -387,26 +438,46 @@ _DOSE_EXPRESSION = re.compile(
 )
 
 # Route-of-administration tokens that satisfy the requirement.
-# Abbreviation forms (p.o., s.l., i.v., i.m., i.p., i.n., p.r.) require
-# the literal periods so the regex does not collide with English words
-# like the preposition "in", the abbreviation "im", etc. Spelled-out
-# forms (oral, intranasal, intramuscular, ...) match without periods.
+#
+# Three families, each with a distinct boundary strategy:
+#
+# 1. Spelled-out forms (oral, intranasal, intramuscular, …) — match
+#    case-insensitively with word boundaries on both sides.
+# 2. Dotted abbreviations (p.o., s.l., i.v., i.m., i.p., i.n., s.c.,
+#    p.r., s.q.) — the literal trailing period IS the terminator, so we
+#    require a leading word boundary but NOT a trailing `\b` (a `\b`
+#    after a literal `.` can never match before whitespace — that bug
+#    made every dotted form dead code). A negative lookahead `(?!\w)`
+#    keeps "i.v." from matching inside "i.various".
+# 3. Bare two-letter abbreviations (PO IV IM SC SL IN IP PR SQ IT) — the
+#    canonical way clinical dosing tables write the route ("20 mg PO").
+#    Matched CASE-SENSITIVELY (`(?-i:…)`) and as standalone tokens so
+#    they do not collide with the English words "in", "im", "is", "it",
+#    or substrings of "important"/"impact"/"amount". Uppercase-only is
+#    the precision guard: real dosing notation capitalises these.
 _ROUTE_TOKEN = re.compile(
-    r"\b(?:oral(?:ly)?|p\.o\.|inhal(?:ed|ation)|smok(?:ed|ing)|"
+    # 1. Spelled-out routes.
+    r"\b(?:oral(?:ly)?|inhal(?:ed|ation)|smok(?:ed|ing)|"
     r"vape(?:d|s|r)?|vaping|vapor(?:ised|ized)|vaporis(?:ed|er)|"
-    r"sublingual(?:ly)?|s\.l\.|"
+    r"sublingual(?:ly)?|"
     r"topical(?:ly)?|transdermal(?:ly)?|"
-    r"rectal(?:ly)?|p\.r\.|"
-    r"intra(?:venous|muscular|peritoneal|nasal)(?:ly)?|"
-    r"i\.v\.|i\.m\.|i\.p\.|i\.n\.|"
+    r"rectal(?:ly)?|"
+    r"intra(?:venous|muscular|peritoneal|nasal|thecal)(?:ly)?|"
+    r"subcutaneous(?:ly)?|subcut\b|"
+    r"by\s+mouth|per\s+os|"
     r"buccal(?:ly)?|"
     r"mucosal|oromucosal|"
     r"capsule|softgel|"
     r"tincture|edible|gummy|"
     r"spray\b|"
-    r"injection|infused|infusion|"
+    r"injection|injected|infused|infusion|"
     r"oil drops?|oil\s+capsule|"
-    r"via the [a-z]+ route)\b",
+    r"via the [a-z]+ route)\b"
+    # 2. Dotted abbreviations — leading boundary, no trailing `\b`.
+    r"|\b(?:p\.o\.|s\.l\.|i\.v\.|i\.m\.|i\.p\.|i\.n\.|"
+    r"s\.c\.|p\.r\.|s\.q\.|i\.t\.)(?!\w)"
+    # 3. Bare uppercase abbreviations — case-sensitive island.
+    r"|\b(?-i:PO|IV|IM|SC|SL|IN|IP|PR|SQ|IT)\b",
     re.IGNORECASE,
 )
 
@@ -462,7 +533,8 @@ def detect_missing_dose_route(text: str) -> tuple[DoseRouteViolation, ...]:
     """
     out: list[DoseRouteViolation] = []
     for m in _DOSE_EXPRESSION.finditer(text):
-        window = _sentence_window(text, m.span(), radius=140)
+        window = _sentence_window(text, m.span(), radius=140,
+                                  abbrev_safe=True)
         if _NON_CLINICAL_DOSE_HINT.search(window):
             continue
         if _ROUTE_TOKEN.search(window):
@@ -474,6 +546,141 @@ def detect_missing_dose_route(text: str) -> tuple[DoseRouteViolation, ...]:
             dose=m.group(0).strip(),
             span=m.span(),
             sentence=ctx,
+        ))
+    out.sort(key=lambda v: v.span[0])
+    return tuple(out)
+
+
+# ── Isomer-equivalence detector ───────────────────────────────────────
+#
+# Catches the explicit error of asserting two pharmacologically DISTINCT
+# cannabinoids are the same: "THC and THCA are the same",
+# "delta-8 and delta-9 THC are identical", "THC and CBD are
+# interchangeable". This is the inverse of `detect_isomer_collapse`
+# (which catches a *bare* name in pharmacology context): here the author
+# has named both members of a distinct pair and wrongly equated them.
+#
+# Conservative by construction — it fires ONLY on an explicit
+# equivalence assertion ("are the same / identical / interchangeable /
+# equivalent", or the transposed "X is the same as Y") joining two
+# members of a CURATED distinct-pair set. Correct precursor/conversion
+# language ("THCA is the precursor of THC; it decarboxylates to THC")
+# and "are different" statements never fire.
+
+# Canonicalise a matched cannabinoid token to a small set of identity
+# keys so that, e.g., "Δ⁹-THC", "delta-9-THC" and "delta 9 thc" all map
+# to the same key, distinct from "Δ⁸-THC". Order matters: the more
+# specific patterns (acids, delta isomers) are tested before bare THC.
+_EQUIV_CANNABINOID_KEYS: tuple[tuple[Pattern[str], str], ...] = (
+    (re.compile(r"\bthca\b", re.IGNORECASE), "THCA"),
+    (re.compile(r"\bcbda\b", re.IGNORECASE), "CBDA"),
+    (re.compile(r"(?:Δ|delta[-\s]?)8(?:[-\s]?thc)?\b", re.IGNORECASE), "D8THC"),
+    (re.compile(r"(?:Δ|delta[-\s]?)9(?:[-\s]?thc)?\b", re.IGNORECASE), "D9THC"),
+    (re.compile(r"\bthcv\b", re.IGNORECASE), "THCV"),
+    (re.compile(r"\bcbdv\b", re.IGNORECASE), "CBDV"),
+    (re.compile(r"\bcbn\b", re.IGNORECASE), "CBN"),
+    (re.compile(r"\bcbg\b", re.IGNORECASE), "CBG"),
+    (re.compile(r"\bcbd\b", re.IGNORECASE), "CBD"),
+    (re.compile(r"\bthc\b", re.IGNORECASE), "THC"),
+)
+
+# Pairs of identity keys that are pharmacologically DISTINCT and must
+# never be called identical. Stored as frozensets for order-independent
+# membership testing.
+_DISTINCT_PAIRS: frozenset[frozenset[str]] = frozenset({
+    frozenset({"THC", "THCA"}),          # decarboxylation pair
+    frozenset({"CBD", "CBDA"}),          # decarboxylation pair
+    frozenset({"D8THC", "D9THC"}),       # double-bond positional isomers
+    frozenset({"THC", "CBD"}),           # different compounds entirely
+    frozenset({"THC", "THCV"}),          # homologues
+    frozenset({"CBD", "CBDV"}),          # homologues
+    frozenset({"THC", "CBN"}),           # oxidation product vs parent
+    frozenset({"THC", "D8THC"}),         # bare THC (=Δ⁹) vs Δ⁸
+    frozenset({"THC", "D9THC"}),
+    frozenset({"CBD", "CBG"}),
+})
+
+# The equivalence assertion itself. Two shapes:
+#   A) "<X> and <Y> are [the] same / identical / interchangeable / ..."
+#   B) "<X> is the same as / identical to / interchangeable with <Y>"
+# We capture the two cannabinoid operands as free text and resolve each
+# to an identity key afterwards, so the detector stays readable.
+_EQUIV_ASSERTION = re.compile(
+    # A) X and Y are <equiv>
+    r"([A-Za-zΔ0-9][\w\-Δ ]{0,18}?)\s+and\s+([A-Za-zΔ0-9][\w\-Δ ]{0,18}?)\s+"
+    r"are\s+(?:the\s+|essentially\s+|basically\s+|functionally\s+|"
+    r"chemically\s+)*"
+    r"(?:same|identical|interchangeable|equivalent)\b"
+    r"|"
+    # B) X is the same as Y
+    r"([A-Za-zΔ0-9][\w\-Δ ]{0,18}?)\s+is\s+"
+    r"(?:the\s+|essentially\s+|basically\s+|functionally\s+|chemically\s+)*"
+    r"(?:same\s+as|identical\s+to|interchangeable\s+with|equivalent\s+to)\s+"
+    r"([A-Za-zΔ0-9][\w\-Δ ]{0,18}?)\b",
+    re.IGNORECASE,
+)
+
+
+def _resolve_cannabinoid_key(fragment: str) -> str | None:
+    """Map a captured operand fragment to a single canonical identity
+    key, or None if it names no recognised cannabinoid. The fragment is
+    scanned with the most-specific patterns first so that "Δ⁹-THC"
+    resolves to ``D9THC`` rather than the bare ``THC``."""
+    for pat, key in _EQUIV_CANNABINOID_KEYS:
+        if pat.search(fragment):
+            return key
+    return None
+
+
+@dataclass(frozen=True)
+class IsomerEquivalenceViolation:
+    """An explicit assertion that two distinct cannabinoids are the same."""
+
+    left: str
+    right: str
+    matched_phrase: str
+    span: tuple[int, int]
+
+    @property
+    def why(self) -> str:
+        return (
+            f"asserts '{self.matched_phrase.strip()}' — but {self.left} and "
+            f"{self.right} are pharmacologically distinct (different "
+            f"receptor pharmacology / potency / decarboxylation state); "
+            f"they are not the same, identical, or interchangeable"
+        )
+
+
+def detect_isomer_equivalence(text: str) -> tuple[IsomerEquivalenceViolation, ...]:
+    """Return every explicit assertion that two pharmacologically
+    distinct cannabinoids are the same / identical / interchangeable.
+
+    Conservative: fires ONLY when an explicit equivalence verb joins two
+    operands that both resolve to recognised cannabinoid identity keys
+    AND form one of the curated `_DISTINCT_PAIRS`. Correct precursor
+    language ("THCA is the precursor of THC") and "are different"
+    statements do not fire because they carry no equivalence verb.
+    """
+    out: list[IsomerEquivalenceViolation] = []
+    seen: set[tuple[int, int]] = set()
+    for m in _EQUIV_ASSERTION.finditer(text):
+        groups = [g for g in m.groups() if g]
+        if len(groups) < 2:
+            continue
+        left_key = _resolve_cannabinoid_key(groups[0])
+        right_key = _resolve_cannabinoid_key(groups[1])
+        if not left_key or not right_key or left_key == right_key:
+            continue
+        if frozenset({left_key, right_key}) not in _DISTINCT_PAIRS:
+            continue
+        if m.span() in seen:
+            continue
+        seen.add(m.span())
+        out.append(IsomerEquivalenceViolation(
+            left=left_key,
+            right=right_key,
+            matched_phrase=m.group(0),
+            span=m.span(),
         ))
     out.sort(key=lambda v: v.span[0])
     return tuple(out)
@@ -1021,6 +1228,9 @@ class RigorCheckReport:
     entourage_violations: tuple[EntourageViolation, ...] = ()
     # Spec 006 US5 — reporting-guideline + risk-of-bias rigor.
     reporting_rigor_violations: tuple = ()
+    # Explicit isomer / decarb equivalence errors ("THC and THCA are the
+    # same"). Appended last so existing positional construction is safe.
+    isomer_equivalence_violations: tuple[IsomerEquivalenceViolation, ...] = ()
 
     @property
     def clean(self) -> bool:
@@ -1033,6 +1243,7 @@ class RigorCheckReport:
             or self.decarb_context_violations
             or self.entourage_violations
             or self.reporting_rigor_violations
+            or self.isomer_equivalence_violations
         )
 
     def summary(self) -> str:
@@ -1040,12 +1251,17 @@ class RigorCheckReport:
             return (
                 "Clean — no isomer / receptor-id / dose-route / "
                 "THCA-vs-THC / matrix-unit / decarb-context / "
-                "entourage-overclaim / reporting-rigor violations."
+                "entourage-overclaim / reporting-rigor / "
+                "isomer-equivalence violations."
             )
         lines: list[str] = []
         if self.isomer_violations:
             lines.append("## Isomer-collapse violations")
             for v in self.isomer_violations:
+                lines.append(f"- {v.why}")
+        if self.isomer_equivalence_violations:
+            lines.append("## Isomer-equivalence violations")
+            for v in self.isomer_equivalence_violations:
                 lines.append(f"- {v.why}")
         if self.receptor_violations:
             lines.append("## Receptor-without-id violations")
@@ -1082,8 +1298,8 @@ class RigorCheckReport:
 
 
 def run_rigor_checks(text: str) -> RigorCheckReport:
-    """Run all seven cannabis-specific rigor checks on `text`,
-    plus the spec-006 reporting-guideline / risk-of-bias detectors."""
+    """Run all cannabis-specific rigor checks on `text`, plus the
+    spec-006 reporting-guideline / risk-of-bias detectors."""
     from cannavec_science.reporting_rigor import (
         run_reporting_rigor_checks,
     )
@@ -1096,4 +1312,5 @@ def run_rigor_checks(text: str) -> RigorCheckReport:
         decarb_context_violations=detect_decarb_context_missing(text),
         entourage_violations=detect_entourage_overclaim(text),
         reporting_rigor_violations=run_reporting_rigor_checks(text),
+        isomer_equivalence_violations=detect_isomer_equivalence(text),
     )
