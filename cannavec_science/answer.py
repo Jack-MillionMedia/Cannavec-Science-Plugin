@@ -1641,15 +1641,18 @@ def compose_answer(
             _attach_claim_safely(a, row, retraction_policy)
 
         # c08 — when the question is specifically about MECHANISM ("CBD at
-        # 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding affinity"), surface the matched
-        # major cannabinoid's curated receptor activity as first-class typed
-        # MECHANISM claims (Russo 2005, Bisogno 2001, Pertwee 2008, …), not only
-        # monograph prose. This answers the question on-target AND, by making
-        # the answer non-thin, stops the BM25 fallback from recovering an
-        # off-target (e.g. Δ⁹-THC) mechanism row for a CBD query.
+        # 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding affinity", "CBG α2-adrenoceptor",
+        # "THCV CB1"), surface the matched cannabinoid's curated receptor
+        # activity as first-class typed MECHANISM claims (Russo 2005, Bisogno
+        # 2001, Pertwee 2008, Cascio 2010, …), not only monograph prose. Covers
+        # BOTH major (CBD, Δ⁹-THC) and minor (CBG, THCV, CBN, CBC, CBDV)
+        # cannabinoids — they share the ReceptorActivity schema. This answers
+        # the question on-target AND, by making the answer non-thin, stops the
+        # BM25 fallback from recovering an off-target mechanism row for a
+        # compound-named query.
         if classify_intent(prompt) == Intent.MECHANISM:
             added_mech = 0
-            for entry in matched_major_cb_rows:
+            for entry in (*matched_major_cb_rows, *matched_minor_cb_rows):
                 for claim in _mechanism_claims_from_cannabinoid_entry(entry):
                     before = len(a.claims)
                     try:
@@ -2254,10 +2257,12 @@ def _mechanism_claims_from_cannabinoid_entry(entry) -> "list[Claim]":
     """Build typed MECHANISM claims from a cannabinoid's curated
     ``receptor_activity`` rows (c08 recall fix).
 
-    A major-cannabinoid monograph carries its receptor pharmacology as
-    structured ``ReceptorActivity`` rows, but historically those surfaced only
-    as monograph *prose* — so a MECHANISM-intent query ("CBD at 5-HT1A / TRPV1",
-    "Δ⁹-THC CB1 binding affinity") returned no on-target typed claim, and the
+    A cannabinoid monograph (major OR minor — both share the
+    ``ReceptorActivity`` schema) carries its receptor pharmacology as structured
+    rows, but historically those surfaced only as monograph *prose* — so a
+    MECHANISM-intent query ("CBD at 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding
+    affinity", "CBG α2-adrenoceptor", "THCV CB1") returned no on-target typed
+    claim, and the
     thin answer let the BM25 fallback recover an *off-target* mechanism row
     (e.g. a Δ⁹-THC CB1-desensitization row for a CBD query). Emitting one
     primary-source-anchored MECHANISM claim per receptor row fixes both: the

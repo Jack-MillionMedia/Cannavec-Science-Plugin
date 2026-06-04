@@ -120,6 +120,44 @@ class TestC08CompoundScope(unittest.TestCase):
         self.assertIn("11606325", pmids, "Bisogno 2001 (CBD/TRPV1) must be cited")
 
 
+class TestMinorCannabinoidMechanismClaims(unittest.TestCase):
+    """c08 extension — MINOR cannabinoids (CBG/THCV/CBN/CBC/CBDV) also surface
+    their curated receptor activity as first-class MECHANISM claims on a
+    MECHANISM-intent query, anchored to their primary sources."""
+
+    def test_cbg_mechanism_query_surfaces_receptor_claims(self):
+        a = compose_answer("cannabigerol CBG mechanism and receptor targets")
+        texts = " ||| ".join(c.text for c in a.claims)
+        # CBG is a selective α2-adrenoceptor agonist + 5-HT1A antagonist
+        # (Cascio 2010, PMID 20002104).
+        self.assertIn(
+            "adrenoceptor", texts,
+            "CBG's α2-adrenoceptor activity (Cascio 2010) must surface as a "
+            "typed mechanism claim",
+        )
+        pmids = {s.pmid for c in a.claims for s in c.sources if s.pmid}
+        self.assertIn("20002104", pmids, "Cascio 2010 (CBG receptor) must be cited")
+        # every emitted mechanism claim is graded (Level C, in-vitro tier)
+        for c in a.claims:
+            self.assertTrue(c.best_supportable_grade(), "claim must carry a grade")
+
+    def test_thcv_mechanism_query_surfaces_cb1(self):
+        a = compose_answer("THCV mechanism at the CB1 receptor")
+        self.assertTrue(
+            any("CB1" in c.text and "THCV" in c.text for c in a.claims),
+            "THCV's CB1 receptor activity must surface as a typed claim",
+        )
+
+    def test_non_mechanism_minor_query_does_not_flood(self):
+        # A non-MECHANISM minor-cannabinoid query (definition intent) must NOT
+        # emit receptor-mechanism claims — the monograph alone answers it.
+        a = compose_answer("what is cannabigerol")
+        self.assertFalse(
+            any("adrenoceptor" in c.text for c in a.claims),
+            "a definition query must not emit receptor-mechanism claims",
+        )
+
+
 class TestD5GradeLevelACap(unittest.TestCase):
     """D5 — a lone non-Cochrane journal SR must not reach Level A (§VII)."""
 
