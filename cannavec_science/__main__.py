@@ -835,10 +835,14 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 def _cmd_rigor(args: argparse.Namespace) -> int:
     from cannavec_science.rigor_checks import run_rigor_checks
     from cannavec_science.banned_patterns import detect_banned_patterns
+    from cannavec_science.retraction import scan_text_for_retracted_pmids
 
     text = args.text
     report = run_rigor_checks(text)
     banned = detect_banned_patterns(text)
+    # §VIII — a pasted citation that matches the retraction registry is a
+    # rigor violation on every surface (mirrors /api/rigor and compose-time).
+    retracted = list(scan_text_for_retracted_pmids(text))
 
     # Spec 003 US10 / FR-010 — dedup the rendered output by
     # (detector, span) so identical findings can never appear twice.
@@ -882,6 +886,7 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
           f"{n - len(banned) - len(reprig)}")
     print(f"- **Reporting-rigor violations:** {len(reprig)}")
     print(f"- **Banned-pattern hits:** {len(banned)}")
+    print(f"- **Retracted citations:** {len(retracted)}")
     print("")
 
     if iso:
@@ -939,8 +944,17 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
             print(f"- **{hit.pattern.id}**: `{hit.match}`")
             print(f"  - Why: {hit.pattern.why}")
         print("")
+    if retracted:
+        print("### Retracted / flagged citations (§VIII — do not cite)")
+        for h in retracted:
+            rec = h.record
+            print(f"- **{h.matched_kind.upper()} {h.matched_identifier}** "
+                  f"({rec.status.value}): {rec.title}")
+            if rec.reason_summary:
+                print(f"  - Why: {rec.reason_summary}")
+        print("")
 
-    if n == 0:
+    if n == 0 and not retracted:
         print("**Clean.** No violations.")
         return 0
     return 1

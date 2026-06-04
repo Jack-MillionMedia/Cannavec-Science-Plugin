@@ -77,8 +77,14 @@ class MetaInconsistencyBridgeTests(unittest.TestCase):
         from cannavec_science.evidence import (
             Claim, ClaimType, Source, SourceTier,
         )
-        s1 = Source(title="RCT1", tier=SourceTier.SR_FLAGSHIP, pmid="1", year=2017)
-        s2 = Source(title="RCT2", tier=SourceTier.SR_FLAGSHIP, pmid="2", year=2018)
+        # §VII: a Level-A body of evidence is ≥ 2 aligned pre-registered,
+        # adequately-powered RCTs (or a canonical Cochrane/AHRQ/NICE SR).
+        # Express the two RCTs as exactly that — a single non-canonical
+        # flagship source no longer shortcuts to Level A (D5 fix).
+        s1 = Source(title="RCT1", tier=SourceTier.JOURNAL_RCT, pmid="1",
+                    year=2017, pre_registered=True, adequately_powered=True)
+        s2 = Source(title="RCT2", tier=SourceTier.JOURNAL_RCT, pmid="2",
+                    year=2018, pre_registered=True, adequately_powered=True)
         claim = Claim(
             text="Seizure frequency reduction",
             claim_type=ClaimType.EDUCATIONAL,   # no required-disclosure penalty
@@ -131,8 +137,14 @@ class PublicationBiasBridgeTests(unittest.TestCase):
         from cannavec_science.evidence import (
             Claim, ClaimType, Source, SourceTier,
         )
-        s1 = Source(title="RCT1", tier=SourceTier.SR_FLAGSHIP, pmid="1", year=2017)
-        s2 = Source(title="RCT2", tier=SourceTier.SR_FLAGSHIP, pmid="2", year=2018)
+        # §VII: a Level-A body of evidence is ≥ 2 aligned pre-registered,
+        # adequately-powered RCTs (or a canonical Cochrane/AHRQ/NICE SR).
+        # Express the two RCTs as exactly that — a single non-canonical
+        # flagship source no longer shortcuts to Level A (D5 fix).
+        s1 = Source(title="RCT1", tier=SourceTier.JOURNAL_RCT, pmid="1",
+                    year=2017, pre_registered=True, adequately_powered=True)
+        s2 = Source(title="RCT2", tier=SourceTier.JOURNAL_RCT, pmid="2",
+                    year=2018, pre_registered=True, adequately_powered=True)
         claim = Claim(
             text="Seizure frequency reduction",
             claim_type=ClaimType.EDUCATIONAL,

@@ -32,6 +32,17 @@ if _REPO_ROOT not in sys.path:
 
 _ALLOWED_ORIGIN = os.environ.get("CANNAVEC_ALLOWED_ORIGIN", "*")
 
+# §VIII — a flagged live finding must be VISIBLY badged in the human-readable
+# Markdown, not only in the JSON. A retracted/EoC/under-correction row is
+# pinned last by the live ranker; the badge tells a reader why so it is never
+# mistaken for a citable result. A plain correction (the paper stands) is not
+# flagged and carries no badge.
+_RETRACTION_BADGE = {
+    "retracted": " — ⚠ RETRACTED, do not cite",
+    "expression_of_concern": " — ⚠ EXPRESSION OF CONCERN, verify before citing",
+    "under_correction": " — ⚠ UNDER CORRECTION, verify before citing",
+}
+
 
 def _markdown(result: dict) -> str:
     lines = [f"## Live discovery — {result.get('query', '')}", ""]
@@ -47,7 +58,10 @@ def _markdown(result: dict) -> str:
                      or r.get("activity_id") or "?")
             title = (r.get("title") or r.get("brief_title")
                      or r.get("compound") or "")
-            lines.append(f"- `{ident}` {title}".rstrip())
+            badge = _RETRACTION_BADGE.get(
+                str(r.get("retraction_status") or "clean").lower(), ""
+            )
+            lines.append(f"- `{ident}` {title}{badge}".rstrip())
         lines.append("")
     synth = result.get("synthesis") or {}
     if synth:
