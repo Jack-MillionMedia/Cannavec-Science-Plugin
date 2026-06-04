@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Iterable
@@ -169,6 +169,29 @@ class EvidenceSummary:
         return self.highest_grade.rank >= EvidenceLevel.B.rank
 
 
+def _is_same_citation(new: Citation, existing: Citation) -> bool:
+    """True when ``new`` duplicates ``existing`` by primary identifier.
+
+    Identity precedence mirrors the Source-or-Refuse hierarchy: match on PMID,
+    then DOI, then — only when ``new`` carries neither — URL. This is the single
+    source of truth shared by :meth:`Answer.add_citation` and
+    :func:`merge_citations`, so the two dedup paths cannot drift apart (they
+    previously disagreed on the URL-only case).
+    """
+    if new.pmid and existing.pmid == new.pmid:
+        return True
+    if new.doi and existing.doi == new.doi:
+        return True
+    if (
+        not new.pmid
+        and not new.doi
+        and new.url
+        and existing.url == new.url
+    ):
+        return True
+    return False
+
+
 @dataclass
 class Answer:
     """Composable Cannavec Science answer artifact.
@@ -245,12 +268,7 @@ class Answer:
 
     def add_citation(self, citation: Citation) -> None:
         for existing in self.citations:
-            if citation.pmid and existing.pmid == citation.pmid:
-                return
-            if citation.doi and existing.doi == citation.doi:
-                return
-            if (not citation.pmid and not citation.doi
-                    and citation.url and existing.url == citation.url):
+            if _is_same_citation(citation, existing):
                 return
         self.citations.append(citation)
 
@@ -1032,20 +1050,23 @@ def _nnt_caveat_for(pmid: "str | None", nnt: "str | None") -> "str | None":
 
 
 @lru_cache(maxsize=1)
-def _population_effect_index() -> "dict[str, EffectEstimate]":
+def _build_population_effect_index() -> "dict[str, EffectEstimate]":
     """Build ``{pmid: EffectEstimate}`` from the curated populations registry.
 
     Read-only: ``answer.py`` consumes what ``populations`` already curates (it
     never edits the registry). Built once. A row without quantitative fields
     contributes nothing, so the map is small and only holds the trials that
     carry an effect estimate.
+
+    Raises on registry failure ON PURPOSE: ``functools.lru_cache`` never
+    memoises a call that raised, so a transient fault cannot be cached. The
+    public wrapper :func:`_population_effect_index` turns that into a safe,
+    *uncached* empty result.
     """
+    from cannavec_science.populations import all_populations
+
+    rows = all_populations()
     index: dict[str, EffectEstimate] = {}
-    try:
-        from cannavec_science.populations import all_populations
-        rows = all_populations()
-    except Exception:  # noqa: BLE001 — never let a registry import break render
-        return index
     for row in rows:
         for c in getattr(row, "citations", ()) or ():
             pmid = getattr(c, "pmid", None)
@@ -1065,6 +1086,22 @@ def _population_effect_index() -> "dict[str, EffectEstimate]":
             if est.has_any:
                 index[str(pmid)] = est
     return index
+
+
+def _population_effect_index() -> "dict[str, EffectEstimate]":
+    """Cached effect index with a safe, *uncached* empty fallback.
+
+    Previously this function was ``@lru_cache``-wrapped directly with the
+    registry read inside a bare ``try/except`` that returned ``{}`` — so the
+    FIRST call's failure cached an empty index for the whole process and every
+    effect estimate (n / 95% CI / NNT) silently vanished for the session. Now
+    only a *successful* build is memoised; a fault degrades to empty and the
+    next call retries.
+    """
+    try:
+        return _build_population_effect_index()
+    except Exception:  # noqa: BLE001 — registry fault: degrade, do not poison cache
+        return {}
 
 
 def _effect_estimates_for_claim(claim: Claim) -> "list[EffectEstimate]":
@@ -2343,7 +2380,8 @@ def _attach_claim_safely(
         return
     try:
         claim = row.to_claim()
-    except Exception:
+    except Exception:  # noqa: BLE001 — malformed row: drop it, but make it auditable
+        a.add_trace("claim_build_error", 1)
         return
     if claim is None:
         return
@@ -2352,10 +2390,22 @@ def _attach_claim_safely(
     retracted_pmids = []
     for s in claim.sources:
         rec = None
-        if s.pmid:
-            rec = is_retracted(pmid=s.pmid)
-        if rec is None and s.doi:
-            rec = is_retracted(doi=s.doi)
+        try:
+            if s.pmid:
+                rec = is_retracted(pmid=s.pmid)
+            if rec is None and s.doi:
+                rec = is_retracted(doi=s.doi)
+        except Exception:  # noqa: BLE001 — a retraction-registry fault must not
+            # crash the whole composition (it used to propagate and kill every
+            # remaining row) AND must never silently promote an unverifiable
+            # source as "clean". Keep the source, but surface the uncertainty.
+            a.add_trace("retraction_check_error", 1)
+            a.add_caution(
+                "Retraction status could not be verified for one or more "
+                "cited sources; treat their currency with caution."
+            )
+            live_sources.append(s)
+            continue
         if rec is not None:
             retracted_pmids.append(s.pmid or s.doi)
         else:
@@ -2368,25 +2418,19 @@ def _attach_claim_safely(
         return
 
     if retraction_policy == "strict" and retracted_pmids:
-        # Some sources retracted, some clean. Keep only clean.
-        claim = Claim(
-            text=claim.text,
-            claim_type=claim.claim_type,
-            sources=tuple(live_sources),
-            disclosures_present=claim.disclosures_present,
-            population=claim.population,
-            jurisdiction=claim.jurisdiction,
-            dose_range=claim.dose_range,
-            route=claim.route,
-            chemotype=claim.chemotype,
-        )
+        # Some sources retracted, some clean: keep only the clean ones.
+        # ``replace`` copies every OTHER field verbatim, so a future field on
+        # ``Claim`` can never be silently dropped here — the previous rebuild
+        # hand-enumerated nine fields by name and would have lost any new one.
+        claim = replace(claim, sources=tuple(live_sources))
 
     try:
         a.add_claim(claim)
     except ClaimWordingError:
-        # In strict-wording mode an over-claim is rejected; record but
-        # do not crash composition.
-        pass
+        # Strict-wording mode rejected an over-claim. Record it so the
+        # suppression is auditable — the prior comment promised "record but do
+        # not crash" yet the body silently dropped the claim with no signal.
+        a.add_trace("wording_rejected", 1)
 
 
 # Improvement Plan §1 — how many recovered rows the retrieval fallback may
@@ -2481,7 +2525,8 @@ def _augment_with_retrieval(
             continue
         try:
             claim = h.row.to_claim()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — malformed recovered row: skip, audibly
+            a.add_trace("retrieval.claim_build_error", 1)
             claim = None
         if claim is None:
             continue
@@ -2520,16 +2565,15 @@ def _augment_with_retrieval(
 
 
 def merge_citations(answers: Iterable[Answer]) -> list[Citation]:
-    """Deduplicate Citations across multiple Answers."""
+    """Deduplicate Citations across multiple Answers.
+
+    Uses the same :func:`_is_same_citation` identity rule as
+    :meth:`Answer.add_citation`, so the single-answer and merged bibliographies
+    cannot disagree (they previously diverged on URL-only matches).
+    """
     out: list[Citation] = []
     for a in answers:
         for c in a.citations:
-            present = any(
-                (c.pmid and existing.pmid == c.pmid)
-                or (c.doi and existing.doi == c.doi)
-                or (c.url and existing.url == c.url)
-                for existing in out
-            )
-            if not present:
+            if not any(_is_same_citation(c, existing) for existing in out):
                 out.append(c)
     return out
