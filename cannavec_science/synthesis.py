@@ -372,6 +372,13 @@ def _convergence_for_clusters(clusters: list[ClaimCluster]) -> Convergence:
     # presence but not direction conflict).
     max_distinct = 0
     for cluster in clusters:
+        # A cluster with no extractable subject (empty compound AND empty
+        # condition) is a sentinel: every row whose subject we could not parse
+        # collapses here, so counting its distinct sources would manufacture
+        # cross-source agreement among rows that share nothing. Exclude it from
+        # the verdict (it still appears in per-source counts).
+        if not cluster.compound and not cluster.condition:
+            continue
         distinct = len(cluster.distinct_sources)
         if distinct > max_distinct:
             max_distinct = distinct
@@ -389,6 +396,11 @@ def _first_disagreement(
 ) -> Optional[str]:
     """Return the first cluster's disagreement description, or None."""
     for cluster in clusters:
+        # Skip the ('', '') sentinel cluster for the same reason convergence
+        # does: subjectless rows share no subject, so an apparent supports-vs-
+        # refutes split among them is not a real disagreement.
+        if not cluster.compound and not cluster.condition:
+            continue
         directions = {row.get("direction", "neutral") for _, row in cluster.members}
         if {"supports", "refutes"}.issubset(directions):
             supporters = sorted({
