@@ -360,5 +360,197 @@ class HealthLiveFlagTests(unittest.TestCase):
             self.assertEqual(s.last_headers.get("cache-control"), "no-store")
 
 
+class SecurityHeaderTests(unittest.TestCase):
+    """#16 — every API surface must send ``X-Content-Type-Options: nosniff``
+    so a browser cannot MIME-sniff a JSON / Markdown body into executable
+    HTML, and a response that **reflects the user's question** must not be
+    served ``Cache-Control: public`` (it would let one user's reflected input
+    be cached and served to the edge)."""
+
+    def test_every_surface_sends_nosniff(self):
+        cases = [
+            ("answer", "GET", "/?question=CBD%20in%20Dravet%20syndrome"),
+            ("answer", "GET",
+             "/?question=CBD%20in%20Dravet%20syndrome&format=markdown"),
+            ("rigor", "GET", "/?text=22%25%20THC%20by%20HPLC"),
+            ("registries", "GET", "/api/registries"),
+            ("health", "GET", "/api/health"),
+        ]
+        for name, method, path in cases:
+            mod = _load(name)
+            with _Server(mod.handler) as s:
+                s.request(method, path)
+                self.assertEqual(
+                    s.last_headers.get("x-content-type-options"), "nosniff",
+                    f"{name} {path}: missing X-Content-Type-Options: nosniff",
+                )
+
+    def test_markdown_surface_is_not_publicly_cached(self):
+        # The Markdown brief echoes ``**Q:** <question>`` — reflected input
+        # must never be ``public``-cached.
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            s.request(
+                "GET", "/?question=CBD%20in%20Dravet%20syndrome&format=markdown"
+            )
+            cc = (s.last_headers.get("cache-control") or "").lower()
+            self.assertNotIn("public", cc,
+                             f"markdown reflects input but cache-control={cc!r}")
+
+    def test_reflected_question_strips_angle_brackets_in_markdown(self):
+        # An injected <script> must not be reflected verbatim into the
+        # text/markdown body (defence-in-depth alongside nosniff).
+        mod = _load("answer")
+        injected = "CBD%20%3Cscript%3Ealert(1)%3C%2Fscript%3E%20for%20Dravet"
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET", f"/?question={injected}&format=markdown"
+            )
+        self.assertEqual(status, 200)
+        self.assertNotIn(b"<script>", data)
+        self.assertNotIn(b"</script>", data)
+
+    def test_reflected_question_strips_angle_brackets_in_json(self):
+        # The JSON ``answer.prompt`` reflects the question too; sanitise it at
+        # the boundary so no surface echoes raw angle brackets.
+        mod = _load("answer")
+        injected = "CBD%20%3Cimg%20src%3Dx%3E%20for%20Dravet"
+        with _Server(mod.handler) as s:
+            status, data = s.request("GET", f"/?question={injected}")
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertNotIn("<", payload["answer"]["prompt"])
+        self.assertNotIn(">", payload["answer"]["prompt"])
+
+
+class AnswerIsRefusalConsistencyTests(unittest.TestCase):
+    """#17 — the nested ``answer.is_refusal`` must carry the same truth as the
+    top-level ``is_refusal`` (it was previously always absent/null)."""
+
+    def test_refusal_question_sets_nested_is_refusal_true(self):
+        # An individualized-dosing question is hard-refused by the §V layer.
+        mod = _load("answer")
+        q = ("What%20dose%20of%20THC%20should%20I%20take%20for%20my%20anxiety"
+             "%20tonight%3F")
+        with _Server(mod.handler) as s:
+            status, data = s.request("GET", f"/?question={q}")
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertTrue(payload["is_refusal"])
+        self.assertIn("is_refusal", payload["answer"])
+        self.assertEqual(payload["answer"]["is_refusal"], payload["is_refusal"])
+        self.assertTrue(payload["answer"]["is_refusal"])
+
+    def test_non_refusal_question_sets_nested_is_refusal_false(self):
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET", "/?question=CBD%20in%20Dravet%20syndrome"
+            )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertFalse(payload["is_refusal"])
+        self.assertIn("is_refusal", payload["answer"])
+        self.assertEqual(payload["answer"]["is_refusal"], payload["is_refusal"])
+        self.assertFalse(payload["answer"]["is_refusal"])
+
+
+class AnswerNoEvidenceTests(unittest.TestCase):
+    """#15 — a query with no curated claim and no live finding (and which is
+    not a refusal) must return an explicit 'no evidence found' signal, never a
+    silent empty 200."""
+
+    _NONSENSE = "asdfqwerzxcv12345"
+
+    def test_nonsense_json_carries_explicit_no_evidence_message(self):
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET", f"/?question={self._NONSENSE}&fallback=false"
+            )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["is_refusal"])
+        # The empty brief is no longer silent.
+        self.assertTrue(payload.get("no_evidence"))
+        self.assertIn("message", payload)
+        self.assertIn("no curated", payload["message"].lower())
+        self.assertEqual(len(payload["answer"]["claims"]), 0)
+        self.assertEqual(len(payload["answer"]["live_findings"]), 0)
+
+    def test_nonsense_markdown_says_no_evidence(self):
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET", f"/?question={self._NONSENSE}&fallback=false&format=markdown"
+            )
+        self.assertEqual(status, 200)
+        self.assertIn(b"no curated", data.lower())
+
+    def test_curated_question_is_not_flagged_no_evidence(self):
+        # A well-curated question must NOT be mislabelled as no-evidence.
+        mod = _load("answer")
+        with _Server(mod.handler) as s:
+            status, data = s.request(
+                "GET", "/?question=CBD%20in%20Dravet%20syndrome&fallback=false"
+            )
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertFalse(payload.get("no_evidence", False))
+        self.assertNotIn("message", payload)
+        self.assertGreater(len(payload["answer"]["claims"]), 0)
+
+    def test_refusal_is_not_flagged_no_evidence(self):
+        # A refusal is its own signal — it must not also carry no_evidence.
+        mod = _load("answer")
+        q = ("What%20dose%20of%20THC%20should%20I%20take%20for%20my%20anxiety"
+             "%20tonight%3F")
+        with _Server(mod.handler) as s:
+            status, data = s.request("GET", f"/?question={q}")
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertTrue(payload["is_refusal"])
+        self.assertFalse(payload.get("no_evidence", False))
+
+
+class DocsConsistencyTests(unittest.TestCase):
+    """#13 — README + plugin.json registry/module counts must match the live
+    engine, so the docs cannot silently drift from the shipping product."""
+
+    _ROOT = Path(__file__).resolve().parent.parent
+
+    def _registry_count(self) -> int:
+        from cannavec_science.registries import all_registry_groups
+        return len(all_registry_groups())
+
+    def _module_count(self) -> int:
+        return len(list((self._ROOT / "cannavec_science").glob("*.py")))
+
+    def test_plugin_json_registry_count_matches_engine(self):
+        import json as _json
+        meta = _json.loads(
+            (self._ROOT / ".claude-plugin" / "plugin.json").read_text("utf-8")
+        )
+        n = self._registry_count()
+        # The description states the curated-registry count in words; assert
+        # the live number appears (digit or spelled-out) and the stale "twenty"
+        # claim is gone.
+        desc = meta["description"]
+        self.assertNotIn("twenty curated", desc.lower())
+        self.assertIn("twenty-one curated", desc.lower())
+        self.assertEqual(n, 21)  # guard: regenerate docs if this changes
+
+    def test_readme_states_correct_registry_and_module_counts(self):
+        readme = (self._ROOT / "README.md").read_text("utf-8")
+        # 21 registries, with the endocrine group enumerated.
+        self.assertIn("twenty-one curated science registries", readme)
+        self.assertIn("endocrine", readme)
+        # Module count claim must match the real module count.
+        n_modules = self._module_count()
+        self.assertIn(f"{n_modules} modules", readme)
+        self.assertNotIn("68 modules", readme)
+
+
 if __name__ == "__main__":
     unittest.main()

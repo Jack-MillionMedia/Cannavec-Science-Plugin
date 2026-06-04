@@ -24,8 +24,8 @@ Freeman-Tukey double-arcsine transform (spec 019), defined even at 0 % / 100 %;
 interval and the OIS, forms a three-part refusal to overstate precision when
 studies are few.
 1,841 unit tests green at HEAD; 188 eval prompts
-(173 offline) across ten buckets; twenty curated science registries
-with ≥ 215 total rows; thirteen live-discovery lanes.
+(173 offline) across ten buckets; twenty-one curated science registries
+with ≥ 230 total rows; thirteen live-discovery lanes.
 
 ## Read this first
 
@@ -144,7 +144,7 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | Subcommand | Purpose |
 |---|---|
 | `bibliography <answer.json>` | Re-render a saved Answer's citations into BibTeX, RIS, or CSL-JSON. |
-| `registries [--registry <name>] [--format json]` | Inventory the 20 curated registries — row counts, freshness dates. |
+| `registries [--registry <name>] [--format json]` | Inventory the 21 curated registries — row counts, freshness dates. |
 | `source-health [--sources <list>] [--json]` | Per-source liveness probe. Non-zero exit if any source is yellow / red. |
 | `freshness [--registry <name>] [--network] [--parallel N]` | Retraction-watch probe over `watch_pmids`. Offline by default. |
 | `freshness-report [--since <date>]` | Curator-facing freshness report with a date filter. |
@@ -443,7 +443,9 @@ honest about thin evidence: under ~10 studies per covariate the block carries a
 7. **Four new registry-inventory groups** — `python3 -m cannavec_science
    registries` now surfaces `pain_medicine`, `psychiatry`,
    `driving_impairment`, and `ptsd_anxiety_sleep`; total inventory
-   grows from 16 → 20 curated registries.
+   grows from 16 → 20 curated registries (a 21st, `endocrine` — cannabis ×
+   insulin sensitivity / metabolic syndrome — followed; the live `registries`
+   inventory and `/api/health` report **21**).
 
 ### What v0.5 shipped (preserved)
 
@@ -821,7 +823,7 @@ refuses, or cites in prose — every verdict is computed by
 ## The deterministic backbone
 
 ```
-cannavec_science/                       # 68 modules · stdlib-only
+cannavec_science/                       # 83 modules · stdlib-only
 
 # Core evidence + safety
 ├── evidence.py                  # GRADE, Source, Claim, ClaimType, source-authority weight
@@ -876,7 +878,7 @@ cannavec_science/                       # 68 modules · stdlib-only
 ├── meta_analysis.py             # Fixed + DL random effects, Q/I²/τ², Egger, leave-one-out, prediction interval, subgroup, trim-and-fill
 ├── absolute_effects.py          # Relative→absolute (GRADE SoF): risk difference + NNTB/NNTH (Altman 1998 null-crossing CI)
 
-# Curated science registries (20)
+# Curated science registries (21)
 ├── major_cannabinoids.py        # Δ⁹-THC, CBD, THCA, CBDA
 ├── minor_cannabinoids.py        # THCV, CBDV, CBC, CBN, CBG, Δ⁸-THC, HHC, THCO, THCP
 ├── terpenes.py                  # Terpene registry
@@ -898,6 +900,7 @@ cannavec_science/                       # 68 modules · stdlib-only
 ├── psychiatry.py                # Di Forti EU-GEI, Marconi, Vaucher MR, Hjorthøj
 ├── driving_impairment.py        # Compton NHTSA, Hartman, Marcotte, Brubacher
 ├── ptsd_anxiety_sleep.py        # Bonn-Miller 2021, Crippa/Bergamaschi CBD-SAD, Walsh sleep SR
+├── endocrine.py                 # Cannabis × endocrine/metabolic (insulin sensitivity, NHANES)
 
 # Internal helpers
 ├── _normalize.py                # Text normalization
