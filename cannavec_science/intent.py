@@ -222,11 +222,26 @@ _INDICATION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("tsc", re.compile(
         r"\btuberous sclerosis\b|\bTSC\b", flags=re.IGNORECASE)),
     ("spasticity", re.compile(
-        r"\bspasticit\w*|multiple sclerosis|\bMS\b\s+spasticit\w*\b",
+        # Clinical term + spelled-out "multiple sclerosis" (each already tags
+        # spasticity), PLUS lay phrasings gated on an MS cue so the lexicon
+        # stays in lockstep with the populations detector (WS2). The MS
+        # abbreviation is matched case-SENSITIVELY ((?-i:MS)) and the
+        # hyphen/slash-glued forms (GC-MS, LC-MS/MS), the "ms" time unit, and
+        # the "Ms" honorific are excluded; the lay cue requires a "muscle"/
+        # "limb" qualifier — so a bare "spasm"/"rigidity" near a stray "ms"
+        # cannot tag spasticity (precision).
+        r"\bspasticit\w*|multiple sclerosis|"
+        r"(?:(?<![\w/-])(?-i:MS)(?![\w/])).{0,40}\b(?:muscle stiffness|"
+        r"muscle spasm\w*|muscle tightness|muscle rigidity|limb rigidity)\b|"
+        r"\b(?:muscle stiffness|muscle spasm\w*|muscle tightness|"
+        r"muscle rigidity|limb rigidity)\b.{0,40}"
+        r"(?:(?<![\w/-])(?-i:MS)(?![\w/]))",
         flags=re.IGNORECASE,
     )),
     ("neuropathic_pain", re.compile(
-        r"\bneuropath\w*|chronic\s+pain\b", flags=re.IGNORECASE)),
+        r"\bneuropath\w*|chronic\s+pain\b|nerve\s+pain|shooting\s+pain|"
+        r"burning\s+pain|lancinating",
+        flags=re.IGNORECASE)),
     ("nausea_vomiting", re.compile(
         r"\bnause\w*|vomit\w*|emesis|antiemetic|\bCINV\b|"
         r"chemo.?induced nausea\b",

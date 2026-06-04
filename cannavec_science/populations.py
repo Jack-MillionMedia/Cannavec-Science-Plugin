@@ -712,13 +712,36 @@ def find_populations(
     return tuple(out)
 
 
+# MS-spasticity lay / patient synonyms (WS2 recall fix). Patients and lay
+# queries say "muscle stiffness" / "muscle spasms" / "limb rigidity", not the
+# clinical term "spasticity"; those phrasings missed the curated MS-spasticity
+# row and fell through to a BM25 false positive (analytical-chemistry GC-MS
+# rows). The synonyms are matched ONLY when they co-occur (within 40 chars) with
+# an MS cue, so a generic muscle complaint ("muscle spasm after a workout")
+# never lights up the row. "spasticity" stays in the alternation so the original
+# clinical phrasing keeps matching through the same rule.
+_MS_SPASTICITY_CUE = (
+    r"spasticity|muscle stiffness|muscle spasm\w*|muscle tightness|"
+    r"muscle rigidity|limb rigidity|limb spasticity"
+)
+# The MS abbreviation is an uppercase acronym: match it case-SENSITIVELY (via
+# the scoped (?-i:MS) flag) even though the surrounding pattern is
+# re.IGNORECASE, and exclude the hyphen/slash-glued forms (GC-MS, LC-MS/MS),
+# the "ms" time unit, and the "Ms" honorific — all of which otherwise fabricate
+# the curated MS-spasticity row for non-MS queries. "multiple sclerosis" stays
+# case-insensitive. (The lay cue requires a "muscle"/"limb" qualifier so a bare
+# "spasm"/"rigidity" near a stray token cannot fire either.)
+_MS_TOKEN = r"(?:(?<![\w/-])(?-i:MS)(?![\w/])|multiple sclerosis)"
+
+
 _POPULATION_KEYWORDS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bDravet\b", re.IGNORECASE), "paediatric Dravet syndrome"),
     (re.compile(r"\bLennox.?Gastaut\b|\bLGS\b", re.IGNORECASE),
      "paediatric Lennox-Gastaut syndrome"),
-    (re.compile(r"\b(?:MS|multiple sclerosis)\b.{0,40}\bspasticity\b|"
-                r"\bspasticity\b.{0,40}\b(?:MS|multiple sclerosis)\b",
-                re.IGNORECASE), "adult MS spasticity"),
+    (re.compile(
+        rf"{_MS_TOKEN}.{{0,40}}\b(?:{_MS_SPASTICITY_CUE})\b|"
+        rf"\b(?:{_MS_SPASTICITY_CUE})\b.{{0,40}}{_MS_TOKEN}",
+        re.IGNORECASE), "adult MS spasticity"),
     (re.compile(r"\bneuropathic pain\b|\bchronic neuropathic\b",
                 re.IGNORECASE), "adult chronic neuropathic pain"),
     (re.compile(r"\bCINV\b|\bchemo.?induced nausea\b",
