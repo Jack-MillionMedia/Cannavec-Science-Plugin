@@ -37,6 +37,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("X-Content-Type-Options", "nosniff")
         if status == 200:
             self.send_header("Cache-Control", "public, s-maxage=86400")
         self._cors()

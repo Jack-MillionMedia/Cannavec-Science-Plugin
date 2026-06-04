@@ -53,6 +53,27 @@ if _REPO_ROOT not in sys.path:
 
 _ALLOWED_ORIGIN = os.environ.get("CANNAVEC_ALLOWED_ORIGIN", "*")
 
+# Shown when a query yields no curated claim and no live finding (and is not
+# a refusal) — so an empty brief is never returned silently (the researcher
+# gets an actionable next step instead of a blank 200).
+_NO_EVIDENCE_MESSAGE = (
+    "No curated or live evidence found for this query. Try rephrasing with a "
+    "specific cannabinoid + indication, or run the `discover` surface for a "
+    "live PubMed / ClinicalTrials.gov / ChEMBL search."
+)
+
+
+def _sanitize_question(question: str) -> str:
+    """Strip angle brackets from the question at the trust boundary.
+
+    The question is reflected back on both surfaces (the JSON ``answer.prompt``
+    and the Markdown ``**Q:** …`` line). Angle brackets carry no meaning for a
+    research query, so dropping them neutralises reflected-``<script>`` content
+    on every surface — defence in depth alongside ``X-Content-Type-Options:
+    nosniff`` and the non-HTML response content types.
+    """
+    return question.replace("<", "").replace(">", "")
+
 
 def _compose(question: str, retraction_policy: str = "strict"):
     """Run the curated, offline brief pipeline (lazy import keeps cold start lean)."""
@@ -84,6 +105,8 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        # Never let a browser MIME-sniff this body into executable HTML.
+        self.send_header("X-Content-Type-Options", "nosniff")
         if status == 200 and cache_seconds > 0:
             # Curated answers are deterministic → cacheable at the edge. A
             # live-augmented answer carries fresh data, so it is cached for a
@@ -102,6 +125,11 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "text/markdown; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        # The Markdown brief echoes the user's question (``**Q:** …``); a
+        # response that reflects input must not be ``public``-cached, lest one
+        # caller's reflected text be served from the shared edge to another.
+        self.send_header("Cache-Control", "no-store")
         self._cors()
         self.end_headers()
         self.wfile.write(body)
@@ -118,7 +146,7 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         q = parse_qs(urlparse(self.path).query)
-        question = (q.get("question") or [""])[0].strip()
+        question = _sanitize_question((q.get("question") or [""])[0].strip())
         fmt = (q.get("format") or ["json"])[0]
         policy = (q.get("retraction_policy") or ["strict"])[0]
         # ``blend`` is the researcher-facing alias for ``augment`` — the
@@ -138,7 +166,7 @@ class handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError):
             self._json(400, {"ok": False, "error": "invalid JSON body"})
             return
-        question = str(data.get("question", "")).strip()
+        question = _sanitize_question(str(data.get("question", "")).strip())
         fmt = str(data.get("format", "json"))
         policy = str(data.get("retraction_policy", "strict"))
         # ``blend`` is the researcher-facing alias for ``augment``.
@@ -193,10 +221,29 @@ class handler(BaseHTTPRequestHandler):
             return
 
         live_data = (augment is True) or fallback_used
+        # A non-refusal answer with neither a curated claim nor any live /
+        # verified finding is empty: surface that explicitly instead of a
+        # silent 200. (A refusal is its own signal and is never "no evidence".)
+        no_evidence = (
+            not a.is_refusal
+            and not a.claims
+            and not a.live_findings
+            and not getattr(a, "verified_findings", [])
+        )
         if fmt == "markdown":
-            self._text(200, a.to_markdown())
+            md = a.to_markdown()
+            if no_evidence:
+                md = md.rstrip() + (
+                    "\n\n## No evidence found\n\n" + _NO_EVIDENCE_MESSAGE + "\n"
+                )
+            self._text(200, md)
         else:
-            self._json(200, {
+            # ``to_dict()`` returns a fresh dict, so adding the nested
+            # ``is_refusal`` mirror does not mutate the Answer (#17 — the
+            # nested field used to be absent, reading as null to clients).
+            answer_dict = a.to_dict()
+            answer_dict["is_refusal"] = a.is_refusal
+            payload = {
                 "ok": True,
                 "is_refusal": a.is_refusal,
                 "augmented": n_live,
@@ -205,5 +252,9 @@ class handler(BaseHTTPRequestHandler):
                 # (STRONG / MIXED / WEAK / NONE) when the live tier was woven
                 # in, else null. Also present inside ``answer.live_synthesis``.
                 "synthesis": getattr(a, "live_synthesis", None),
-                "answer": a.to_dict(),
-            }, cache_seconds=3600 if live_data else 86400)
+                "answer": answer_dict,
+            }
+            if no_evidence:
+                payload["no_evidence"] = True
+                payload["message"] = _NO_EVIDENCE_MESSAGE
+            self._json(200, payload, cache_seconds=3600 if live_data else 86400)

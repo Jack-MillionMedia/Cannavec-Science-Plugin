@@ -1,0 +1,99 @@
+{
+  "_about": [
+    "Curated seed for the §VIII compose-time retraction net.",
+    "Each REAL entry was ground-truthed against Crossref / Retraction Watch",
+    "(see notice_url). The registry keys on the ORIGINAL paper's DOI/PMID —",
+    "the identifier a researcher actually cites — because Crossref's structured",
+    "is_retracted flag is FALSE on these originals (they carry only a title-prefix",
+    "'RETRACTED:' notice), so without this local seed they would slip the net.",
+    "Operators extend/replace this set via load_registry_from_yaml().",
+    "The two 99000001 / 99000002 synthetic fixtures are retained ONLY because",
+    "existing tests exercise the scanner against deterministic placeholders."
+  ],
+  "records": [
+    {
+      "pmid": "32060308",
+      "doi": "10.1038/s41598-020-59468-4",
+      "title": "Inhibition of autophagic flux differently modulates cannabidiol-induced death in 2D and 3D glioblastoma cell cultures",
+      "journal": "Scientific Reports",
+      "year": 2020,
+      "status": "retracted",
+      "notice_url": "https://doi.org/10.1038/s41598-024-51877-z",
+      "reason_summary": "Retracted 2024-01-16 (Scientific Reports). PubMed marks the article as a Retracted Publication; retraction note 10.1038/s41598-024-51877-z.",
+      "flagged_at": "2026-06-03",
+      "notes": "Real retraction (Crossref/Retraction Watch + PubMed Retracted Publication). PMID 32060308 ground-truthed; retraction note = 10.1038/s41598-024-51877-z."
+    },
+    {
+      "pmid": "33977107",
+      "doi": "10.1155/2021/6612592",
+      "title": "Cannabinoid WIN 55,212-2 Inhibits Human Glioma Cell Growth by Triggering ROS-Mediated Signal Pathways",
+      "journal": "BioMed Research International",
+      "year": 2021,
+      "status": "retracted",
+      "notice_url": "https://doi.org/10.1155/2023/9803081",
+      "reason_summary": "Retracted 2023-07-12 (BioMed Research International / Hindawi systematic integrity investigation). PubMed marks the article as a Retracted Publication; retraction note 10.1155/2023/9803081.",
+      "flagged_at": "2026-06-03",
+      "notes": "Real retraction (Crossref/Retraction Watch + PubMed Retracted Publication). PMID 33977107 ground-truthed; retraction note = 10.1155/2023/9803081."
+    },
+    {
+      "pmid": "26622862",
+      "doi": "10.3892/ol.2015.3525",
+      "title": "Potentiation of the antitumor activity of adriamycin against osteosarcoma by cannabinoid WIN-55,212-2",
+      "journal": "Oncology Letters",
+      "year": 2015,
+      "status": "retracted",
+      "notice_url": "https://doi.org/10.3892/ol.2023.14183",
+      "reason_summary": "Retracted 2023-12-11 (Oncology Letters). PubMed marks the article as a Retracted Publication; retraction note 10.3892/ol.2023.14183.",
+      "flagged_at": "2026-06-03",
+      "notes": "Real retraction (Crossref/Retraction Watch + PubMed Retracted Publication). PMID 26622862 ground-truthed; retraction note = 10.3892/ol.2023.14183."
+    },
+    {
+      "pmid": null,
+      "doi": "10.1177/1934578x221098843",
+      "title": "Cannabidiol (CBD) From Non-Cannabis Plants: Myth or Reality?",
+      "journal": "Natural Product Communications",
+      "year": 2022,
+      "status": "retracted",
+      "notice_url": "https://doi.org/10.1177/1934578x241309731",
+      "reason_summary": "Retracted 2025-01 (Natural Product Communications). Retraction notice 10.1177/1934578x241309731.",
+      "flagged_at": "2026-06-03",
+      "notes": "Real retraction (Crossref/Retraction Watch). Original paper DOI; retraction notice = 10.1177/1934578x241309731."
+    },
+    {
+      "pmid": null,
+      "doi": "10.1016/j.jpsychires.2024.05.029",
+      "title": "Left hemisphere lateralization of the limbic system and frontoparietal network correlates with positive and negative symptom improvement following cannabidiol (CBD) administration in psychosis and ultra-high-risk populations: A voxel-wise meta-analysis",
+      "journal": "Journal of Psychiatric Research",
+      "year": 2024,
+      "status": "retracted",
+      "notice_url": "https://doi.org/10.1016/j.jpsychires.2024.05.029",
+      "reason_summary": "Retracted 2024-07 (Journal of Psychiatric Research). Publisher retraction recorded against the same DOI.",
+      "flagged_at": "2026-06-03",
+      "notes": "Real retraction (Crossref/Retraction Watch). Retraction recorded against the article's own DOI."
+    },
+    {
+      "pmid": "99000001",
+      "doi": null,
+      "title": "[example seed record — replace via YAML registry]",
+      "journal": "example-journal",
+      "year": 2020,
+      "status": "retracted",
+      "notice_url": null,
+      "reason_summary": "Synthetic illustrative entry — used to verify the scanner operates end-to-end. Replace with real Retraction Watch / publisher notices via load_registry_from_yaml().",
+      "flagged_at": "2026-05-16",
+      "notes": "SEED-ONLY example; not a real retraction."
+    },
+    {
+      "pmid": "99000002",
+      "doi": "10.99999/example-eoc.2021",
+      "title": "[example seed expression-of-concern — replace via YAML]",
+      "journal": "example-journal",
+      "year": 2021,
+      "status": "expression_of_concern",
+      "notice_url": null,
+      "reason_summary": "Synthetic illustrative entry for the EOC scanner path. Replace with real publisher EOC notices via load_registry_from_yaml().",
+      "flagged_at": "2026-05-16",
+      "notes": "SEED-ONLY example; not a real EOC."
+    }
+  ]
+}

@@ -15,9 +15,17 @@ Three pieces:
 The registry is intentionally small and explicitly labelled. Cannavec
 does NOT bundle a full Retraction Watch mirror — that lives upstream.
 Operators can extend the registry by passing a YAML file path to
-:func:`load_registry_from_yaml`. The bundled seed entries are
-historical example cases included to verify the scanner works
-end-to-end; they are clearly marked.
+:func:`load_registry_from_yaml`. The bundled seed (loaded from
+``data/retraction_seed.json``) ships a curated set of REAL
+cannabis-relevant retractions ground-truthed against Crossref /
+Retraction Watch, plus two clearly-marked synthetic fixtures retained so
+the scanner has deterministic placeholders to test against.
+
+The real seed entries key on the ORIGINAL paper's DOI — the identifier a
+researcher actually cites — because Crossref's structured
+``is_retracted`` flag is *false* on these originals (they carry only a
+title-prefix ``RETRACTED:`` notice). The local registry exists precisely
+to catch that gap at composition time (§VIII).
 
 Inclusion bar for upstream operators adding entries:
 
@@ -33,6 +41,7 @@ original paper it concerns.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -79,51 +88,64 @@ class RetractionRecord:
 
 # ── Seed registry ────────────────────────────────────────────────────
 #
-# DELIBERATELY SHORT. Each seed entry is labelled as such; the
-# upstream YAML extension mechanism is the durable way to manage real
-# retraction records. The seed exists so the scanner has data to
-# operate on in tests and so any cannabis project can pick up the
-# primitive immediately.
+# Loaded from data/retraction_seed.json so the curated set is editable
+# without code churn (and so the §VIII net ships armed with REAL
+# retractions, not just placeholders). The bundled file carries:
 #
-# Seed entries below are illustrative *example* records — synthetic
-# PMIDs in the 99000000+ range guarantee they will never collide with
-# a real PubMed identifier. Operators populate the real registry via
-# load_registry_from_yaml().
+#  - REAL cannabis-relevant retractions, ground-truthed against Crossref
+#    / Retraction Watch (and PubMed's "Retracted Publication" type), keyed
+#    on the ORIGINAL paper's DOI — and its PMID where verified — because
+#    that is the identifier a citation actually contains; notice_url points
+#    at the retraction notice. Crossref's structured is_retracted flag is
+#    false on these originals (title-prefix "RETRACTED:" only), which is
+#    exactly why the local registry is needed.
+#  - Two synthetic fixtures (PMID 99000001 / 99000002, DOI 10.99999/...)
+#    in the guaranteed-unused 99000000+ / 10.99999 ranges, retained so
+#    the scanner has deterministic placeholders to test against.
+#
+# Operators replace the whole runtime registry via load_registry_from_yaml().
 
-_SEED_REGISTRY: tuple[RetractionRecord, ...] = (
-    RetractionRecord(
-        pmid="99000001",
-        doi=None,
-        title="[example seed record — replace via YAML registry]",
-        journal="example-journal",
-        year=2020,
-        status=RetractionStatus.RETRACTED,
-        notice_url=None,
-        reason_summary=(
-            "Synthetic illustrative entry — used to verify the scanner "
-            "operates end-to-end. Replace with real Retraction Watch / "
-            "publisher notices via load_registry_from_yaml()."
-        ),
-        flagged_at="2026-05-16",
-        notes="SEED-ONLY example; not a real retraction.",
-    ),
-    RetractionRecord(
-        pmid="99000002",
-        doi="10.99999/example-eoc.2021",
-        title="[example seed expression-of-concern — replace via YAML]",
-        journal="example-journal",
-        year=2021,
-        status=RetractionStatus.EXPRESSION_OF_CONCERN,
-        notice_url=None,
-        reason_summary=(
-            "Synthetic illustrative entry for the EOC scanner path. "
-            "Replace with real publisher EOC notices via "
-            "load_registry_from_yaml()."
-        ),
-        flagged_at="2026-05-16",
-        notes="SEED-ONLY example; not a real EOC.",
-    ),
-)
+def _record_from_dict(d: dict[str, object]) -> RetractionRecord:
+    status_raw = str(d.get("status") or "retracted")
+    try:
+        status = RetractionStatus(status_raw)
+    except ValueError as e:
+        raise ValueError(
+            f"unknown retraction status {status_raw!r}; expected one of "
+            f"{[s.value for s in RetractionStatus]}"
+        ) from e
+    return RetractionRecord(
+        pmid=d.get("pmid") if isinstance(d.get("pmid"), str) else None,
+        doi=d.get("doi") if isinstance(d.get("doi"), str) else None,
+        title=str(d.get("title") or "untitled"),
+        journal=str(d.get("journal") or "unknown"),
+        year=int(d["year"]) if isinstance(d.get("year"), int) else 0,
+        status=status,
+        notice_url=d.get("notice_url") if isinstance(d.get("notice_url"), str) else None,
+        reason_summary=str(d.get("reason_summary") or ""),
+        flagged_at=str(d.get("flagged_at") or ""),
+        notes=str(d.get("notes") or ""),
+    )
+
+
+_SEED_JSON_PATH = Path(__file__).resolve().parent / "data" / "retraction_seed.json"
+
+
+def _load_seed_from_json(path: Path) -> tuple[RetractionRecord, ...]:
+    """Build the seed registry from the bundled JSON data file.
+
+    There is no silent fallback: a corrupt or missing seed file is a
+    packaging error and must surface loudly at import time rather than
+    silently disarming the §VIII net.
+    """
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    records: list[RetractionRecord] = []
+    for entry in raw.get("records", ()):
+        records.append(_record_from_dict(entry))
+    return tuple(records)
+
+
+_SEED_REGISTRY: tuple[RetractionRecord, ...] = _load_seed_from_json(_SEED_JSON_PATH)
 
 
 # Operators populate the runtime registry via load_registry_from_yaml.
@@ -301,29 +323,6 @@ def _parse_minimal_yaml(text: str) -> list[RetractionRecord]:
     if current is not None:
         records.append(_record_from_dict(current))
     return records
-
-
-def _record_from_dict(d: dict[str, object]) -> RetractionRecord:
-    status_raw = str(d.get("status") or "retracted")
-    try:
-        status = RetractionStatus(status_raw)
-    except ValueError as e:
-        raise ValueError(
-            f"unknown retraction status {status_raw!r}; expected one of "
-            f"{[s.value for s in RetractionStatus]}"
-        ) from e
-    return RetractionRecord(
-        pmid=d.get("pmid") if isinstance(d.get("pmid"), str) else None,
-        doi=d.get("doi") if isinstance(d.get("doi"), str) else None,
-        title=str(d.get("title") or "untitled"),
-        journal=str(d.get("journal") or "unknown"),
-        year=int(d["year"]) if isinstance(d.get("year"), int) else 0,
-        status=status,
-        notice_url=d.get("notice_url") if isinstance(d.get("notice_url"), str) else None,
-        reason_summary=str(d.get("reason_summary") or ""),
-        flagged_at=str(d.get("flagged_at") or ""),
-        notes=str(d.get("notes") or ""),
-    )
 
 
 def format_hits(hits: Iterable[RetractionHit]) -> str:

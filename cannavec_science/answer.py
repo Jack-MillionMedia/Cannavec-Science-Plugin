@@ -38,6 +38,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Iterable
 
 from cannavec_science.evidence import (
@@ -478,6 +479,30 @@ class Answer:
                     for s in claim.sources
                 )
                 lines.append(f"- **[{grade.value}]** {claim.text} {cites}".rstrip())
+                # WP-RETRIEVAL #5 — surface the cited trial's effect size,
+                # 95% CI, and P at the citation site, and guard a curated NNT
+                # derived from a non-significant endpoint with an explicit
+                # caveat. Renders only when the registry holds the numbers.
+                for est in _effect_estimates_for_claim(claim):
+                    lines.append(f"  - Effect (PMID {est.pmid}):")
+                    if est.n is not None:
+                        lines.append(f"    - n: {est.n}")
+                    if est.comparator:
+                        lines.append(f"    - Comparator: {est.comparator}")
+                    if est.primary_outcome:
+                        lines.append(
+                            f"    - Primary outcome: {est.primary_outcome}"
+                        )
+                    if est.effect_size:
+                        lines.append(f"    - Effect size: {est.effect_size}")
+                    if est.confidence_interval:
+                        lines.append(f"    - 95% CI / P: {est.confidence_interval}")
+                    if est.nnt:
+                        lines.append(f"    - NNT: {est.nnt}")
+                    if est.nnt_caveat:
+                        lines.append(
+                            f"    - ⚠ NNT caveat: {est.nnt_caveat}."
+                        )
             lines.append("")
 
         for heading, body in self.sections:
@@ -647,6 +672,15 @@ class Answer:
                         for s in c.sources
                     ],
                     "population": c.population,
+                    # WP-RETRIEVAL #5 — effect size / 95% CI / P / NNT (+ a
+                    # non-significance caveat where applicable) at the citation
+                    # site. Emitted only when the registry holds them, so a
+                    # claim without quantitative data keeps the pinned shape.
+                    **(
+                        {"effect_estimates": [e.to_dict() for e in _ests]}
+                        if (_ests := _effect_estimates_for_claim(c))
+                        else {}
+                    ),
                 }
                 for c in self.claims
             ],
@@ -901,6 +935,144 @@ def _content_tokens(text: str) -> frozenset[str]:
     """Lowercased content words (length ≥ 4, non-stopword) for overlap scoring."""
     toks = re.findall(r"[a-zA-Z][a-zA-Z0-9-]{3,}", text.lower())
     return frozenset(t for t in toks if t not in _SHORT_ANSWER_STOPWORDS)
+
+
+# ── Effect-estimate precision at the citation site (WP-RETRIEVAL #5) ─────────
+#
+# The curated populations registry already records the quantitative effect of
+# each pivotal trial — effect size, 95% CI, P, NNT, n, comparator, primary
+# outcome — on its ``PopulationCitation`` rows. Those numbers render in the
+# population *monograph* but were absent from the typed-``Claim`` citation site
+# (the ``## Claims`` section + the JSON), where the brief simply read
+# "(PMID …, Level B)". A researcher choosing whether to act on a Level-B claim
+# needs the actual interval and P at that site, not a bare grade.
+#
+# We harvest those numbers once (read-only) and key them by PMID, then surface
+# them under each claim's matching citation. The registry stays the single
+# source of truth — ``answer.py`` only *renders* what populations already holds.
+
+
+@dataclass(frozen=True)
+class EffectEstimate:
+    """The quantitative effect a single cited trial reports, for inline render."""
+
+    pmid: str
+    n: "int | None" = None
+    comparator: "str | None" = None
+    primary_outcome: "str | None" = None
+    effect_size: "str | None" = None
+    confidence_interval: "str | None" = None
+    nnt: "str | None" = None
+    nnt_caveat: "str | None" = None
+
+    @property
+    def has_any(self) -> bool:
+        return any((
+            self.effect_size, self.confidence_interval, self.nnt,
+            self.primary_outcome, self.comparator, self.n is not None,
+        ))
+
+    def to_dict(self) -> dict:
+        out: dict = {"pmid": self.pmid}
+        if self.n is not None:
+            out["n"] = self.n
+        for k in ("comparator", "primary_outcome", "effect_size",
+                  "confidence_interval", "nnt", "nnt_caveat"):
+            v = getattr(self, k)
+            if v:
+                out[k] = v
+        return out
+
+
+# §VII honesty guard (WP-RETRIEVAL #5). A curated NNT can be quoted against a
+# *responder* endpoint that — unlike the trial's primary endpoint — did not
+# reach significance. Devinsky 2017 (PMID 28538134) is the ground-truthed case:
+# its ≥50%-responder analysis was OR 2.00 (95% CI 0.93–4.30, P=0.08), NOT
+# significant, while the PRIMARY monthly-convulsive-seizure-frequency endpoint
+# WAS (adjusted median difference −22.8%, P=0.01). Rather than blanket-flag
+# every ≥50% NNT, we attach a precise, sourced caveat ONLY where the mismatch
+# is documented — keyed by PMID and gated on the NNT actually naming a ≥50%
+# responder/reduction endpoint, so a different trial's responder NNT is never
+# mis-caveated.
+_NNT_SIGNIFICANCE_CAVEATS: "dict[str, tuple[re.Pattern[str], str]]" = {
+    "28538134": (
+        re.compile(r"≥\s*50\s*%|>=\s*50\s*%|50\s*%\s*(?:respon|reduct)",
+                   re.IGNORECASE),
+        "the ≥50%-responder endpoint this NNT is derived from was NOT "
+        "statistically significant (OR 2.00, 95% CI 0.93-4.30, p=0.08); the "
+        "significant primary endpoint was monthly convulsive-seizure frequency "
+        "(adjusted median difference -22.8%, p=0.01), to which any NNT should "
+        "be anchored",
+    ),
+}
+
+
+def _nnt_caveat_for(pmid: "str | None", nnt: "str | None") -> "str | None":
+    """Return the non-significance caveat for a curated NNT, if one applies."""
+    if not pmid or not nnt:
+        return None
+    entry = _NNT_SIGNIFICANCE_CAVEATS.get(str(pmid))
+    if entry is None:
+        return None
+    pattern, caveat = entry
+    return caveat if pattern.search(nnt) else None
+
+
+@lru_cache(maxsize=1)
+def _population_effect_index() -> "dict[str, EffectEstimate]":
+    """Build ``{pmid: EffectEstimate}`` from the curated populations registry.
+
+    Read-only: ``answer.py`` consumes what ``populations`` already curates (it
+    never edits the registry). Built once. A row without quantitative fields
+    contributes nothing, so the map is small and only holds the trials that
+    carry an effect estimate.
+    """
+    index: dict[str, EffectEstimate] = {}
+    try:
+        from cannavec_science.populations import all_populations
+        rows = all_populations()
+    except Exception:  # noqa: BLE001 — never let a registry import break render
+        return index
+    for row in rows:
+        for c in getattr(row, "citations", ()) or ():
+            pmid = getattr(c, "pmid", None)
+            if not pmid:
+                continue
+            nnt = getattr(c, "nnt", None)
+            est = EffectEstimate(
+                pmid=str(pmid),
+                n=getattr(c, "n", None),
+                comparator=getattr(c, "comparator", None),
+                primary_outcome=getattr(c, "primary_outcome", None),
+                effect_size=getattr(c, "effect_size", None),
+                confidence_interval=getattr(c, "confidence_interval", None),
+                nnt=nnt,
+                nnt_caveat=_nnt_caveat_for(pmid, nnt),
+            )
+            if est.has_any:
+                index[str(pmid)] = est
+    return index
+
+
+def _effect_estimates_for_claim(claim: Claim) -> "list[EffectEstimate]":
+    """Effect estimates for a claim, keyed off its sources' PMIDs.
+
+    Only clinical-efficacy claims carry a population effect estimate; other
+    claim types return ``[]`` so no spurious block is rendered for them.
+    """
+    if claim.claim_type != ClaimType.CLINICAL_EFFICACY:
+        return []
+    index = _population_effect_index()
+    out: list[EffectEstimate] = []
+    seen: set[str] = set()
+    for s in claim.sources:
+        if not s.pmid or s.pmid in seen:
+            continue
+        est = index.get(str(s.pmid))
+        if est is not None:
+            out.append(est)
+            seen.add(s.pmid)
+    return out
 
 
 def _set_short_answer(a: Answer) -> None:
@@ -1625,6 +1797,12 @@ def compose_answer(
     # the 0-claim case so the user gets actionable guidance.
     _classify_zero_claims(a, prompt, cannabinoid_set, banned_hits)
 
+    # WP-RETRIEVAL #2 — when the prompt names a specific indication the KB does
+    # not curate (e.g. Tourette / Parkinson / glaucoma), say so explicitly so a
+    # dropped wrong-indication claim is not silently replaced by adjacent
+    # context. Honest "not curated" rather than a confident wrong answer.
+    _note_uncurated_indication(a, prompt)
+
     a.refresh_evidence_summary()
     _set_short_answer(a)
 
@@ -1861,6 +2039,85 @@ def _classify_zero_claims(
     )
 
 
+# WP-RETRIEVAL #2 — human-readable label for each indication tag, used in the
+# honest "no curated evidence for <indication>" note. Only the OFF-knowledge-
+# base conditions need a label here; a curated indication never reaches the
+# note (its efficacy claim covers it). The curated tags map to their own names
+# as a safe default so a future curated→uncurated drift still reads cleanly.
+_INDICATION_LABEL: "dict[str, str]" = {
+    "tourette": "Tourette syndrome",
+    "parkinson": "Parkinson's disease",
+    "glaucoma": "glaucoma",
+    "autism": "autism spectrum disorder",
+    "fibromyalgia": "fibromyalgia",
+    "als": "ALS / motor neurone disease",
+    "ibd": "inflammatory bowel disease",
+    "crohn": "Crohn's disease",
+    "gvhd": "graft-versus-host disease",
+    "alzheimer": "Alzheimer's disease / dementia",
+    "migraine": "migraine",
+    "ptsd": "PTSD",
+    "schizophrenia": "schizophrenia / psychosis",
+    "covid": "COVID-19",
+}
+
+# The curated indication tags — an efficacy claim about one of these IS in the
+# knowledge base, so naming it never triggers the "uncurated" note.
+_CURATED_INDICATION_TAGS = frozenset({
+    "epilepsy", "dravet", "lennox-gastaut", "tsc", "spasticity",
+    "neuropathic_pain", "nausea_vomiting", "cachexia_appetite",
+})
+
+
+def _note_uncurated_indication(
+    a: Answer,
+    prompt: str,
+) -> None:
+    """WP-RETRIEVAL #2 — when the prompt names a condition the curated KB has
+    NO trial-supported efficacy claim for, say so explicitly.
+
+    This is the honest other half of the indication gate: after a
+    wrong-indication efficacy claim is dropped, the user must not be left
+    either with silence or with tangential context masquerading as an answer.
+    The note names the uncovered indication and points at the live frontier,
+    so "CBD for Tourette" returns "no curated evidence for Tourette syndrome"
+    rather than a confident epilepsy brief.
+
+    Fires only when a *recognised* indication is named and NO surviving
+    clinical-efficacy claim covers it. It never fires for an on-topic curated
+    query (the matching efficacy claim covers the tag) nor for a
+    condition-agnostic prompt (no indication tag at all). Skipped on refusals.
+    """
+    from cannavec_science.intent import indication_terms
+
+    if a.is_refusal:
+        return
+    prompt_indications = indication_terms(prompt)
+    if not prompt_indications:
+        return
+    covered: set[str] = set()
+    for c in a.claims:
+        if c.claim_type == ClaimType.CLINICAL_EFFICACY and c.population:
+            covered |= indication_terms(f"{c.population} {c.text}")
+    uncovered = prompt_indications - covered
+    # Only surface conditions that are genuinely outside the curated set — a
+    # curated tag that simply didn't surface this run is handled by the
+    # existing zero-claim classifier, not duplicated here.
+    uncovered_offkb = {t for t in uncovered if t not in _CURATED_INDICATION_TAGS}
+    if not uncovered_offkb:
+        return
+    names = sorted(_INDICATION_LABEL.get(t, t) for t in uncovered_offkb)
+    pretty = ", ".join(names)
+    a.notes = a.notes + (
+        f"No curated trial evidence for {pretty}: the Cannavec Science "
+        f"knowledge base holds no graded efficacy claim for this indication, "
+        f"so any curated context shown above is adjacent (e.g. compound "
+        f"pharmacology), NOT evidence that the cannabinoid works for "
+        f"{pretty}. Use the `discover` subcommand (or the live blend) for a "
+        f"PubMed / ClinicalTrials.gov frontier search on this indication.",
+    )
+
+
 def _attach_citations_from_row(a: Answer, row) -> None:
     """Pull primary-source identifiers off a registry row's citation list.
 
@@ -2030,6 +2287,50 @@ def _attach_claim_safely(
 _RETRIEVAL_FALLBACK_K = 6
 
 
+def _recovered_claim_is_wrong_indication(
+    claim: Claim,
+    prompt_indications: "frozenset[str]",
+) -> bool:
+    """WP-RETRIEVAL #2 — is this a recovered efficacy claim for the WRONG
+    indication?
+
+    The BM25 recovery path is high-recall: a *clinical-efficacy* row can match
+    a prompt on the compound + a generic head noun ("cannabidiol" + "syndrome")
+    while being about a completely different condition than the one the prompt
+    names — e.g. surfacing the Dravet / LGS / TSC epilepsy rows for "CBD for
+    Tourette syndrome tics". Presenting that as a confident graded answer is
+    answering a *different question*.
+
+    The gate is deliberately narrow, mirroring the cannabinoid-scope filter:
+
+    - It applies ONLY to a condition-specific claim — a
+      :class:`ClaimType.CLINICAL_EFFICACY` claim that carries a ``population``.
+      Condition-agnostic recoveries (safety / drug-interaction / PK /
+      mechanism / phytochemistry — the driving, CYP, CHS, withdrawal rows the
+      retrieval layer exists to recover) are never gated; they answer the
+      question regardless of indication.
+    - It fires only when the prompt actually NAMES a recognised condition
+      (``prompt_indications`` non-empty) AND none of those condition tags
+      overlap the claim's own condition tags. A query that names no condition
+      cannot signal a mismatch, so the claim passes (unchanged behaviour).
+    """
+    from cannavec_science.intent import indication_terms
+
+    if claim.claim_type != ClaimType.CLINICAL_EFFICACY or not claim.population:
+        return False
+    if not prompt_indications:
+        return False
+    claim_indications = indication_terms(
+        f"{claim.population} {claim.text}"
+    )
+    # If the claim names no recognised condition either, we cannot prove a
+    # mismatch — keep it (conservative; the gate only drops a claim whose
+    # condition is *known and different*).
+    if not claim_indications:
+        return False
+    return not (prompt_indications & claim_indications)
+
+
 def _augment_with_retrieval(
     a: Answer,
     prompt: str,
@@ -2060,6 +2361,10 @@ def _augment_with_retrieval(
     if not hits:
         return 0
     allowed = cannabinoid_set.all_names if cannabinoid_set else frozenset()
+    # WP-RETRIEVAL #2 — the condition(s) the prompt actually names. Used to
+    # reject a recovered efficacy claim about a *different* condition.
+    from cannavec_science.intent import indication_terms
+    prompt_indications = indication_terms(prompt)
     already = {id(r) for r in matched_rows}
     added = 0
     for h in hits:
@@ -2070,6 +2375,11 @@ def _augment_with_retrieval(
         except Exception:  # noqa: BLE001
             claim = None
         if claim is None:
+            continue
+        # Indication-scope filter (mirrors the cannabinoid-scope filter below):
+        # never present a curated efficacy claim about a different condition as
+        # the answer to a question that names a specific indication.
+        if _recovered_claim_is_wrong_indication(claim, prompt_indications):
             continue
         if allowed:
             # The prompt names a specific cannabinoid, so a recovered row must

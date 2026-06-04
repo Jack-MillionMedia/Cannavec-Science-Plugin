@@ -225,6 +225,55 @@ class RenderTests(unittest.TestCase):
         self.assertIn("interactions", s)
 
 
+class RealRetractionRegistryArmedTests(unittest.TestCase):
+    """The §VIII compose-time net must ship armed with REAL retractions.
+
+    Defect #10: the seed registry held only two synthetic placeholders,
+    so the offline retraction net was a no-op out-of-the-box. These tests
+    pin the two properties that prove the fix is a strength and not a
+    regression risk:
+
+      1. The now-armed registry is genuinely live — a curator probe of a
+         row that cites a *real* seeded retracted PMID fires
+         RETRACTION_DETECTED (not a silent pass).
+      2. No curated registry row cites any seeded retraction — probing
+         every curated registry detects ZERO retractions, so the real
+         seed does not poison the shipped registries.
+    """
+
+    REAL_RETRACTED_PMID = "32060308"  # Sci Rep glioblastoma CBD, retracted.
+
+    def test_probe_fires_on_real_seeded_retraction(self):
+        from cannavec_science.freshness import _probe_one_row
+
+        class FakeRow:
+            watch_pmids = (RealRetractionRegistryArmedTests.REAL_RETRACTED_PMID,)
+            last_verified = DEFAULT_LAST_VERIFIED
+            citations = ()
+
+        r = _probe_one_row(
+            "test_registry", "test:row", "fake", FakeRow(),
+            fetcher=None, today=datetime.date(2026, 5, 21),
+        )
+        # No network fetcher: detection comes purely from the local
+        # registry now carrying a REAL retraction. Pre-fix this would
+        # have been CLEAN (the no-op the defect describes).
+        self.assertEqual(r.status, FreshnessStatus.RETRACTION_DETECTED)
+        self.assertIn(self.REAL_RETRACTED_PMID, r.retracted_pmids)
+
+    def test_no_curated_registry_cites_a_seeded_retraction(self):
+        # Offline probe consults only the local retraction registry, so a
+        # non-zero retraction count here means a curated row cites a
+        # seeded-retracted identifier — a §VIII violation.
+        for report in probe_all():
+            self.assertEqual(
+                report.n_retraction, 0,
+                f"registry {report.registry!r} cites a seeded retracted "
+                f"identifier — curated claims must stay clean (§VIII)",
+            )
+            self.assertEqual(report.n_eoc, 0, report.registry)
+
+
 class ConstantsTests(unittest.TestCase):
     def test_default_last_verified_is_v02_landing(self):
         self.assertEqual(DEFAULT_LAST_VERIFIED, "2026-05-21")

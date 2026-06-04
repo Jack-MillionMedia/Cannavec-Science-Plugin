@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cannavec_science.rigor_checks import (   # noqa: E402
     detect_isomer_collapse,
+    detect_isomer_equivalence,
     detect_missing_dose_route,
     detect_missing_receptor_ids,
     run_rigor_checks,
@@ -194,6 +195,169 @@ class TestDoseRouteMissing(unittest.TestCase):
         hits = detect_missing_dose_route(text)
         # Cell-culture dose, not a clinical dose.
         self.assertEqual(hits, ())
+
+
+class TestDoseRoutePrecisionBattery(unittest.TestCase):
+    """Precision battery (defect #8).
+
+    The dose-route detector FALSE-POSITIVED on standard route
+    abbreviations: ``CBD 20 mg/kg/day PO`` flagged ``dose_route_violation``
+    even though ``PO`` (*per os*, orally) **is** the route. Three root
+    causes (all reproduced before the fix):
+
+    1. ``_ROUTE_TOKEN`` lacked the bare two-letter abbreviations
+       (PO / IV / IM / SC / SL / IN / IP / PR / SQ / IT).
+    2. The dotted forms were DEAD CODE — ``_ROUTE_TOKEN.search('p.o.')``
+       returned ``None`` because a trailing ``\\b`` after a literal period
+       can never match.
+    3. ``_sentence_window`` truncated at the first ``.``, chopping
+       ``p.o.`` before the route check could see it.
+
+    The plugin's OWN dosing tables tripped it
+    (``populations.py``: "nabilone 1-2 mg PO twice daily";
+    ``ecbome_inhibitors.py``: "4 mg PO daily").
+
+    This battery pins: every textbook-correct route notation reads
+    CLEAN, the product's own dosing strings read CLEAN, and a genuine
+    route-less dose still FLAGS (recall preserved).
+    """
+
+    # --- Negatives: route present, must NOT fire. ---
+
+    def test_bare_po_does_not_fire(self) -> None:
+        # The exact smoking-gun reproduction from the fix brief.
+        hits = detect_missing_dose_route("CBD 20 mg/kg/day PO")
+        self.assertEqual(hits, (), f"bare PO is a route: {hits}")
+
+    def test_dotted_po_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("Nabilone 1-2 mg p.o. twice daily.")
+        self.assertEqual(hits, (), f"dotted p.o. is a route: {hits}")
+
+    def test_bare_iv_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("THC 5 mg IV bolus over 2 minutes.")
+        self.assertEqual(hits, (), f"bare IV is a route: {hits}")
+
+    def test_dotted_iv_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("Midazolam 2 mg i.v. for sedation.")
+        self.assertEqual(hits, (), f"dotted i.v. is a route: {hits}")
+
+    def test_bare_im_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("Nabilone 1 mg IM every 8 hours.")
+        self.assertEqual(hits, (), f"bare IM is a route: {hits}")
+
+    def test_bare_sc_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("Drug X 0.5 mg SC twice daily.")
+        self.assertEqual(hits, (), f"bare SC is a route: {hits}")
+
+    def test_bare_sl_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("CBD 10 mg SL under the tongue.")
+        self.assertEqual(hits, (), f"bare SL is a route: {hits}")
+
+    def test_bare_in_intranasal_abbrev_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("Drug X 4 mg IN once daily.")
+        self.assertEqual(hits, (), f"bare IN (intranasal) is a route: {hits}")
+
+    def test_spelled_intranasal_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route("Drug X 4 mg intranasal once daily.")
+        self.assertEqual(hits, (), f"spelled intranasal is a route: {hits}")
+
+    def test_epidiolex_dosing_string_does_not_fire(self) -> None:
+        hits = detect_missing_dose_route(
+            "Epidiolex 10 mg/kg/day PO twice daily."
+        )
+        self.assertEqual(hits, (), f"Epidiolex PO string must be clean: {hits}")
+
+    def test_in_repo_nabilone_dosing_string_does_not_fire(self) -> None:
+        # Verbatim from populations.py:472 (the plugin's own dosing table).
+        hits = detect_missing_dose_route(
+            "nabilone 1-2 mg PO twice daily; dronabinol 2.5-10 mg PO "
+            "in divided doses."
+        )
+        self.assertEqual(
+            hits, (), f"the plugin's own dosing table must be clean: {hits}"
+        )
+
+    def test_in_repo_ecbome_dosing_string_does_not_fire(self) -> None:
+        # Verbatim shape from ecbome_inhibitors.py:211.
+        hits = detect_missing_dose_route(
+            "PF-04457845 (n=70, 4 mg PO daily for 28 days)."
+        )
+        self.assertEqual(
+            hits, (), f"the plugin's own dosing table must be clean: {hits}"
+        )
+
+    def test_in_repo_dronabinol_dose_range_string_does_not_fire(self) -> None:
+        # Verbatim from populations.py:497.
+        hits = detect_missing_dose_route("2.5-10 mg PO twice daily")
+        self.assertEqual(hits, (), f"dose range with PO must be clean: {hits}")
+
+    # --- Positives: no route, MUST still fire (recall preserved). ---
+
+    def test_dose_without_any_route_still_fires(self) -> None:
+        hits = detect_missing_dose_route(
+            "A 10 mg dose helped most patients in the cohort."
+        )
+        self.assertGreaterEqual(
+            len(hits), 1,
+            "a genuinely route-less clinical dose must still flag",
+        )
+
+    def test_mg_per_kg_without_route_still_fires(self) -> None:
+        # Re-pin the canonical positive after broadening the lexicon.
+        hits = detect_missing_dose_route(
+            "Cannabidiol was dosed at 20 mg/kg/day in the Dravet trial."
+        )
+        self.assertGreaterEqual(len(hits), 1)
+
+    def test_io_substring_in_word_is_not_a_route(self) -> None:
+        # Guard against the bare-abbreviation lexicon over-matching:
+        # ordinary prose words containing 'in'/'im'/'po'/'sc' as
+        # substrings must NOT count as a route, so a route-less dose
+        # in such a sentence still fires.
+        hits = detect_missing_dose_route(
+            "The important impact of a 50 mg amount became apparent."
+        )
+        self.assertGreaterEqual(
+            len(hits), 1,
+            "substrings inside 'important'/'impact'/'amount' are not routes",
+        )
+
+
+class TestDoseRoutePeriodTruncation(unittest.TestCase):
+    """Regression for the sentence-window truncation bug (defect #8).
+
+    ``_sentence_window`` walked to the first ``.`` and stopped, which
+    chopped a route abbreviation written as ``p.o.`` / ``i.v.`` before
+    the route check ran. The dose-route window must now tolerate the
+    intra-token periods of route abbreviations while STILL isolating
+    genuine sentence boundaries (so a route in a wholly unrelated next
+    sentence does not silently satisfy a route-less dose).
+    """
+
+    def test_dotted_route_survives_window(self) -> None:
+        # p.o. sits immediately after the dose; the window must keep it.
+        hits = detect_missing_dose_route("Nabilone 1-2 mg p.o. twice daily.")
+        self.assertEqual(hits, ())
+
+    def test_dotted_iv_route_survives_window(self) -> None:
+        hits = detect_missing_dose_route("Ketamine 0.5 mg/kg i.v. over 40 min.")
+        self.assertEqual(hits, ())
+
+    def test_route_in_unrelated_next_sentence_does_not_satisfy(self) -> None:
+        # The dose is route-less; the *next* sentence mentions an oral
+        # route for a different statement. The route-less dose must still
+        # fire — abbreviation tolerance must not turn into cross-sentence
+        # leakage.
+        text = (
+            "A 10 mg dose was administered. "
+            "Separately, the oral bioavailability of CBD is low."
+        )
+        hits = detect_missing_dose_route(text)
+        self.assertGreaterEqual(
+            len(hits), 1,
+            "a route in an unrelated next sentence must not satisfy a "
+            "route-less dose",
+        )
 
 
 class TestRunRigorChecks(unittest.TestCase):
@@ -385,6 +549,65 @@ class TestExtendedPharmacologyContext(unittest.TestCase):
             violations, (),
             "Already-disambiguated Δ⁹-THC must not trigger isomer-collapse",
         )
+
+
+class TestIsomerEquivalence(unittest.TestCase):
+    """Explicit isomer / decarb *equivalence* errors (defect #14).
+
+    Before this detector, "THC and THCA are the same" passed 100% clean
+    — no existing check catches an author asserting that two
+    pharmacologically distinct cannabinoids are identical. The detector
+    is intentionally conservative: it fires ONLY on an explicit
+    ``X and Y are the same / identical / interchangeable`` (or the
+    transposed ``X is the same as Y``) for a curated set of known
+    distinct cannabinoid pairs (THC/THCA decarb pairs, Δ⁸/Δ⁹ isomers,
+    CBD/CBDA, THC/CBD). It must NOT fire on correct precursor/conversion
+    language or on "different" statements.
+    """
+
+    def test_thc_thca_same_fires(self) -> None:
+        text = "THC and THCA are the same compound."
+        hits = detect_isomer_equivalence(text)
+        self.assertGreaterEqual(len(hits), 1)
+
+    def test_delta8_delta9_identical_fires(self) -> None:
+        text = "Delta-8-THC and delta-9-THC are identical in their effects."
+        hits = detect_isomer_equivalence(text)
+        self.assertGreaterEqual(len(hits), 1)
+
+    def test_thc_cbd_interchangeable_fires(self) -> None:
+        text = "For dosing purposes THC and CBD are interchangeable."
+        hits = detect_isomer_equivalence(text)
+        self.assertGreaterEqual(len(hits), 1)
+
+    def test_transposed_same_as_fires(self) -> None:
+        text = "THCA is the same as THC once you account for the carboxyl."
+        hits = detect_isomer_equivalence(text)
+        self.assertGreaterEqual(len(hits), 1)
+
+    def test_correct_precursor_language_does_not_fire(self) -> None:
+        text = (
+            "THCA is the carboxylated precursor of THC and converts to it "
+            "via decarboxylation on heating."
+        )
+        hits = detect_isomer_equivalence(text)
+        self.assertEqual(hits, ())
+
+    def test_different_statement_does_not_fire(self) -> None:
+        text = "THC and CBD are different compounds with distinct pharmacology."
+        hits = detect_isomer_equivalence(text)
+        self.assertEqual(hits, ())
+
+    def test_unrelated_same_does_not_fire(self) -> None:
+        # 'the same' about something other than a cannabinoid pair.
+        text = "The dose was the same across both study arms."
+        hits = detect_isomer_equivalence(text)
+        self.assertEqual(hits, ())
+
+    def test_equivalence_routed_through_combined_runner(self) -> None:
+        report = run_rigor_checks("THC and THCA are the same molecule.")
+        self.assertFalse(report.clean)
+        self.assertGreaterEqual(len(report.isomer_equivalence_violations), 1)
 
 
 if __name__ == "__main__":

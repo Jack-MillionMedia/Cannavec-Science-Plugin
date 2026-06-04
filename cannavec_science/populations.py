@@ -49,7 +49,61 @@ class PopulationCitation:
     nnt: str | None = None
     comparator: str | None = None
     funding: str | None = None
-    role: str = "primary"  # primary | systematic_review | replication | null_trial | regulator_approval
+    # Study design of THIS citation — drives its Source-Authority tier via
+    # :func:`_tier_for_role`. One of:
+    #   systematic_review | meta_analysis  → tier-1 SR_FLAGSHIP
+    #   primary | replication              → tier-2 JOURNAL_RCT (pre-reg+powered)
+    #   open_label | pharmacokinetic | observational | mechanism |
+    #     narrative_review | regulator_approval → tier-3 SINGLE_ARM_OR_MECH
+    # Unknown values map conservatively to tier-3 (never an auto-promoted RCT).
+    role: str = "primary"
+
+
+# Map each citation ``role`` (its study design) to the Source-Authority tier
+# it earns and whether the pre-registered + adequately-powered RCT flags apply.
+# This is the heart of GRADE-by-design: a citation is tiered by *what it is*,
+# never by the curator's headline anchor for the row.
+#
+# - systematic_review / meta_analysis → tier-1 SR_FLAGSHIP. A Cochrane/AHRQ/
+#   NICE/JAMA SR is a Level-A floor on its own; pre-reg/powered are RCT flags
+#   that do not apply to a review.
+# - primary / replication → tier-2 JOURNAL_RCT, pre-registered + powered. These
+#   are the pre-registered pivotal/confirmatory RCTs; a single one caps at B,
+#   two aligned reach A.
+# - open_label / pharmacokinetic / observational / mechanism / narrative_review
+#   / regulator_approval → tier-3 SINGLE_ARM_OR_MECH, never auto-stamped as a
+#   pre-registered powered RCT. They support context, not a Level-A floor.
+#
+# Unknown roles fall through to the conservative tier-3 default so a mislabelled
+# citation can never be silently promoted to a flagship RCT.
+_ROLE_TIER_MAP: dict[str, tuple[str, bool]] = {
+    "systematic_review": ("SR_FLAGSHIP", False),
+    "meta_analysis": ("SR_FLAGSHIP", False),
+    "primary": ("JOURNAL_RCT", True),
+    "replication": ("JOURNAL_RCT", True),
+    "open_label": ("SINGLE_ARM_OR_MECH", False),
+    "pharmacokinetic": ("SINGLE_ARM_OR_MECH", False),
+    "observational": ("SINGLE_ARM_OR_MECH", False),
+    "mechanism": ("SINGLE_ARM_OR_MECH", False),
+    "narrative_review": ("SINGLE_ARM_OR_MECH", False),
+    "regulator_approval": ("SINGLE_ARM_OR_MECH", False),
+    "null_trial": ("JOURNAL_RCT", True),
+}
+
+
+def _tier_for_role(role: str) -> tuple["SourceTier", bool]:
+    """Return ``(SourceTier, pre_registered_and_powered)`` for a citation role.
+
+    Conservative by default: an unrecognised role maps to the tier-3
+    single-arm/mechanism tier with the RCT flags off, so a typo or a future
+    role string can never inflate a citation to a flagship RCT.
+    """
+    from cannavec_science.evidence import SourceTier as _SourceTier
+
+    tier_name, prereg = _ROLE_TIER_MAP.get(
+        role, ("SINGLE_ARM_OR_MECH", False)
+    )
+    return _SourceTier[tier_name], prereg
 
 
 @dataclass(frozen=True)
@@ -96,26 +150,31 @@ class TrialSupportedPopulation:
     def to_claim(self, *, source_tier: "SourceTier | None" = None) -> "Claim":
         """Render this population row as a typed :class:`Claim`.
 
-        Unlike the other registries, populations carry the curator's
-        GRADE assessment in :attr:`highest_grade_anchor`. The default
-        source tier maps that anchor:
+        Each citation is tiered by its OWN study design — the
+        :attr:`PopulationCitation.role` field — not by the row's curator
+        anchor. ``role`` maps via :func:`_tier_for_role`:
 
-        - ``Level A`` → :class:`SourceTier.SR_FLAGSHIP`
-          (Cochrane / NEJM-tier pivotal trial — grades to A)
-        - ``Level B`` → :class:`SourceTier.JOURNAL_RCT` with
-          ``pre_registered=True``, ``adequately_powered=True``
-          (grades to B)
-        - ``Level C`` → :class:`SourceTier.SINGLE_ARM_OR_MECH`
-          (grades to C)
-        - ``Level D / E`` → :class:`SourceTier.PREPRINT_OR_SMALL`
-          (grades to D)
+        - ``systematic_review`` / ``meta_analysis`` →
+          :class:`SourceTier.SR_FLAGSHIP` (a Cochrane/JAMA SR is a Level-A
+          floor on its own).
+        - ``primary`` / ``replication`` →
+          :class:`SourceTier.JOURNAL_RCT` with ``pre_registered=True`` and
+          ``adequately_powered=True`` (a pre-registered powered RCT; a single
+          one caps at Level B, two aligned reach Level A).
+        - observational / open-label / PK / mechanism / narrative-review →
+          :class:`SourceTier.SINGLE_ARM_OR_MECH` and never auto-stamped as a
+          pre-registered powered RCT.
 
-        Wording is grade-aware:
+        The deterministic Claim grade (:meth:`Claim.best_supportable_grade`)
+        is therefore derived strictly from study design, and is reported as
+        the single source of truth. The curator's
+        :attr:`highest_grade_anchor` remains available as structured metadata
+        and may sit above the deterministic grade (e.g. a single-RCT seizure
+        row is anchored Level A but grades deterministically to Level B).
 
-        - Level A claims use "is established adjunctive therapy for…"
-        - Level B claims use "is likely effective for…"
-        - Level C claims use "may help…"
-        - Lower grades use "preliminary evidence supports…"
+        ``source_tier`` (when passed) overrides the per-citation tiering and
+        applies a uniform tier to every source — preserving the legacy
+        explicit-override contract for direct callers.
         """
         from cannavec_science.evidence import (
             Claim,
@@ -125,50 +184,29 @@ class TrialSupportedPopulation:
             required_disclosures,
         )
 
-        # Tier defaults from the curator-assessed anchor grade.
-        default_tier_map = {
-            EvidenceLevel.A: _SourceTier.SR_FLAGSHIP,
-            EvidenceLevel.B: _SourceTier.JOURNAL_RCT,
-            EvidenceLevel.C: _SourceTier.SINGLE_ARM_OR_MECH,
-            EvidenceLevel.D: _SourceTier.PREPRINT_OR_SMALL,
-            EvidenceLevel.E: _SourceTier.PREPRINT_OR_SMALL,
-            EvidenceLevel.UNSUPPORTED: _SourceTier.PREPRINT_OR_SMALL,
-        }
-        tier = source_tier or default_tier_map[self.highest_grade_anchor]
-
-        # Set ``pre_registered`` + ``adequately_powered`` for sources
-        # whose curator-anchored grade reflects a pre-registered trial:
-        #
-        # - Level A + SR_FLAGSHIP (Cochrane / NEJM / Lancet / JAMA) —
-        #   pre-reg + powered are characteristic; setting them lets the
-        #   ``single_primary_study`` cap drop one level to B (not C).
-        # - Level B + JOURNAL_RCT — Source grades to B (not C) when
-        #   pre-reg + powered are set; ``single_primary_study`` cap then
-        #   reaches C.
-        #
-        # Single-citation rows still typically grade one level below
-        # the curator anchor because of the deterministic
-        # single-primary-study rule; that's the honest output for
-        # what's independently supportable from the cited rows alone.
-        pre_reg = (
-            (self.highest_grade_anchor == EvidenceLevel.B
-             and tier == _SourceTier.JOURNAL_RCT)
-            or (self.highest_grade_anchor == EvidenceLevel.A
-                and tier == _SourceTier.SR_FLAGSHIP)
-        )
-        powered = pre_reg
-
-        sources = tuple(
-            Source(
+        def _source_for(c: "PopulationCitation") -> Source:
+            if source_tier is not None:
+                # Explicit override: uniform tier; only treat as a
+                # pre-registered powered RCT when the override is an RCT tier.
+                tier = source_tier
+                prereg = tier in (
+                    _SourceTier.SR_FLAGSHIP, _SourceTier.JOURNAL_RCT
+                )
+            else:
+                tier, prereg = _tier_for_role(c.role)
+            return Source(
                 title=c.label,
                 tier=tier,
                 pmid=c.pmid,
                 doi=c.doi,
                 url=c.url,
                 year=c.year,
-                pre_registered=pre_reg,
-                adequately_powered=powered,
+                pre_registered=prereg,
+                adequately_powered=prereg,
             )
+
+        sources = tuple(
+            _source_for(c)
             for c in self.citations
             if (c.pmid or c.doi or c.url)
         )
@@ -302,7 +340,11 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 pmid="29768152",
                 year=2018,
                 role="primary",
-                n=171,
+                # GWPCARE3 enrolled a total of 225 patients across the
+                # 10 mg/kg, 20 mg/kg, and placebo arms (NEJM: "A total of 225
+                # patients were enrolled"). Matches the major_cannabinoids
+                # monograph for the same PMID.
+                n=225,
                 primary_outcome=(
                     "monthly drop-seizure frequency over 14-week "
                     "treatment period"
@@ -319,10 +361,18 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 funding="GW Pharmaceuticals (industry-funded; pre-registered)",
             ),
             PopulationCitation(
-                label="Gaston 2017 — CBD AE patterns in epilepsy trials",
+                label=(
+                    "Gaston 2017 — CBD–AED interactions (open-label "
+                    "PK / drug-interaction study, Epilepsia)"
+                ),
                 pmid="28782097",
                 year=2017,
-                role="primary",
+                # Open-label PK / interaction study (not a confirmatory RCT):
+                # it characterises drug–drug interactions, it does not
+                # independently replicate the efficacy endpoint. Tiers to
+                # SINGLE_ARM_OR_MECH so it cannot be miscounted as a second
+                # pivotal RCT that would defeat the single-RCT A→B cap.
+                role="pharmacokinetic",
             ),
         ),
     ),
@@ -345,6 +395,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 label="MacCallum 2018 — Practical clinical cannabis prescribing review",
                 pmid="29307505",
                 year=2018,
+                role="narrative_review",
             ),
         ),
     ),
@@ -394,7 +445,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 label="MacCallum 2018 — Practical clinical cannabis prescribing review",
                 pmid="29307505",
                 year=2018,
-                role="primary",
+                role="narrative_review",
             ),
         ),
         null_trials=(
@@ -434,6 +485,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
                 pmid="26103030",
                 year=2015,
+                role="systematic_review",
             ),
         ),
     ),
@@ -455,6 +507,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 label="Whiting 2015 — Cannabinoids for medical use SR/MA (JAMA)",
                 pmid="26103030",
                 year=2015,
+                role="systematic_review",
             ),
         ),
     ),
@@ -505,6 +558,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 label="Volkow 2014 — Adverse health effects of marijuana use (NEJM)",
                 pmid="24897085",
                 year=2014,
+                role="narrative_review",
             ),
         ),
     ),
@@ -532,6 +586,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 label="Volkow 2014 — Adverse health effects of marijuana use (NEJM)",
                 pmid="24897085",
                 year=2014,
+                role="narrative_review",
             ),
         ),
     ),
@@ -561,6 +616,7 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
                 label="MacCallum 2018 — Practical clinical cannabis prescribing review",
                 pmid="29307505",
                 year=2018,
+                role="narrative_review",
             ),
         ),
     ),

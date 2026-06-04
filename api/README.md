@@ -32,8 +32,12 @@ live finding is badged (⚠) and pinned last, never silently cited (§VIII).
   `retraction_policy=strict|badge`, `blend=true|false` (alias `augment`; weave
   curated core + live breadth + synthesis), `fallback=true|false` (default true —
   auto-fallback when thin). Response adds `augmented` (live findings attached),
-  `fallback_used`, and `synthesis` (the cross-source convergence verdict, also
-  inside `answer.live_synthesis`).
+  `fallback_used`, `synthesis` (the cross-source convergence verdict, also
+  inside `answer.live_synthesis`), and the nested `answer.is_refusal` mirror of
+  the top-level `is_refusal`. When a non-refusal query yields no curated claim
+  and no live finding, the response carries `no_evidence: true` + a human
+  `message` (and the Markdown brief gets a `## No evidence found` section) — an
+  empty brief is never returned silently.
 - `/api/discover` — `query` (required), `sources=pubmed,ctgov,chembl,europepmc`
   (default `pubmed,ctgov`), `max=<int>` (≤25), `since=YYYY-MM-DD`,
   `format=json|markdown`. The CT.gov lane is relevance-gated to cannabinoid
@@ -53,7 +57,11 @@ live finding is badged (⚠) and pinned last, never silently cited (§VIII).
   `includeFiles` (the engine's lazily-imported registries would otherwise be
   missed by static import tracing) and sets `maxDuration: 30`.
 - Curated responses are deterministic and edge-cached 24 h; live responses
-  are cached 1 h.
+  are cached 1 h. The `format=markdown` brief echoes the question (`**Q:** …`),
+  so it is served `Cache-Control: no-store`, never `public`.
+- Every response sends `X-Content-Type-Options: nosniff`, and the echoed
+  question is stripped of angle brackets at the boundary, so reflected input
+  cannot be MIME-sniffed into executable HTML.
 - All behaviour is covered by offline tests (`tests/test_api_handlers.py`,
   `tests/test_live_discovery.py`, `tests/test_http_ncbi_auth.py`) — network
   calls use injected fetchers, so the suite never hits the wire.

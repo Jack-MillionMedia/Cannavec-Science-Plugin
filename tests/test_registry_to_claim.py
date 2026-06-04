@@ -196,27 +196,33 @@ class TestPopulationToClaim(unittest.TestCase):
             claim = row.to_claim()
             self.assertEqual(claim.claim_type, ClaimType.CLINICAL_EFFICACY)
 
-    def test_level_a_population_anchors_to_sr_flagship(self) -> None:
-        # The Dravet population is curator-anchored at Level A. The
-        # registry carries one pivotal NEJM citation; the deterministic
-        # grader applies the ``single_primary_study`` cap, which lowers
-        # the grade by one level when ``pre_registered_major_journal``
-        # is True. So the deterministic grade is Level B — one level
-        # below the curator anchor, which is honest given that only one
-        # supporting source is independently cited in this row.
+    def test_level_a_population_tiers_pivotal_rct_by_design(self) -> None:
+        # Dravet is curator-anchored at Level A and cites ONE pivotal NEJM
+        # RCT (Devinsky 2017). It is now tiered by its own study design —
+        # a pre-registered, adequately-powered RCT → JOURNAL_RCT — so the
+        # single-primary-study cap lands it at Level B, one level below the
+        # curator anchor (the honest grade for a single confirmatory RCT).
+        #
+        # CHANGED (WP-GRADE defect #3): this test previously asserted the
+        # source tier was SR_FLAGSHIP. That asserted the OLD buggy behaviour
+        # where every citation was stamped with a tier derived from the row's
+        # curator anchor (Level A → SR_FLAGSHIP) — wrongly tiering a single
+        # NEJM RCT as a Cochrane-tier systematic review. The fix tiers each
+        # citation by its declared role; a pivotal RCT is JOURNAL_RCT. The
+        # deterministic grade (Level B) is unchanged.
         for row in all_populations():
             if row.label == "paediatric Dravet syndrome":
                 claim = row.to_claim()
-                # Source tier is SR_FLAGSHIP per anchor mapping.
+                # A pivotal pre-registered powered RCT → JOURNAL_RCT.
                 self.assertEqual(
-                    claim.sources[0].tier, SourceTier.SR_FLAGSHIP,
+                    claim.sources[0].tier, SourceTier.JOURNAL_RCT,
                 )
                 self.assertTrue(claim.sources[0].pre_registered)
                 self.assertTrue(claim.sources[0].adequately_powered)
-                # Deterministic grade is Level B (single-source cap).
+                # Deterministic grade is Level B (single-RCT cap).
                 self.assertEqual(
                     claim.best_supportable_grade(), EvidenceLevel.B,
-                    f"Dravet single-source row should grade to B; "
+                    f"Dravet single-RCT row should grade to B; "
                     f"got {claim.best_supportable_grade().value}",
                 )
                 # v2.7: claim text contains NO embedded grade string —
@@ -235,10 +241,18 @@ class TestPopulationToClaim(unittest.TestCase):
                 return
         self.fail("Dravet population not found in registry")
 
-    def test_level_b_population_anchors_to_journal_rct(self) -> None:
-        # Curator anchor B + single JOURNAL_RCT source → deterministic C
-        # (single_primary_study cap without SR_FLAGSHIP). This is the
-        # honest output given the cited evidence base.
+    def test_level_b_population_with_narrative_review_grades_c(self) -> None:
+        # The first Level-B-anchored row (adult MS spasticity) cites a single
+        # practical-prescribing narrative review (MacCallum 2018), not an RCT.
+        # Tiered by design it is SINGLE_ARM_OR_MECH and grades to Level C.
+        #
+        # CHANGED (WP-GRADE defect #3): this test previously asserted the
+        # source was JOURNAL_RCT with pre_registered=True / adequately_powered
+        # =True. That asserted the OLD buggy behaviour — a narrative review was
+        # auto-stamped as a pre-registered powered RCT purely because the row's
+        # curator anchor was Level B. The fix tiers by the citation's declared
+        # role (narrative_review → SINGLE_ARM_OR_MECH, RCT flags off). The
+        # deterministic grade (Level C) is unchanged.
         for row in all_populations():
             if row.highest_grade_anchor == EvidenceLevel.B:
                 claim = row.to_claim()
@@ -248,11 +262,13 @@ class TestPopulationToClaim(unittest.TestCase):
                     f"row '{row.label}': expected deterministic C, "
                     f"got {claim.best_supportable_grade().value}",
                 )
+                # A narrative review is tiered as single-arm/mechanism and is
+                # NOT auto-stamped as a pre-registered powered RCT.
                 self.assertEqual(
-                    claim.sources[0].tier, SourceTier.JOURNAL_RCT,
+                    claim.sources[0].tier, SourceTier.SINGLE_ARM_OR_MECH,
                 )
-                self.assertTrue(claim.sources[0].pre_registered)
-                self.assertTrue(claim.sources[0].adequately_powered)
+                self.assertFalse(claim.sources[0].pre_registered)
+                self.assertFalse(claim.sources[0].adequately_powered)
                 # v2.7: claim text contains NO embedded grade string —
                 # the typed Claim.grade field is the single source of
                 # truth. Closes 2026-05-19 Oracle Evaluator §4.5.
