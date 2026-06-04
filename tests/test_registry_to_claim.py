@@ -242,46 +242,58 @@ class TestPopulationToClaim(unittest.TestCase):
         self.fail("Dravet population not found in registry")
 
     def test_level_b_population_with_narrative_review_grades_c(self) -> None:
-        # The first Level-B-anchored row (adult MS spasticity) cites a single
-        # practical-prescribing narrative review (MacCallum 2018), not an RCT.
-        # Tiered by design it is SINGLE_ARM_OR_MECH and grades to Level C.
+        # Invariant (WP-GRADE defect #3): a Level-B-anchored population whose
+        # SOLE citation is a narrative review is tiered SINGLE_ARM_OR_MECH and
+        # grades deterministically to Level C — it is NOT auto-stamped as a
+        # pre-registered powered RCT just because the curator anchor is B.
         #
-        # CHANGED (WP-GRADE defect #3): this test previously asserted the
-        # source was JOURNAL_RCT with pre_registered=True / adequately_powered
-        # =True. That asserted the OLD buggy behaviour — a narrative review was
-        # auto-stamped as a pre-registered powered RCT purely because the row's
-        # curator anchor was Level B. The fix tiers by the citation's declared
-        # role (narrative_review → SINGLE_ARM_OR_MECH, RCT flags off). The
-        # deterministic grade (Level C) is unchanged.
-        for row in all_populations():
-            if row.highest_grade_anchor == EvidenceLevel.B:
-                claim = row.to_claim()
-                self.assertEqual(
-                    claim.best_supportable_grade(),
-                    EvidenceLevel.C,
-                    f"row '{row.label}': expected deterministic C, "
-                    f"got {claim.best_supportable_grade().value}",
-                )
-                # A narrative review is tiered as single-arm/mechanism and is
-                # NOT auto-stamped as a pre-registered powered RCT.
-                self.assertEqual(
-                    claim.sources[0].tier, SourceTier.SINGLE_ARM_OR_MECH,
-                )
-                self.assertFalse(claim.sources[0].pre_registered)
-                self.assertFalse(claim.sources[0].adequately_powered)
-                # v2.7: claim text contains NO embedded grade string —
-                # the typed Claim.grade field is the single source of
-                # truth. Closes 2026-05-19 Oracle Evaluator §4.5.
-                self.assertNotRegex(
-                    claim.text,
-                    r"\bLevel\s+[A-E]\b|\bCurator[- ]anchor",
-                    "claim prose must not embed a grade string",
-                )
-                self.assertEqual(
-                    row.highest_grade_anchor, EvidenceLevel.B,
-                )
-                return
-        self.fail("no Level-B population in registry")
+        # Tested with a SYNTHETIC row rather than the first Level-B registry
+        # row: that used to be 'adult MS spasticity' citing only MacCallum
+        # 2018, but the row now (correctly) also cites the pivotal Novotna 2011
+        # RCT (PMID 21362108) and so grades B. The invariant is about the
+        # narrative_review → tier rule, not any one row's citation set.
+        from cannavec_science.populations import (
+            PopulationCitation,
+            TrialSupportedPopulation,
+        )
+        row = TrialSupportedPopulation(
+            label="synthetic narrative-review-only population",
+            indication="example indication (adjunctive)",
+            cannabinoid="cannabidiol (CBD)",
+            route="oral",
+            dose_range_population="example range",
+            highest_grade_anchor=EvidenceLevel.B,
+            age_band="adults",
+            geographies_approved=("none stated",),
+            required_cautions=("example caution",),
+            citations=(
+                PopulationCitation(
+                    label="Example 2020 — narrative prescribing review",
+                    pmid="99999999",
+                    year=2020,
+                    role="narrative_review",
+                ),
+            ),
+        )
+        claim = row.to_claim()
+        self.assertEqual(
+            claim.best_supportable_grade(),
+            EvidenceLevel.C,
+            f"narrative-review-only row must grade deterministic C, "
+            f"got {claim.best_supportable_grade().value}",
+        )
+        # A narrative review is tiered as single-arm/mechanism and is NOT
+        # auto-stamped as a pre-registered powered RCT.
+        self.assertEqual(claim.sources[0].tier, SourceTier.SINGLE_ARM_OR_MECH)
+        self.assertFalse(claim.sources[0].pre_registered)
+        self.assertFalse(claim.sources[0].adequately_powered)
+        # Claim prose contains NO embedded grade string — the typed
+        # Claim.grade field is the single source of truth.
+        self.assertNotRegex(
+            claim.text,
+            r"\bLevel\s+[A-E]\b|\bCurator[- ]anchor",
+            "claim prose must not embed a grade string",
+        )
 
     def test_module_level_helper_matches_method(self) -> None:
         row = all_populations()[0]

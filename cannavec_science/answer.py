@@ -707,6 +707,19 @@ class Answer:
             ],
             "cautions": list(self.cautions),
             "notes": list(self.notes),
+            # Monograph sections (major/minor-cannabinoid monographs, etc.) are
+            # structured prose, not typed claims. Expose them so JSON / "at
+            # scale" consumers receive the monograph the Markdown brief shows —
+            # a CBG/CBC/CBN query carries a full Unsupported-graded monograph
+            # here, not just in to_markdown(). Emitted only when present, so the
+            # pinned JSON shape is unchanged for section-less briefs.
+            **(
+                {"sections": [
+                    {"heading": h, "body": b} for h, b in self.sections
+                ]}
+                if self.sections
+                else {}
+            ),
             "live_findings": list(self.live_findings),
             # Emitted only when a live fan-out was woven in, so the pinned
             # offline-answer JSON shape stays unchanged for curated-only briefs.

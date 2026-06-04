@@ -394,6 +394,33 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
         ),
         citations=(
             PopulationCitation(
+                label=(
+                    "Novotna 2011 — nabiximols (Sativex) for MS spasticity, "
+                    "Phase 3 enriched-design RCT (Eur J Neurol)"
+                ),
+                pmid="21362108",
+                doi="10.1111/j.1468-1331.2010.03328.x",
+                year=2011,
+                role="primary",
+                n=241,
+                primary_outcome=(
+                    "mean spasticity 0-10 Numeric Rating Scale over the "
+                    "12-week randomized controlled phase (enriched design)"
+                ),
+                effect_size=(
+                    "significant reduction in spasticity NRS favouring "
+                    "nabiximols vs placebo (intention-to-treat)"
+                ),
+                confidence_interval=(
+                    "ITT p=0.0002; enriched design — only the 272 of 572 "
+                    "patients achieving ≥20% improvement in a 4-week "
+                    "single-blind run-in were randomized (n=241), so the "
+                    "effect reflects an enriched responder population"
+                ),
+                comparator="placebo",
+                funding="GW Pharmaceuticals (industry-funded; pre-registered)",
+            ),
+            PopulationCitation(
                 label="MacCallum 2018 — Practical clinical cannabis prescribing review",
                 pmid="29307505",
                 year=2018,
