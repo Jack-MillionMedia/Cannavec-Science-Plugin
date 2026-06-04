@@ -79,6 +79,157 @@ class IndexTests(unittest.TestCase):
             fg.fragility_index(1, 50, 9, 50, alpha=1.5)
 
 
+class DirectionTests(unittest.TestCase):
+    """The FI must move the table toward the null, by RATE not event count.
+
+    Regression for the direction bug: the conversion arm was chosen by which
+    arm held the fewer event *count* (``a <= c``), so when the fewer-count arm
+    was the higher-*rate* arm the loop pushed the table *away* from the null,
+    p fell, the arm exhausted, and a bogus FI was emitted with a p far below α.
+    """
+
+    def test_smoking_gun_converts_the_lower_rate_arm_not_the_fewer_count(self):
+        # treatment 8/10 = 80 %, control 30/1000 = 3 %. Treatment has the fewer
+        # event COUNT (8 < 30) but the far higher RATE. The old code converted
+        # the treatment arm (away from the null); the correct arm is control.
+        r = fg.fragility_index(8, 10, 30, 1000)
+        self.assertTrue(r.significant)
+        self.assertEqual(r.modified_arm, "control")
+
+    def test_smoking_gun_never_reports_an_index_with_p_below_alpha(self):
+        # The exact reproduced defect: "FI: 2 ... lifts p to 0.0000 ≥ α = 0.05"
+        # while p had actually *dropped* from 7.98e-11 to 2.91e-15. Whenever an
+        # FI is reported its p_at_index must genuinely sit at or above α.
+        r = fg.fragility_index(8, 10, 30, 1000)
+        if r.fragility_index is not None:
+            self.assertGreaterEqual(r.p_at_index, r.alpha)
+            self.assertIn("≥ α", r.rationale)
+            # and the rationale's quoted p must not contradict significance
+            self.assertNotIn("lifts p to 0.0000 ≥", r.rationale)
+
+    def test_second_smoking_gun_high_rate_treatment_small_arm(self):
+        # treatment 9/10 = 90 %, control 50/1000 = 5 %: again the small,
+        # high-rate treatment arm must NOT be the one converted.
+        r = fg.fragility_index(9, 10, 50, 1000)
+        self.assertTrue(r.significant)
+        self.assertEqual(r.modified_arm, "control")
+        if r.fragility_index is not None:
+            self.assertGreaterEqual(r.p_at_index, r.alpha)
+
+    def test_reported_index_has_p_at_or_above_alpha_over_a_grid(self):
+        # Property: across a grid of significant 2×2 tables — including the
+        # imbalanced-arm shapes that triggered the direction bug — EVERY
+        # reported Fragility Index must have crossed α (p_at_index ≥ α). Under
+        # the OLD code the imbalanced rows reported indices with p far below α.
+        shapes = (
+            (8, 10, 30, 1000), (9, 10, 50, 1000), (7, 10, 20, 500),
+            (2, 10, 1, 200), (5, 20, 3, 400), (15, 20, 100, 1000),
+            (1, 50, 9, 50), (8, 100, 20, 100), (3, 100, 15, 100),
+            (40, 50, 2, 50), (18, 25, 5, 300), (90, 100, 50, 1000),
+        )
+        checked = 0
+        for e_t, n_t, e_c, n_c in shapes:
+            r = fg.fragility_index(e_t, n_t, e_c, n_c)
+            if not r.significant or r.fragility_index is None:
+                continue
+            checked += 1
+            self.assertGreaterEqual(
+                r.p_at_index, r.alpha,
+                msg=(f"FI reported with p_at_index < α for "
+                     f"({e_t}/{n_t} vs {e_c}/{n_c}): "
+                     f"p_at_index={r.p_at_index}"))
+        self.assertGreaterEqual(checked, 8)  # the imbalanced rows were exercised
+
+    def test_minimal_index_one_fewer_conversion_stays_significant(self):
+        # Minimality on an imbalanced table: removing the last conversion must
+        # leave p < α (otherwise the FI is not the *minimum* number).
+        r = fg.fragility_index(8, 10, 30, 1000)
+        self.assertTrue(r.significant)
+        self.assertIsNotNone(r.fragility_index)
+        a, b = r.events_t, r.n_t - r.events_t
+        c, d = r.events_c, r.n_c - r.events_c
+        # rebuild the table one conversion short of the reported index
+        if r.modified_arm == "control":
+            c, d = c + (r.fragility_index - 1), d - (r.fragility_index - 1)
+        else:
+            a, b = a + (r.fragility_index - 1), b - (r.fragility_index - 1)
+        self.assertLess(fg.fisher_exact_two_sided(a, b, c, d), r.alpha)
+
+    def test_balanced_tables_unchanged_by_the_direction_fix(self):
+        # When arm sizes are equal, fewer-count and lower-rate coincide, so the
+        # historically pinned indices must be byte-for-byte unchanged.
+        self.assertEqual(fg.fragility_index(1, 50, 9, 50).fragility_index, 1)
+        self.assertEqual(fg.fragility_index(8, 100, 20, 100).fragility_index, 2)
+        self.assertEqual(fg.fragility_index(10, 100, 25, 100).fragility_index, 4)
+        self.assertEqual(fg.fragility_index(3, 100, 15, 100).fragility_index, 3)
+        self.assertEqual(fg.fragility_index(9, 50, 1, 50).modified_arm,
+                         "control")
+
+
+class UnbreakableTests(unittest.TestCase):
+    """The "significance cannot be broken" state is surfaced honestly — never
+    as a bogus FI whose ``p_at_index`` is still below α.
+
+    That state is a *defensive invariant*: filling the lower-rate arm to 100 %
+    always drives the absolute risk difference to ≤ 0, so p reaches α for any
+    genuinely significant 2×2. ``test_guard_is_unreachable_for_real_tables``
+    proves this exhaustively. The honest reporting *contract* for the state is
+    pinned below by constructing the result directly, rather than fabricating
+    an impossible input table.
+    """
+
+    @staticmethod
+    def _unbreakable_result():
+        # The exact shape ``_resolve_significant`` emits on its guard branch:
+        # significant, but no index, no quotient, no p_at_index.
+        return fg.FragilityResult(
+            events_t=8, n_t=10, events_c=30, n_c=1000,
+            alpha=0.05, p_value=1e-9, significant=True,
+            fragility_index=None, fragility_quotient=None, p_at_index=None,
+            modified_arm="control",
+            rationale=("Significant at two-sided Fisher p = 0.0000; this "
+                       "significance cannot be broken by converting non-events "
+                       "to events in the control arm (the lower-rate arm) — "
+                       "that arm is exhausted while p is still 0.0000 < "
+                       "α = 0.05. The Fragility Index is undefined for this "
+                       "operation here."),
+        )
+
+    def test_unbreakable_dict_carries_no_index_and_no_p_at_index(self):
+        d = self._unbreakable_result().to_dict()
+        self.assertTrue(d["significant"])
+        self.assertIsNone(d["fragility_index"])
+        self.assertIsNone(d["fragility_quotient"])
+        self.assertIsNone(d["p_at_index"])
+
+    def test_render_unbreakable_is_distinct_from_non_significant(self):
+        text = fg.render_fragility(self._unbreakable_result())
+        self.assertIn("cannot be broken", text.lower())
+        self.assertNotIn("result is not significant", text)
+        # never renders a p_at_index line for the unbreakable state
+        self.assertNotIn("p at the index", text)
+
+    def test_guard_is_unreachable_for_real_tables(self):
+        # Exhaustive proof over a dense small grid: every significant table is
+        # breakable in the correct direction, so a *real* call always yields a
+        # concrete index with p_at_index ≥ α. The guard never fires and an FI
+        # is never emitted with a sub-α p — the invariant the guard guarantees.
+        sig_seen = 0
+        for n_t in range(2, 22):
+            for n_c in range(2, 22):
+                for e_t in range(n_t + 1):
+                    for e_c in range(n_c + 1):
+                        r = fg.fragility_index(e_t, n_t, e_c, n_c)
+                        if not r.significant:
+                            continue
+                        sig_seen += 1
+                        self.assertIsNotNone(
+                            r.fragility_index,
+                            msg=f"guard fired on {e_t}/{n_t} vs {e_c}/{n_c}")
+                        self.assertGreaterEqual(r.p_at_index, r.alpha)
+        self.assertGreater(sig_seen, 1000)
+
+
 class ShapeTests(unittest.TestCase):
     def test_to_dict_deterministic(self):
         a = fg.fragility_index(8, 100, 20, 100).to_dict()
