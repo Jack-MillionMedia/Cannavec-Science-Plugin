@@ -132,7 +132,10 @@ class OnTopicQueriesAreUnchanged(unittest.TestCase):
         self.assertIn(
             "adult chemotherapy-induced nausea and vomiting (CINV)", pops
         )
-        self.assertEqual(a.evidence_summary.highest_grade.value, "Level A")
+        # §VII (D5 fix): the CINV row rests on a single non-canonical journal
+        # SR (Whiting 2015, JAMA), which caps at Level B on its own — Level A
+        # would require a canonical Cochrane/AHRQ/NICE SR or ≥ 2 aligned RCTs.
+        self.assertEqual(a.evidence_summary.highest_grade.value, "Level B")
 
 
 class ConditionAgnosticRecoveryStillWorks(unittest.TestCase):

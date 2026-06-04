@@ -64,9 +64,11 @@ class PopulationCitation:
 # This is the heart of GRADE-by-design: a citation is tiered by *what it is*,
 # never by the curator's headline anchor for the row.
 #
-# - systematic_review / meta_analysis → tier-1 SR_FLAGSHIP. A Cochrane/AHRQ/
-#   NICE/JAMA SR is a Level-A floor on its own; pre-reg/powered are RCT flags
-#   that do not apply to a review.
+# - systematic_review / meta_analysis → tier-1 SR_FLAGSHIP. Per §VII only a
+#   CANONICAL SR body (Cochrane/AHRQ/NICE/IQWiG/USPSTF) is a Level-A floor on
+#   its own; a journal SR/MA (e.g. JAMA) caps at Level B alone (see
+#   evidence._is_canonical_sr). pre-reg/powered are RCT flags that do not apply
+#   to a review.
 # - primary / replication → tier-2 JOURNAL_RCT, pre-registered + powered. These
 #   are the pre-registered pivotal/confirmatory RCTs; a single one caps at B,
 #   two aligned reach A.
@@ -155,8 +157,8 @@ class TrialSupportedPopulation:
         anchor. ``role`` maps via :func:`_tier_for_role`:
 
         - ``systematic_review`` / ``meta_analysis`` →
-          :class:`SourceTier.SR_FLAGSHIP` (a Cochrane/JAMA SR is a Level-A
-          floor on its own).
+          :class:`SourceTier.SR_FLAGSHIP` (a canonical Cochrane/AHRQ/NICE SR is
+          a Level-A floor on its own; a journal SR/MA alone caps at Level B).
         - ``primary`` / ``replication`` →
           :class:`SourceTier.JOURNAL_RCT` with ``pre_registered=True`` and
           ``adequately_powered=True`` (a pre-registered powered RCT; a single
@@ -525,9 +527,32 @@ _REGISTRY: tuple[TrialSupportedPopulation, ...] = (
         ),
         citations=(
             PopulationCitation(
-                label="Devinsky 2017 — CBD in Dravet syndrome (NEJM, pivotal trial framework)",
-                pmid="28538134",
-                year=2017,
+                label=(
+                    "Thiele 2021 — CBD in tuberous sclerosis complex "
+                    "(JAMA Neurol, GWPCARE6)"
+                ),
+                pmid="33346789",
+                doi="10.1001/jamaneurol.2020.4607",
+                year=2021,
+                role="primary",
+                n=224,
+                primary_outcome=(
+                    "change in TSC-associated seizure frequency over the "
+                    "16-week treatment period"
+                ),
+                effect_size=(
+                    "TSC-associated seizure reduction 48.6% on CBD "
+                    "25 mg/kg/day vs 26.5% on placebo"
+                ),
+                confidence_interval=(
+                    "reduction vs placebo 30.1% "
+                    "(95% CI 13.9 to 43.3, p<0.001) for the 25 mg/kg/day arm"
+                ),
+                comparator="placebo",
+                funding=(
+                    "GW Pharmaceuticals / Greenwich Biosciences "
+                    "(industry-funded; pre-registered, NCT02544763)"
+                ),
             ),
         ),
     ),

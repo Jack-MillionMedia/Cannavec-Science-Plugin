@@ -52,6 +52,7 @@ def _serialize_violation(v) -> dict:
 def _rigor_report(text: str) -> dict:
     from cannavec_science.rigor_checks import run_rigor_checks
     from cannavec_science.banned_patterns import detect_banned_patterns
+    from cannavec_science.retraction import scan_text_for_retracted_pmids
 
     report = run_rigor_checks(text)
     banned = detect_banned_patterns(text)
@@ -73,6 +74,22 @@ def _rigor_report(text: str) -> dict:
         for h in banned
     ]
     counts["banned_patterns"] = len(banned_hits)
+
+    # §VIII — a pasted citation that matches the retraction registry is a
+    # rigor violation: the surface that audits text must not pass a retracted
+    # PMID/DOI as "clean". Mirrors the compose-time scan; offline / registry-only.
+    retracted_hits = [
+        {
+            "identifier": h.matched_identifier,
+            "kind": h.matched_kind,
+            "status": h.record.status.value,
+            "title": h.record.title,
+            "reason": h.record.reason_summary,
+        }
+        for h in scan_text_for_retracted_pmids(text)
+    ]
+    counts["retracted_citations"] = len(retracted_hits)
+
     total = sum(counts.values())
     return {
         "ok": True,
@@ -80,6 +97,7 @@ def _rigor_report(text: str) -> dict:
         "counts": counts,
         "phytochemistry_violations": phyto,
         "banned_pattern_hits": banned_hits,
+        "retracted_citations": retracted_hits,
     }
 
 

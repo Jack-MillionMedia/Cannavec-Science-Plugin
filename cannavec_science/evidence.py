@@ -21,6 +21,7 @@ This module is import-safe in any Python ≥3.8 environment.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterable
@@ -211,6 +212,33 @@ def grade_from_source(source: Source) -> EvidenceLevel:
     if source.tier == SourceTier.TRADE_PRESS_OR_ADVOCACY:
         return EvidenceLevel.E
     return EvidenceLevel.UNSUPPORTED
+
+
+# §VII — only a CANONICAL evidence-synthesis body (Cochrane / AHRQ / NICE /
+# IQWiG / USPSTF) clears the Level-A floor on a SINGLE systematic review. A
+# high-quality journal SR/MA (e.g. a JAMA or PAIN review) is strong evidence
+# but, per the constitution, caps at Level B on its own — Level A then needs a
+# canonical SR or ≥ 2 aligned confirmatory RCTs. Detection is by source title,
+# so no per-registry annotation is required and a future SR is classified the
+# moment its citation names the body.
+_CANONICAL_SR_RE = re.compile(
+    r"\b(cochrane|ahrq|agency for healthcare research|nice|"
+    r"national institute for health and care excellence|iqwig|uspstf|"
+    r"u\.?s\.? preventive services)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_canonical_sr(source: "Source") -> bool:
+    """True when ``source`` is a canonical systematic-review body (§VII).
+
+    Only a Cochrane / AHRQ / NICE / IQWiG / USPSTF review qualifies. A journal
+    SR/MA at :class:`SourceTier.SR_FLAGSHIP` is strong but is not, on its own, a
+    Level-A floor (see :meth:`Claim.best_supportable_grade`).
+    """
+    if getattr(source, "tier", None) != SourceTier.SR_FLAGSHIP:
+        return False
+    return bool(_CANONICAL_SR_RE.search(getattr(source, "title", "") or ""))
 
 
 def _downgrade(level: EvidenceLevel, steps: int) -> EvidenceLevel:
@@ -405,20 +433,22 @@ class Claim:
         # mechanism cite, an open-label PK study) would defeat the cap and lift
         # a single pivotal RCT to Level A.
         #
-        # - SR/MA flagship: a tier-1 systematic review / meta-analysis. One is
-        #   sufficient for the Level-A floor.
+        # - canonical SR/MA: a Cochrane / AHRQ / NICE / IQWiG / USPSTF review
+        #   (see :func:`_is_canonical_sr`). ONE is sufficient for the Level-A
+        #   floor. A journal SR/MA carried at the same tier (e.g. a single
+        #   JAMA / PAIN review) is NOT a Level-A floor on its own — it caps at
+        #   Level B below, per the constitution's own §VII wording.
         # - confirmatory RCT: a pre-registered, adequately-powered RCT
         #   (tier-2 JOURNAL_RCT, or a NEJM/JAMA/Lancet RCT carried at tier-1).
         #   ≥ 2 in alignment clear the floor; a single one caps at Level B.
-        sr_flagships = [s for s in live_sources
-                        if s.tier == SourceTier.SR_FLAGSHIP]
+        canonical_srs = [s for s in live_sources if _is_canonical_sr(s)]
         confirmatory_rcts = [
             s for s in live_sources
             if s.tier in (SourceTier.SR_FLAGSHIP, SourceTier.JOURNAL_RCT)
             and s.pre_registered and s.adequately_powered
         ]
         meets_level_a_floor = (
-            len(sr_flagships) >= 1 or len(confirmatory_rcts) >= 2
+            len(canonical_srs) >= 1 or len(confirmatory_rcts) >= 2
         )
 
         if meets_level_a_floor:
@@ -430,11 +460,10 @@ class Claim:
             return _downgrade(EvidenceLevel.A, missing_count)
 
         # Otherwise the single-primary-study cap governs (§VII): a lone
-        # pre-registered, adequately-powered RCT in a major journal caps at
-        # Level B; any other single source (observational, open-label, PK,
-        # mechanism) caps at Level C. Both the flagship RCT tier (NEJM/JAMA/
-        # Lancet) and the specialist JOURNAL_RCT tier qualify as the
-        # "pre-registered powered RCT in major journal" the rule names.
+        # pre-registered, adequately-powered RCT in a major journal — or a lone
+        # journal SR/MA that did not clear the canonical-SR floor above — caps
+        # at Level B; any other single source (observational, open-label, PK,
+        # mechanism) caps at Level C.
         for s in live_sources:
             base = grade_from_source(s)
             grade = apply_grade_modifiers(
@@ -442,10 +471,11 @@ class Claim:
                 missing_disclosure_count=missing_count,
                 single_primary_study=True,
                 pre_registered_major_journal=(
-                    s.pre_registered
-                    and s.adequately_powered
-                    and s.tier in (SourceTier.SR_FLAGSHIP,
-                                   SourceTier.JOURNAL_RCT)
+                    # a tier-1 journal SR/MA is major-journal synthesis → B cap
+                    s.tier == SourceTier.SR_FLAGSHIP
+                    # or a pre-registered, adequately-powered major-journal RCT
+                    or (s.pre_registered and s.adequately_powered
+                        and s.tier == SourceTier.JOURNAL_RCT)
                 ),
             )
             if grade.rank > best.rank:
