@@ -215,8 +215,8 @@ $ python3 -m cannavec_science meta cbd_seizures.json --measure OR
 | Study | Identifier | Effect | 95% CI | Weight |
 |---|---|---|---|---|
 | Devinsky 2017 (Dravet) | PMID:28538134 | 0.287 | [0.096, 0.857] | 27.1% |
-| Devinsky 2018 (LGS)    | PMID:29768151 | 0.359 | [0.145, 0.889] | 39.5% |
-| Thiele 2018 (LGS)      | PMID:29503056 | 0.300 | [0.112, 0.804] | 33.4% |
+| Devinsky 2018 (LGS)    | PMID:29768152 | 0.359 | [0.145, 0.889] | 39.5% |
+| Thiele 2018 (LGS)      | PMID:29395273 | 0.300 | [0.112, 0.804] | 33.4% |
 
 **Random effects (DerSimonian–Laird):** 0.318 [0.180, 0.563]  (p = 0.0001)
 **Heterogeneity:** Q = 0.118 (df = 2, p = 0.9429), I² = 0%, τ² = 0.000
@@ -445,33 +445,33 @@ green (2,336 unit tests).
    (PMID 30902669, the high-potency-cannabis daily-use first-episode-
    psychosis study), Marconi 2016 Schizophr Bull dose-response SR
    (PMID 26884547), Vaucher 2018 Mol Psychiatry Mendelian-randomization
-   bidirectional-causality analysis (PMID 29039420) WITH explicit
+   bidirectional-causality analysis (PMID 28115737) WITH explicit
    instrument-validity caveats, Bhattacharyya 2009 Arch Gen Psychiatry
-   acute-Δ⁹-THC fMRI healthy-volunteer challenge (PMID 19996036),
+   acute-Δ⁹-THC fMRI healthy-volunteer challenge (PMID 19349314),
    Hjorthøj 2023 Lancet Psychiatry Danish national-register cohort
-   (PMID 36402143), and Murray 2017 Lancet Psychiatry narrative
+   (PMID 37140715), and Murray 2017 Lancet Psychiatry narrative
    review.
 3. **Driving-impairment science registry (≥ 5 rows)** — Compton 2017
    NHTSA Virginia Beach case-control crash-risk study (DOT HS 812 411,
    the most-cited AND most-mis-cited result in the cannabis-driving
    literature — unadjusted OR ≈ 1.25, adjusted OR ≈ 1.05 after
    demographics + alcohol), Hartman 2015 Clin Chem plasma-Δ⁹-THC
-   dose-response (PMID 25371545), Marcotte 2022 JAMA Psychiatry
-   driving-simulator dose-and-duration RCT (PMID 35138350, ~1.5 h
+   dose-response (PMID 26144593), Marcotte 2022 JAMA Psychiatry
+   driving-simulator dose-and-duration RCT (PMID 35080588, ~1.5 h
    peak impairment / ~5 h return-to-baseline), Brubacher 2022 NEJM
-   BC trauma-centre post-legalization cohort (PMID 35081282), and
-   Bondallaz 2016 Forensic Sci Int SR (PMID 27082781). The SCIENCE,
+   BC trauma-centre post-legalization cohort (PMID 35020985), and
+   Bondallaz 2016 Forensic Sci Int SR (PMID 27701009). The SCIENCE,
    not the LAW — per-se law surfaces remain in the parent plugin
    per Constitution §IV.
 4. **PTSD / anxiety / sleep registry (≥ 5 rows)** — Bonn-Miller 2021
-   PLOS One PTSD smoked-cannabis cross-over RCT (PMID 33667097)
+   PLOS One PTSD smoked-cannabis cross-over RCT (PMID 33730032)
    surfaces with the **largely-negative primary endpoint honestly
    stated** (no confidence-laundering); Crippa 2011 J Psychopharmacol
    CBD-SAD SPECT acute challenge (PMID 20829306); Bergamaschi 2011
-   Neuropsychopharm CBD-SAD public-speaking (PMID 21307846); Bedi
-   2010 Drug Alcohol Depend biphasic acute-Δ⁹-THC anxiety dose-
-   response (PMID 19897322); and Walsh 2017 Sleep Med Rev cannabinoids-
-   and-sleep SR (PMID 28392485) with the 'limited and inconclusive
+   Neuropsychopharm CBD-SAD public-speaking (PMID 21307846); Childs
+   2017 Drug Alcohol Depend biphasic acute-Δ⁹-THC anxiety dose-
+   response (PMID 28599212); and Suraev 2020 Sleep Med Rev cannabinoids-
+   and-sleep SR (PMID 32603954) with the 'limited and inconclusive
    evidence' SR verdict honestly stated.
 5. **Reporting-rigor module (≥ 6 detectors)** — A §VII GRADE-honesty
    deepening. Detectors flag when prompt text describes a study-design
@@ -536,47 +536,47 @@ eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
 ### What v0.5 ships
 
 1. **Clinical pharmacokinetics registry (≥ 8 curated rows)** — THC
-   inhaled (smoked + vaped) PK per Huestis 2005 (PMID 16142973) +
-   Spindle 2018, THC oral / dronabinol PK per Wall 1983 (PMID 6311559),
-   CBD oral food effect per Birnbaum 2019 (PMID 31166007 — the
+   inhaled (smoked + vaped) PK per Huestis 2005 (PMID 16596792) +
+   Spindle 2018, THC oral / dronabinol PK per Wall 1983 (PMID 6309462),
+   CBD oral food effect per Birnbaum 2019 (PMID 31247132 — the
    Epidiolex label-supporting 4-5× AUC increase with high-fat meal),
    11-OH-Δ⁹-THC active metabolite (the first-pass-effect explanation
    for why edibles produce a longer / different subjective profile),
-   nabiximols oromucosal per Karschner 2011 (PMID 21240010), plasma
+   nabiximols oromucosal per Karschner 2011 (PMID 21078841), plasma
    protein binding + adipose sequestration per Garrett 1977, and
-   SAMHSA-cutoff urine detection window per Huestis 1996 (PMID 8773290).
+   SAMHSA-cutoff urine detection window per Huestis 1996 (PMID 1320536).
 2. **Cannabis use disorder & withdrawal registry (≥ 6 curated rows)** —
-   DSM-5 CUD framework per Hasin 2013 (PMID 23537606), CUDIT-R
-   screening instrument per Adamson 2010 (PMID 20231083), Cannabis
-   Withdrawal Scale per Allsop 2011 (PMID 21652129), NESARC-III
+   DSM-5 CUD framework per Hasin 2013 (PMID 23903334), CUDIT-R
+   screening instrument per Adamson 2010 (PMID 20347232), Cannabis
+   Withdrawal Scale per Allsop 2011 (PMID 21724338), NESARC-III
    12-month / lifetime prevalence per Hasin 2015 (PMID 26502112),
-   twin-study heritability per Verweij 2010 (PMID 20096023), and
+   twin-study heritability per Verweij 2010 (PMID 20402985), and
    adolescent-onset telescoping per Chen 2009 / Hall & Degenhardt 2009.
 3. **Cannabinoid hyperemesis syndrome registry (≥ 4 curated rows)** —
    diagnostic criteria per Sorensen 2017 systematic review (PMID
-   27567272) + Allen 2004 original 9-case series (PMID 15082584) +
+   28000146) + Allen 2004 original 9-case series (PMID 15479672) +
    Simonetto 2012 Mayo Clinic 98-case series (PMID 22305024), Rome IV
-   functional GI framework per Venkatesan 2019 (PMID 31480576),
+   functional GI framework per Venkatesan 2019 (PMID 31241819),
    topical capsaicin acute-phase treatment per Dezieck 2017 (PMID
-   28215116), and post-legalization Colorado ED epidemiology per
-   Kim 2018 (PMID 30049481). The existing static CHS caution remains
+   28494183), and post-legalization Colorado ED epidemiology per
+   Kim 2015 (PMID 25903855). The existing static CHS caution remains
    intact — the registry adds primary citations alongside it.
 4. **eCBome enzyme-inhibitor pharmacology registry (≥ 5 curated rows)**
    — PF-04457845 cannabis-withdrawal Phase 2a per D'Souza 2019 (PMID
-   30985083), PF-04457845 osteoarthritis-pain Phase 2 per Huggins 2012
-   (PMID 22910298), **BIA 10-2474 Rennes Phase 1 disaster** per Kerbrat
-   2016 (PMID 27806243) *with explicit off-target-serine-hydrolase
-   disambiguation* per van Esbroeck 2017 (PMID 28912346 — the
+   30528676), PF-04457845 osteoarthritis-pain Phase 2 per Huggins 2012
+   (PMID 22727500), **BIA 10-2474 Rennes Phase 1 disaster** per Kerbrat
+   2016 (PMID 27806235) *with explicit off-target-serine-hydrolase
+   disambiguation* per van Esbroeck 2017 (PMID 28596366 — the
    activity-based protein profiling paper proving BIA 10-2474 toxicity
    is OFF-TARGET, not on-target FAAH biology), MAGL inhibitor ABX-1431
-   per Cisar 2018 (PMID 29498523), and dual FAAH / MAGL inhibitor
-   JZL195 mechanism per Long 2009 (PMID 19429692).
+   per Cisar 2018 (PMID 30067909), and dual FAAH / MAGL inhibitor
+   JZL195 mechanism per Long 2009 (PMID 19918051).
 5. **Cannabinoid biosynthesis pathway registry (≥ 5 curated rows)** —
-   OLS + OAC polyketide entry per Taura 2009 (PMID 19429605) + Gagne
-   2012 (PMID 22802647), CBGAS aromatic prenyltransferase per Page
-   2011 (PMID 21896800), THCA synthase FAD-dependent oxidocyclase per
-   Sirikantaramas 2004 (PMID 15453749), CBDA synthase per Taura 1996
-   (PMID 8632416), and Saccharomyces-cerevisiae heterologous
+   OLS + OAC polyketide entry per Taura 2009 (PMID 19454282) + Gagne
+   2012 (PMID 22802619), CBGAS aromatic prenyltransferase per
+   Fellermeier & Zenk 1998 (PMID 9607329), THCA synthase FAD-dependent oxidocyclase per
+   Sirikantaramas 2004 (PMID 15190053), CBDA synthase per Taura 1996
+   (PMID 8663284), and Saccharomyces-cerevisiae heterologous
    expression per Luo 2019 (PMID 30814733).
 6. **Europe PMC live-discovery lane (12th primary source)** — Europe
    PMC indexes PubMed PLUS the full PMC corpus PLUS European
@@ -594,7 +594,7 @@ eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
 ### What v0.4 shipped (preserved)
 
 1. Analytical-chemistry registry (≥ 8 curated rows) — decarboxylation
-   kinetics (Veress 1990 PMID 2384545, Wang 2016, Citti 2018), HPLC
+   kinetics (Veress 1990, Wang 2016, Citti 2018), HPLC
    potency analysis vs GC-MS in-injector decarboxylation artefact (Dussy
    2005, Citti 2018), chemovar Type I/II/III/IV/V classification
    (Hazekamp & Fischedick 2012 PMID 22362625, Lewis 2018), THCA-/CBDA-
@@ -602,10 +602,10 @@ eval bucket on top of the 144-prompt v0.4 battery — **162 prompts total
    2016), and combustion-vs-vaporisation pyrolysis byproducts
    (Pomahacova 2009, Moir 2008).
 2. Cultivation-science registry (≥ 6 curated rows) — UV-B effect on
-   cannabinoid biosynthesis (Lydon 1987 PMID 3621052), glandular
-   trichome biology (Livingston 2020 PMID 31867754, Tanney 2021),
+   cannabinoid biosynthesis (Lydon 1987 PMID 3628508), glandular
+   trichome biology (Livingston 2020 PMID 31469934, Tanney 2021),
    THCA-/CBDA-synthase single-locus inheritance (de Meijer 2003 PMID
-   12663552), CBDA-synthase enzymology (Taura 2007), F1 heterozygote
+   12586720), CBDA-synthase enzymology (Taura 2007), F1 heterozygote
    Type II dominance, and the **honest-debate botanical taxonomy** row
    surfacing both Small & Cronquist 1976 (single species) AND Hillig
    2005 (multi-species) without picking a winner.
