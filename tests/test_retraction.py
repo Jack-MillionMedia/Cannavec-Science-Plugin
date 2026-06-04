@@ -29,10 +29,121 @@ class TestSeedRegistry(unittest.TestCase):
     def test_seed_has_at_least_one_record(self) -> None:
         self.assertGreaterEqual(len(all_records()), 1)
 
-    def test_seed_records_are_labelled_synthetic(self) -> None:
+    def test_synthetic_fixtures_are_labelled_example(self) -> None:
+        # Expectation updated for defect #10: the seed no longer ships
+        # synthetic-ONLY records — it carries real, ground-truthed
+        # retractions too (see TestRealRetractionSeed). The remaining
+        # invariant is narrower: any SYNTHETIC fixture (reserved
+        # 99000000+ PMID / 10.99999 DOI ranges) must stay clearly
+        # labelled as an example so it is never mistaken for a real
+        # retraction.
         for r in all_records():
-            self.assertIn("example", r.title.lower(),
-                          "Seed records must be explicitly labelled as examples.")
+            is_synthetic = (
+                (r.pmid or "").startswith("99000")
+                or (r.doi or "").startswith("10.99999/")
+            )
+            if is_synthetic:
+                self.assertIn(
+                    "example", r.title.lower(),
+                    "Synthetic fixtures must be labelled as examples.",
+                )
+
+    def test_real_records_are_not_labelled_example(self) -> None:
+        # The flip side: a real retraction record must NOT carry the
+        # synthetic "example" marker (it is a citable, ground-truthed
+        # fact, not a placeholder).
+        for r in all_records():
+            is_synthetic = (
+                (r.pmid or "").startswith("99000")
+                or (r.doi or "").startswith("10.99999/")
+            )
+            if not is_synthetic:
+                self.assertNotIn("example", r.title.lower())
+                self.assertTrue(
+                    r.notice_url,
+                    "real records must carry a primary-source notice_url",
+                )
+
+
+class TestRealRetractionSeed(unittest.TestCase):
+    """§VIII must ship armed with REAL retractions, not only placeholders.
+
+    Each DOI below was ground-truthed against Crossref / Retraction Watch
+    (cannabis-relevant retracted papers). The local registry exists
+    precisely because Crossref's structured ``is_retracted`` is *false*
+    on these originals — they carry only a title-prefix ``RETRACTED:``
+    notice — so a researcher citing the original DOI would otherwise slip
+    the §VIII net. The registry keys on the ORIGINAL paper DOI (what a
+    citation actually contains).
+    """
+
+    # (original_doi, retraction_note_doi) — all verified retracted.
+    REAL_RETRACTED = (
+        ("10.1038/s41598-020-59468-4", "10.1038/s41598-024-51877-z"),
+        ("10.1155/2021/6612592", "10.1155/2023/9803081"),
+        ("10.3892/ol.2015.3525", "10.3892/ol.2023.14183"),
+        ("10.1177/1934578x221098843", "10.1177/1934578x241309731"),
+        ("10.1016/j.jpsychires.2024.05.029", "10.1016/j.jpsychires.2024.05.029"),
+    )
+
+    def setUp(self) -> None:
+        reset_to_seed()
+
+    def test_seed_contains_real_retractions_not_only_synthetic(self) -> None:
+        real = [
+            r for r in all_records()
+            if not (r.pmid or "").startswith("99000")
+            and not (r.doi or "").startswith("10.99999/")
+        ]
+        self.assertGreaterEqual(
+            len(real), 4,
+            "Seed registry must ship REAL retractions, not only the "
+            "synthetic 99000001/99000002 placeholders (§VIII).",
+        )
+
+    def test_known_real_retracted_doi_flagged(self) -> None:
+        # Spec exemplar: CBD-induced death in glioblastoma cultures.
+        rec = is_retracted(doi="10.1038/s41598-020-59468-4")
+        self.assertIsNotNone(
+            rec, "A known real retracted cannabis DOI must be flagged."
+        )
+        assert rec is not None
+        self.assertEqual(rec.status, RetractionStatus.RETRACTED)
+
+    def test_all_curated_real_retracted_dois_flagged(self) -> None:
+        for original_doi, _note in self.REAL_RETRACTED:
+            rec = is_retracted(doi=original_doi)
+            self.assertIsNotNone(
+                rec, f"{original_doi} should be flagged retracted.",
+            )
+            assert rec is not None
+            self.assertEqual(rec.status, RetractionStatus.RETRACTED)
+
+    def test_real_records_are_citable_with_notice(self) -> None:
+        # A real record must carry a primary-source notice URL and a real
+        # journal — the retraction-status fact is as well-cited as the
+        # paper it concerns (module docstring inclusion bar).
+        rec = is_retracted(doi="10.1155/2021/6612592")
+        self.assertIsNotNone(rec)
+        assert rec is not None
+        self.assertTrue(rec.notice_url, "real records must carry a notice_url")
+        self.assertNotIn("example", rec.title.lower())
+
+    def test_non_retracted_real_cannabis_doi_not_flagged(self) -> None:
+        # Negative control: Devinsky 2017 Dravet RCT (NEJM) is a real,
+        # NON-retracted, heavily-cited cannabis paper. It MUST NOT match.
+        self.assertIsNone(is_retracted(doi="10.1056/NEJMoa1611618"))
+        self.assertIsNone(is_retracted(pmid="28538134"))
+
+    def test_real_retracted_doi_caught_in_prose_scan(self) -> None:
+        text = (
+            "The antitumor synergy was reported (doi:10.3892/ol.2015.3525), "
+            "but the finding has not replicated."
+        )
+        hits = scan_text_for_retracted_pmids(text)
+        self.assertGreaterEqual(len(hits), 1)
+        self.assertEqual(hits[0].matched_kind, "doi")
+        self.assertEqual(hits[0].record.status, RetractionStatus.RETRACTED)
 
 
 class TestIsRetracted(unittest.TestCase):
