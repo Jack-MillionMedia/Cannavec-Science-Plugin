@@ -1,6 +1,16 @@
-# Cannavec Science (v0.6 — research-domain-breadth build)
+# Cannavec Science (v0.7 — citation-accuracy, recall & mechanism-claims build)
 
 **A focused Claude Code plugin for elite-tier cannabis-research science.**
+
+The **v0.7 build** is a correctness-, recall-, and mechanism-claims pass driven
+by an adversarial ground-truth audit (every emitted citation re-verified against
+PubMed / Crossref / IUPHAR-BPS / CPIC / DailyMed). It fixes citation→claim
+binding and GRADE-honesty defects (§I / §VII), wires retraction enforcement onto
+the `rigor` and `discover` surfaces (§VIII), raises curated recall (the pivotal
+MS-spasticity RCT; minor-cannabinoid monographs now reach JSON consumers),
+surfaces major- and minor-cannabinoid **receptor pharmacology as first-class
+MECHANISM claims**, and resurrects the Europe PMC live lane. Full detail under
+**What v0.7 ships** below.
 
 The v0.6 build extends the v0.5 industry-expert-clinical-depth backbone
 across four research domains every working cannabis-research scientist
@@ -23,7 +33,7 @@ Freeman-Tukey double-arcsine transform (spec 019), defined even at 0 % / 100 %;
 (spec 021) — the modern-recommended random-effects CI that, with the prediction
 interval and the OIS, forms a three-part refusal to overstate precision when
 studies are few.
-1,841 unit tests green at HEAD; 188 eval prompts
+2,336 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty-one curated science registries
 with ≥ 230 total rows; thirteen live-discovery lanes.
 
@@ -376,15 +386,58 @@ the Knapp-Hartung t for the slope (the modern default for few studies). It is
 honest about thin evidence: under ~10 studies per covariate the block carries a
 `CAUTION … treat as exploratory` line, never a falsely firm trend.
 
-### What v0.6 ships
+### What v0.7 ships
+
+A correctness, recall, and mechanism-claims pass from the 2026-06 adversarial
+ground-truth audit. Every change shipped test-first; the offline suite stays
+green (2,336 unit tests).
+
+1. **Citation→claim accuracy (§I).** The tuberous-sclerosis (TSC) population row
+   now cites the actual TSC trial — Thiele 2021 (PMID 33346789, *JAMA Neurol*,
+   GWPCARE6) with its own effect estimates (48.6% vs 26.5% seizure reduction) —
+   not the Dravet trial it had previously borrowed. The adult-MS-spasticity row
+   now cites the pivotal nabiximols RCT, Novotna 2011 (PMID 21362108, *Eur J
+   Neurol*), instead of resting on a narrative review alone.
+2. **GRADE Level-A floor tightened (§VII).** `evidence._is_canonical_sr`: a
+   single systematic review reaches Level A only when it is a canonical
+   Cochrane / AHRQ / NICE / IQWiG / USPSTF review; a lone journal SR/MA (e.g. a
+   JAMA review) caps at Level B on its own (≥ 2 aligned pre-registered RCTs still
+   reach Level A). Fixes claims graded above their source's own certainty.
+3. **Retraction enforcement on every surface (§VIII).** `/api/rigor` and the
+   `rigor` CLI now scan pasted text against the retraction registry — a retracted
+   PMID/DOI is no longer reported "clean" (a `retracted_citations` block is added
+   to the report). The `/api/discover` Markdown now badges a retracted live
+   finding (`⚠ RETRACTED — do not cite`) instead of rendering it like a clean hit.
+4. **Major + minor cannabinoid MECHANISM claims (§I / §VI).** A MECHANISM-intent
+   query ("CBD at 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding affinity", "CBG
+   α2-adrenoceptor", "THCV CB1") now surfaces the compound's curated receptor
+   activity as first-class, UniProt-tagged, PMID-anchored Level-C claims (Russo
+   2005, Bisogno 2001, Pertwee 2008, Cascio 2010, …). Because the answer is no
+   longer thin, the retrieval fallback no longer recovers an off-target
+   (wrong-compound) mechanism row. Intent-gated, so efficacy / dose briefs are
+   unchanged.
+5. **Curated monographs reach JSON consumers (§XI).** `Answer.to_dict()` now
+   serializes the structured `sections` (the major/minor-cannabinoid monograph),
+   so a CBG / CBC / CBN query returns its full Unsupported-graded monograph over
+   the API — not only in the Markdown brief. The `no_evidence` gate is now
+   monograph-aware: it no longer masks a populated monograph behind "no evidence
+   found".
+6. **Europe PMC live lane resurrected.** The lane had silently returned zero hits
+   for every query because it sent a `sort=FIRST_PDATE` token the current Europe
+   PMC REST API rejects (it responds with a degenerate body carrying no results);
+   it now uses the API's default relevance ranking. The `since` date floor is
+   unaffected (it is query syntax, not sort syntax). Verified against the live
+   EBI endpoint.
+
+### What v0.6 shipped (preserved)
 
 1. **Pain medicine registry (≥ 7 curated rows)** — NASEM 2017
    chapter-4 conclusive-evidence finding for chronic pain anchored
    to Whiting 2015 JAMA SR (PMID 26103030), Stockings 2018 PAIN SR
-   (PMID 30121596), Mücke 2018 Cochrane neuropathic (PMID 29513392),
-   Boehnke 2019 J Pain prospective MMJ cohort (PMID 31237829),
-   Andreae 2015 J Pain IPD meta-analysis (PMID 25840040), and de
-   Vita 2018 experimental-pain SR (PMID 30362962). The Mücke vs
+   (PMID 29847469), Mücke 2018 Cochrane neuropathic (PMID 29513392),
+   Boehnke 2019 J Pain prospective MMJ cohort (PMID 30690169),
+   Andreae 2015 J Pain IPD meta-analysis (PMID 26362106), and de
+   Vita 2018 experimental-pain SR (PMID 30422266). The Mücke vs
    Whiting tone divergence is a teaching example of evidence-base vs
    evidence-interpretation differences.
 2. **Cannabis-and-psychosis psychiatry registry (≥ 6 rows)** —

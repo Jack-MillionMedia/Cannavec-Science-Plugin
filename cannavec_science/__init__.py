@@ -62,7 +62,7 @@ GRADE annotation, and the v0.4 ``Answer.notes`` render closure.
 Stdlib-only. Researcher audience only. Five slash commands.
 """
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 from cannavec_science.evidence import (
     Claim,
