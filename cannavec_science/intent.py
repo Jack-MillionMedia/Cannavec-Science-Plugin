@@ -187,3 +187,102 @@ def topic_keywords(text: str) -> frozenset[str]:
         if regex.search(text):
             tags.add(tag)
     return frozenset(tags)
+
+
+# ── Indication / condition tags ─────────────────────────────────────────────
+#
+# A focused lexicon of the *named medical conditions* a researcher asks about,
+# used to make claim selection indication-aware (Improvement: WP-RETRIEVAL #2).
+# A condition word maps to one or more canonical tags; a *family* member also
+# carries its family tag so a broad query and a specific row still overlap
+# (e.g. "CBD for seizures" → {epilepsy} and the Dravet row → {epilepsy, dravet}
+# overlap, while "CBD for Tourette" → {tourette} does not).
+#
+# The set is intentionally two-sided: it covers the curated indications (so an
+# on-topic query's condition matches the curated row that answers it) AND the
+# common OFF-knowledge-base indications a user is likely to probe (Tourette,
+# Parkinson, glaucoma, autism, …). The latter are NOT curated, so naming one
+# is precisely the signal that a recovered curated efficacy claim about a
+# *different* condition must not be presented as the answer.
+#
+# This is a deliberately small, stable, high-precision list — a generic head
+# noun alone ("syndrome", "disease", "disorder", "tremor", "tics") is NOT a
+# condition tag, so it cannot make a wrong-indication row look on-topic.
+_INDICATION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    # ── curated indications (and their epilepsy family) ──
+    ("epilepsy", re.compile(
+        r"\b(?:epilep\w*|seizur\w*|convulsi\w*|"
+        r"dravet|lennox.?gastaut|\bLGS\b|tuberous sclerosis|\bTSC\b|"
+        r"drop.seizure\w*|epileptic encephalopath\w*)\b",
+        flags=re.IGNORECASE,
+    )),
+    ("dravet", re.compile(r"\bdravet\b", flags=re.IGNORECASE)),
+    ("lennox-gastaut", re.compile(
+        r"\blennox.?gastaut\b|\bLGS\b", flags=re.IGNORECASE)),
+    ("tsc", re.compile(
+        r"\btuberous sclerosis\b|\bTSC\b", flags=re.IGNORECASE)),
+    ("spasticity", re.compile(
+        r"\bspasticit\w*|multiple sclerosis|\bMS\b\s+spasticit\w*\b",
+        flags=re.IGNORECASE,
+    )),
+    ("neuropathic_pain", re.compile(
+        r"\bneuropath\w*|chronic\s+pain\b", flags=re.IGNORECASE)),
+    ("nausea_vomiting", re.compile(
+        r"\bnause\w*|vomit\w*|emesis|antiemetic|\bCINV\b|"
+        r"chemo.?induced nausea\b",
+        flags=re.IGNORECASE,
+    )),
+    ("cachexia_appetite", re.compile(
+        r"\bcachexi\w*|wasting|appetite stimulat\w*|"
+        r"anorexia.cachexia\b",
+        flags=re.IGNORECASE,
+    )),
+    # ── common OFF-knowledge-base indications (named but not curated) ──
+    ("tourette", re.compile(r"\btourett\w*\b", flags=re.IGNORECASE)),
+    ("parkinson", re.compile(r"\bparkinson\w*\b", flags=re.IGNORECASE)),
+    ("glaucoma", re.compile(r"\bglaucoma\b", flags=re.IGNORECASE)),
+    ("autism", re.compile(
+        r"\bautis\w*|\bASD\b|asperger\w*\b", flags=re.IGNORECASE)),
+    ("fibromyalgia", re.compile(r"\bfibromyalgi\w*\b", flags=re.IGNORECASE)),
+    ("als", re.compile(
+        r"\bALS\b|amyotrophic lateral sclerosis|"
+        r"motor neuron(?:e)? disease\b",
+        flags=re.IGNORECASE,
+    )),
+    ("ibd", re.compile(
+        r"\binflammatory bowel\b|\bIBD\b|ulcerative colitis\b",
+        flags=re.IGNORECASE,
+    )),
+    ("crohn", re.compile(r"\bcrohn\w*\b", flags=re.IGNORECASE)),
+    ("gvhd", re.compile(
+        r"\bgraft.?versus.?host\b|\bGVHD\b", flags=re.IGNORECASE)),
+    ("alzheimer", re.compile(
+        r"\balzheimer\w*|dementia\b", flags=re.IGNORECASE)),
+    ("migraine", re.compile(r"\bmigrain\w*\b", flags=re.IGNORECASE)),
+    ("ptsd", re.compile(
+        r"\bptsd\b|post.?traumatic stress\b", flags=re.IGNORECASE)),
+    ("schizophrenia", re.compile(
+        r"\bschizophreni\w*|psychosis\b", flags=re.IGNORECASE)),
+    ("covid", re.compile(
+        r"\bcovid\b|sars.?cov.?2|coronavirus\b", flags=re.IGNORECASE)),
+)
+
+
+def indication_terms(text: str) -> frozenset[str]:
+    """Return the canonical condition tags named in ``text``.
+
+    The tag set powers indication-aware claim selection (WP-RETRIEVAL #2):
+    a recovered *clinical-efficacy* claim is on-topic only when its own
+    condition tags overlap the prompt's. A query that names a condition the
+    knowledge base does not curate (e.g. Tourette) yields a tag with no
+    curated overlap, which is the signal to NOT present a curated claim about
+    a different condition as the answer.
+
+    Empty when the prompt names no recognised condition — callers then leave
+    behaviour unchanged (the gate only fires on a *named* indication).
+    """
+    tags: set[str] = set()
+    for tag, regex in _INDICATION_PATTERNS:
+        if regex.search(text):
+            tags.add(tag)
+    return frozenset(tags)
