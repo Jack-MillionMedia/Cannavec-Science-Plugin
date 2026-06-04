@@ -482,5 +482,200 @@ class FetcherInjectionTests(unittest.TestCase):
         self.assertTrue(callable(default_chembl_fetcher))
 
 
+class RealActivityShapeTests(unittest.TestCase):
+    """WS3 — the live EBI /activity endpoint does NOT return confidence_score
+    or target_components (those live on /assay and /target); it returns
+    pchembl_value / standard_relation / target_organism / document_year /
+    document_chembl_id. The parser must read the real shape and must not
+    collapse ranking when confidence is absent."""
+
+    @staticmethod
+    def _real_shape_activities() -> str:
+        return json.dumps({"activities": [
+            {
+                "molecule_chembl_id": "CHEMBL190",
+                "target_chembl_id": "CHEMBL218",
+                "target_pref_name": "Cannabinoid CB1 receptor",
+                "target_organism": "Homo sapiens",
+                "assay_type": "B",
+                "assay_description": "Radioligand binding",
+                "standard_type": "Ki",
+                "standard_relation": "=",
+                "standard_value": 100.0,
+                "standard_units": "nM",
+                "pchembl_value": 7.0,
+                "document_chembl_id": "CHEMBL1135957",
+                "document_year": 2010,
+            },
+            {
+                "molecule_chembl_id": "CHEMBL190",
+                "target_chembl_id": "CHEMBL253",
+                "target_pref_name": "Cannabinoid CB2 receptor",
+                "target_organism": "Homo sapiens",
+                "assay_type": "B",
+                "assay_description": "Radioligand binding",
+                "standard_type": "Ki",
+                "standard_relation": "=",
+                "standard_value": 10000.0,
+                "standard_units": "nM",
+                "pchembl_value": 5.0,
+                "document_chembl_id": "CHEMBL1135958",
+                "document_year": 2011,
+            },
+        ]})
+
+    def _rows(self):
+        fetcher = _StubFetcher({
+            "molecule.json?": _molecule_search_fixture(),
+            "activity.json?": self._real_shape_activities(),
+            "mechanism.json?": _mechanism_fixture(),
+        })
+        return ChEMBLSearcher(fetcher=fetcher).search("CBD", max_results=10)
+
+    def test_parses_real_shape_without_confidence_or_target_components(self):
+        rows = self._rows()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].pchembl_value, 7.0)
+        # confidence_score and uniprot are legitimately absent on this shape —
+        # the parser must surface them as None, not explode.
+        self.assertIsNone(rows[0].confidence_score)
+        self.assertIsNone(rows[0].target_uniprot_id)
+        self.assertEqual(rows[0].target_organism, "Homo sapiens")
+        self.assertEqual(rows[0].document_year, 2010)
+
+    def test_provenance_recovered_from_document_chembl_id(self):
+        rows = self._rows()
+        self.assertEqual(rows[0].document_chembl_id, "CHEMBL1135957")
+        self.assertIn("CHEMBL1135957", rows[0].citation)
+
+    def test_sort_uses_pchembl_when_confidence_absent(self):
+        rows = self._rows()
+        # pchembl 7.0 (CB1) sorts before 5.0 (CB2) although neither row has a
+        # confidence_score — ranking no longer collapses to a single bucket.
+        self.assertEqual([r.pchembl_value for r in rows], [7.0, 5.0])
+
+    def test_sort_pchembl_beats_activity_when_they_disagree(self):
+        # Adversarial: pair a HIGHER pchembl with a WORSE (higher) Ki so
+        # pchembl-desc and activity-asc DISAGREE. The pchembl-primary key must
+        # win — this case fails under the old confidence/activity-only sort.
+        activities = json.dumps({"activities": [
+            {"molecule_chembl_id": "CHEMBL190", "target_chembl_id": "CHEMBL1",
+             "target_pref_name": "A", "assay_type": "B", "standard_type": "Ki",
+             "standard_relation": "=", "standard_value": 10000.0,
+             "standard_units": "nM", "pchembl_value": 8.0,
+             "document_chembl_id": "D1"},
+            {"molecule_chembl_id": "CHEMBL190", "target_chembl_id": "CHEMBL2",
+             "target_pref_name": "B", "assay_type": "B", "standard_type": "Ki",
+             "standard_relation": "=", "standard_value": 1.0,
+             "standard_units": "nM", "pchembl_value": 5.0,
+             "document_chembl_id": "D2"},
+        ]})
+        fetcher = _StubFetcher({
+            "molecule.json?": _molecule_search_fixture(),
+            "activity.json?": activities,
+            "mechanism.json?": _mechanism_fixture(),
+        })
+        rows = ChEMBLSearcher(fetcher=fetcher).search("CBD", max_results=10)
+        self.assertEqual([r.pchembl_value for r in rows], [8.0, 5.0])
+        # The pchembl-8.0 row has the WORSE raw Ki (10000 nM vs 1.0 nM), so an
+        # activity-asc sort would have ordered it last — proving pchembl primacy.
+        self.assertEqual(rows[0].activity_value, 10000.0)
+
+
+class CompoundResolutionFallbackTests(unittest.TestCase):
+    """WS3 — iexact synonym search misses the bare cannabinoid tokens ChEMBL
+    stores under long names (a live iexact for "THC" returns zero molecules).
+    Fall back to a bounded icontains substring search rather than returning
+    zero rows."""
+
+    def test_icontains_fallback_when_iexact_empty(self):
+        calls = {"iexact": 0, "icontains": 0}
+
+        def fetcher(url: str) -> str:
+            if "iexact" in url:
+                calls["iexact"] += 1
+                return _empty_molecule_fixture()
+            if "icontains" in url:
+                calls["icontains"] += 1
+                return _molecule_search_fixture()
+            if "activity.json?" in url:
+                return _activity_fixture()
+            if "mechanism.json?" in url:
+                return _mechanism_fixture()
+            raise AssertionError(f"unexpected url: {url!r}")
+
+        rows = ChEMBLSearcher(fetcher=fetcher).search("THC", max_results=10)
+        self.assertGreaterEqual(len(rows), 1)
+        self.assertEqual(calls["iexact"], 1)
+        self.assertEqual(calls["icontains"], 1)
+
+    def test_returns_empty_when_iexact_and_icontains_both_miss(self):
+        def fetcher(url: str) -> str:
+            if "iexact" in url or "icontains" in url:
+                return _empty_molecule_fixture()
+            raise AssertionError(f"unexpected url: {url!r}")
+
+        rows = ChEMBLSearcher(fetcher=fetcher).search(
+            "NotACannabinoid999", max_results=10
+        )
+        self.assertEqual(rows, [])
+
+    def test_ambiguous_icontains_returns_empty_not_wrong_compound(self):
+        # icontains is a substring match: "THC" matches THCV / THCA / dronabinol
+        # etc., so taking molecules[0] would risk surfacing the WRONG isomer's
+        # bioactivity as THC's (§VI). An ambiguous fallback (>1 molecule) must
+        # return no rows rather than guess.
+        multi = json.dumps({"molecules": [
+            {"molecule_chembl_id": "CHEMBL563",
+             "pref_name": "TETRAHYDROCANNABIVARIN"},
+            {"molecule_chembl_id": "CHEMBL465", "pref_name": "DRONABINOL"},
+        ]})
+
+        def fetcher(url: str) -> str:
+            if "iexact" in url:
+                return _empty_molecule_fixture()
+            if "icontains" in url:
+                return multi
+            raise AssertionError(f"unexpected url: {url!r}")
+
+        rows = ChEMBLSearcher(fetcher=fetcher).search("THC", max_results=10)
+        self.assertEqual(rows, [])
+
+
+class CensoringRenderTests(unittest.TestCase):
+    """WS3 — a censored Ki/IC50 (standard_relation '>' / '<') must render with
+    its relation so a '>10000 nM' bound is not shown as a hard 10000."""
+
+    def _row(self, relation):
+        return ChEMBLBioactivityRow(
+            chembl_id="CHEMBL190",
+            target_chembl_id="CHEMBL253",
+            target_name="Cannabinoid CB2 receptor",
+            target_uniprot_id="P34972",
+            assay_description="binding",
+            assay_type="B",
+            activity_value=10000.0,
+            activity_units="nM",
+            activity_type="Ki",
+            confidence_score=None,
+            source_pmid=None,
+            suggested_grade="Level C (provisional, live_chembl)",
+            standard_relation=relation,
+        )
+
+    def test_greater_than_relation_rendered_as_operator(self):
+        out = render_markdown("THC", [self._row(">")])
+        # Censored bound renders "Ki > 10000 nM", never a hard "Ki = 10000 nM".
+        self.assertIn("> 10000 nM", out)
+        self.assertNotIn("= 10000 nM", out)
+
+    def test_equality_relation_uses_plain_separator(self):
+        out = render_markdown("CBD", [self._row("=")])
+        self.assertIn("Ki = 10000 nM", out)
+        # No doubled / censoring operator for a plain equality.
+        self.assertNotIn("> 10000", out)
+        self.assertNotIn("= = ", out)
+
+
 if __name__ == "__main__":
     unittest.main()
