@@ -266,11 +266,28 @@ class TestSuggestedGrade(unittest.TestCase):
             "Level D (provisional)",
         )
 
-    def test_journal_article_unsupported(self) -> None:
+    def test_journal_article_floors_to_level_d(self) -> None:
+        # Lockstep with EuropePMC + OpenAlex: a bare primary article of
+        # unverified design floors to Level D provisional, not Unsupported.
         self.assertEqual(
             suggested_grade_for_pubtypes(("Journal Article",)),
+            "Level D (provisional)",
+        )
+
+    def test_empty_pubtypes_stays_unsupported(self) -> None:
+        self.assertEqual(
+            suggested_grade_for_pubtypes(()),
             "Unsupported (provisional)",
         )
+
+    def test_non_evidence_types_with_journal_article_stay_unsupported(self) -> None:
+        for pt in ("Published Erratum", "Retraction of Publication",
+                   "Comment", "Editorial"):
+            self.assertEqual(
+                suggested_grade_for_pubtypes((pt, "Journal Article")),
+                "Unsupported (provisional)",
+                f"{pt!r} co-carrying Journal Article must stay Unsupported",
+            )
 
 
 # ── since / max_results ──────────────────────────────────────────────
@@ -325,7 +342,7 @@ class TestRenderMarkdown(unittest.TestCase):
                 journal="J Test",
                 pubtypes=("Journal Article",),
                 retraction_status="clean",
-                suggested_grade="Unsupported (provisional)",
+                suggested_grade="Level D (provisional)",
                 provenance="live_pubmed",
             ),
         )

@@ -266,6 +266,86 @@ class DeduplicationTests(unittest.TestCase):
         self.assertEqual(result.convergence, Convergence.WEAK)
 
 
+# ── 6b. Empty-signature sentinel cluster (WS5) ───────────────────────────────
+
+
+class EmptySignatureSentinelTests(unittest.TestCase):
+    """WS5 — rows whose subject cannot be extracted collapse into the ('', '')
+    sentinel cluster. Counting its distinct sources would manufacture
+    cross-source agreement among rows that share nothing, so the sentinel
+    cluster must be excluded from the convergence verdict."""
+
+    @staticmethod
+    def _sentinel(native_id: str) -> dict:
+        # No _compound + empty title → compound ''; _condition '' → condition ''.
+        # Distinct native_id keeps each row a separate citation (no dedup).
+        return {
+            "native_id": native_id,
+            "title": "",
+            "_compound": "",
+            "_condition": "",
+        }
+
+    def test_empty_signature_rows_do_not_manufacture_strong(self) -> None:
+        result = synthesize(
+            "unparseable subjectless rows",
+            {
+                "pubmed": [self._sentinel("p1")],
+                "chembl": [self._sentinel("c1")],
+                "ctgov": [self._sentinel("t1")],
+                "preprint": [], "courtlistener": [],
+            },
+        )
+        # Three subjectless rows from three sources share nothing — never STRONG.
+        self.assertNotEqual(result.convergence, Convergence.STRONG)
+        self.assertEqual(result.convergence, Convergence.NONE)
+
+    def test_shared_compound_still_converges_strong(self) -> None:
+        # Regression guard: genuine shared-compound convergence is unaffected.
+        result = synthesize(
+            "CBD epilepsy",
+            {
+                "pubmed": [_pubmed_hit(compound="cbd", condition="epilepsy")],
+                "ctgov": [_ctgov_hit(compound="cbd", condition="epilepsy")],
+                "preprint": [_preprint_hit(compound="cbd", condition="epilepsy")],
+                "chembl": [], "courtlistener": [],
+            },
+        )
+        self.assertEqual(result.convergence, Convergence.STRONG)
+
+    def test_empty_signature_rows_do_not_manufacture_disagreement(self) -> None:
+        # Two subjectless rows with opposite sentiment must NOT produce a
+        # disagreement note — it must stay consistent with convergence=NONE.
+        result = synthesize(
+            "subjectless conflict",
+            {
+                "pubmed": [{"native_id": "p1", "title": "",
+                            "abstract": "did not improve; no significant effect"}],
+                "ctgov": [{"native_id": "t1", "title": "",
+                           "abstract": "significantly improved; efficacious"}],
+                "chembl": [], "preprint": [], "courtlistener": [],
+            },
+        )
+        self.assertEqual(result.convergence, Convergence.NONE)
+        self.assertIsNone(result.disagreement)
+
+    def test_sentinel_cluster_cannot_outvote_real_cluster(self) -> None:
+        # A real 2-source cluster plus THREE subjectless sentinels (which would
+        # otherwise form a 3-source cluster → STRONG) must resolve to the real
+        # cluster's MIXED, not a fabricated STRONG.
+        result = synthesize(
+            "CBD epilepsy",
+            {
+                "pubmed": [_pubmed_hit(compound="cbd", condition="epilepsy")],
+                "ctgov": [_ctgov_hit(compound="cbd", condition="epilepsy")],
+                "chembl": [self._sentinel("c9")],
+                "preprint": [self._sentinel("pp9")],
+                "courtlistener": [self._sentinel("cl9")],
+            },
+        )
+        self.assertEqual(result.convergence, Convergence.MIXED)
+
+
 # ── 7. Determinism ───────────────────────────────────────────────────────
 
 

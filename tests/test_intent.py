@@ -8,7 +8,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cannavec_science.intent import Intent, classify_intent   # noqa: E402
+from cannavec_science.intent import (  # noqa: E402
+    Intent,
+    classify_intent,
+    indication_terms,
+)
 
 
 class TestIntentClassification(unittest.TestCase):
@@ -112,6 +116,52 @@ class TestIntentClassification(unittest.TestCase):
         self.assertEqual(
             classify_intent("How does CBD act on its receptors?"),
             Intent.MECHANISM,
+        )
+
+
+class TestIndicationTermsLaySynonyms(unittest.TestCase):
+    """WS2 — indication_terms must tag lay/patient phrasings of MS spasticity
+    and neuropathic pain so the lexicon stays in lockstep with the populations
+    detector (a recalled row's condition tag must overlap the prompt's, or the
+    wrong-indication gate would wrongly drop it). MS-gated so a generic muscle
+    complaint with no MS context does not tag."""
+
+    def test_limb_rigidity_in_ms_tags_spasticity(self) -> None:
+        self.assertIn("spasticity", indication_terms("limb rigidity in MS"))
+
+    def test_ms_muscle_spasms_tags_spasticity(self) -> None:
+        self.assertIn("spasticity", indication_terms("MS muscle spasms"))
+
+    def test_shooting_nerve_pain_tags_neuropathic(self) -> None:
+        self.assertIn(
+            "neuropathic_pain",
+            indication_terms("weed for shooting nerve pain"),
+        )
+
+    def test_bare_muscle_stiffness_not_spasticity(self) -> None:
+        self.assertNotIn(
+            "spasticity", indication_terms("back muscle stiffness")
+        )
+
+    def test_leg_cramps_not_spasticity(self) -> None:
+        self.assertNotIn("spasticity", indication_terms("leg cramps"))
+
+    # ── Precision: "ms"/"Ms"/"GC-MS" must not tag spasticity (adversarial) ──
+
+    def test_milliseconds_unit_not_spasticity(self) -> None:
+        self.assertNotIn(
+            "spasticity", indication_terms("muscle spasm 200 ms after dosing")
+        )
+
+    def test_gc_ms_technique_not_spasticity(self) -> None:
+        self.assertNotIn(
+            "spasticity",
+            indication_terms("GC-MS assay of muscle spasm metabolites"),
+        )
+
+    def test_honorific_ms_not_spasticity(self) -> None:
+        self.assertNotIn(
+            "spasticity", indication_terms("Ms. Smith has muscle spasms")
         )
 
 

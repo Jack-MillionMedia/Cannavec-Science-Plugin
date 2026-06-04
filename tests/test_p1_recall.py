@@ -111,5 +111,71 @@ class TestD4MinorCannabinoidMonographSurfaces(unittest.TestCase):
         )
 
 
+class TestMsSpasticityLaySynonymRecall(unittest.TestCase):
+    """WS2 — lay/patient phrasings of MS spasticity ("muscle stiffness",
+    "muscle spasms", "limb rigidity") must reach the SAME curated MS-spasticity
+    row (Novotna 2011, PMID 21362108) the clinical phrasing does, via the
+    high-precision detector path — not fall through to a BM25 false positive
+    (analytical-chemistry GC-MS rows)."""
+
+    _MS_POP = "adult MS spasticity"
+
+    @staticmethod
+    def _efficacy_pops(a):
+        return [
+            c.population for c in a.claims
+            if c.claim_type.value == "clinical_efficacy" and c.population
+        ]
+
+    def test_muscle_stiffness_in_ms_recalls_novotna(self):
+        a = compose_answer("cannabis for muscle stiffness in multiple sclerosis")
+        self.assertIn(self._MS_POP, self._efficacy_pops(a))
+        pmids = [c.pmid for c in a.citations if getattr(c, "pmid", None)]
+        self.assertIn("21362108", pmids)
+
+    def test_muscle_spasms_in_ms_recalls_row(self):
+        a = compose_answer("muscle spasms in multiple sclerosis from cannabis")
+        self.assertIn(self._MS_POP, self._efficacy_pops(a))
+
+    def test_limb_rigidity_in_ms_recalls_row(self):
+        a = compose_answer("cannabinoids for limb rigidity in MS")
+        self.assertIn(self._MS_POP, self._efficacy_pops(a))
+
+    def test_limb_rigidity_in_ms_no_longer_returns_analytical_chemistry(self):
+        # The reproduced false positive: lay MS phrasing surfaced GC-MS / HPLC
+        # phytochemistry-quantity rows as a confident answer. Once the detector
+        # recalls the correct MS row, the fallback-only BM25 path never runs.
+        a = compose_answer("cannabinoids for limb rigidity in MS")
+        kinds = {c.claim_type.value for c in a.claims}
+        self.assertNotIn("phytochemistry_quantity", kinds)
+
+    def test_non_ms_muscle_complaint_does_not_recall_ms_row(self):
+        # MS-cue gate: a generic muscle complaint with no MS context must not
+        # light up the curated MS-spasticity row.
+        a = compose_answer("cannabis for muscle spasm after a workout")
+        self.assertNotIn(self._MS_POP, self._efficacy_pops(a))
+
+    # ── Precision: the MS cue must not fire on "ms"/"Ms"/"GC-MS" (adversarial) ──
+
+    def test_milliseconds_unit_does_not_recall_ms_row(self):
+        # "ms" (milliseconds) is NOT multiple sclerosis — must not fabricate a
+        # Level B MS-spasticity claim for a timing/assay prompt.
+        a = compose_answer(
+            "CBD effect on muscle spasm recorded 200 ms after stimulation"
+        )
+        self.assertNotIn(self._MS_POP, self._efficacy_pops(a))
+
+    def test_gc_ms_technique_does_not_recall_ms_row(self):
+        # "GC-MS" / "LC-MS" (mass spectrometry) must not satisfy the MS cue —
+        # this is the exact analytical-chemistry false positive WS2 must avoid.
+        a = compose_answer("Can GC-MS detect muscle spasm cannabinoid metabolites?")
+        self.assertNotIn(self._MS_POP, self._efficacy_pops(a))
+
+    def test_honorific_ms_does_not_recall_ms_row(self):
+        # The honorific "Ms." is not multiple sclerosis.
+        a = compose_answer("Ms. Jones reports muscle spasms after cannabis")
+        self.assertNotIn(self._MS_POP, self._efficacy_pops(a))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,6 +53,15 @@ _MOLECULE_SEARCH_URL = (
     _CHEMBL_BASE
     + "/molecule.json?molecule_synonyms__synonyms__iexact={name}&limit=5"
 )
+# Fallback when iexact misses: ChEMBL stores Δ⁹-THC under TETRAHYDROCANNABINOL /
+# dronabinol / Delta9-THC, so a bare "THC" iexact returns zero molecules. A
+# bounded substring (icontains) search resolves the §VI-named cannabinoids
+# instead of silently returning no rows. Kept to limit=5 so it stays one
+# bounded request.
+_MOLECULE_SEARCH_ICONTAINS_URL = (
+    _CHEMBL_BASE
+    + "/molecule.json?molecule_synonyms__synonyms__icontains={name}&limit=5"
+)
 _MOLECULE_DETAIL_URL = _CHEMBL_BASE + "/molecule/{chembl_id}.json"
 _ACTIVITY_URL = (
     _CHEMBL_BASE + "/activity.json?molecule_chembl_id={chembl_id}&limit={limit}"
@@ -128,6 +137,17 @@ class ChEMBLBioactivityRow:
     confidence_score: Optional[int]
     source_pmid: Optional[str]
     suggested_grade: str
+    # WS3 — fields the real ChEMBL /activity endpoint actually returns (default
+    # None so legacy fixtures, direct constructions, and the rare embedded-target
+    # case still build). pchembl_value (-log10 molar potency) is present on
+    # essentially every quantitative row and is the always-available ranking
+    # key; standard_relation preserves Ki/IC50 censoring ('>' / '<');
+    # document_chembl_id recovers a citable record id when no PMID is present.
+    pchembl_value: Optional[float] = None
+    standard_relation: Optional[str] = None
+    target_organism: Optional[str] = None
+    document_year: Optional[int] = None
+    document_chembl_id: Optional[str] = None
     source: Provenance = Provenance.LIVE_CHEMBL
     retraction_status: str = "ok"
     url: str = ""
@@ -156,6 +176,12 @@ class ChEMBLBioactivityRow:
             if self.source_pmid:
                 object.__setattr__(
                     self, "citation", f"PMID {self.source_pmid}"
+                )
+            elif self.document_chembl_id:
+                object.__setattr__(
+                    self,
+                    "citation",
+                    f"ChEMBL document {self.document_chembl_id}",
                 )
             else:
                 object.__setattr__(
@@ -261,9 +287,22 @@ class ChEMBLSearcher:
         url = _MOLECULE_SEARCH_URL.format(name=urllib.parse.quote(q))
         data = self._fetch_json(url)
         molecules = data.get("molecules") or []
-        if not molecules:
-            return None
-        return molecules[0]
+        if molecules:
+            return molecules[0]
+        # iexact requires the query to equal a stored synonym exactly, so a bare
+        # cannabinoid token ("THC") resolves to nothing. Fall back to a single
+        # bounded substring search. But icontains is a substring match, so an
+        # ambiguous token ("THC" matches THCV / THCA / dronabinol / …) can
+        # return several distinct cannabinoids — taking molecules[0] would risk
+        # surfacing the WRONG isomer's bioactivity as the queried compound's
+        # (§VI phytochemistry precision). Only accept an UNAMBIGUOUS single hit;
+        # otherwise return None — a safe "no rows" beats a wrong-compound answer.
+        url = _MOLECULE_SEARCH_ICONTAINS_URL.format(name=urllib.parse.quote(q))
+        data = self._fetch_json(url)
+        molecules = data.get("molecules") or []
+        if len(molecules) == 1:
+            return molecules[0]
+        return None
 
     def _fetch_bioactivity(
         self, chembl_id: str, limit: int,
@@ -299,13 +338,37 @@ class ChEMBLSearcher:
 # ── Parsing helpers ───────────────────────────────────────────────────
 
 
+def _as_float(value) -> Optional[float]:
+    """Coerce a ChEMBL numeric field to float, or None when absent/malformed."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_int(value) -> Optional[int]:
+    """Coerce a ChEMBL integer field to int, or None when absent/malformed."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_activity(
     a: dict, chembl_id: str
 ) -> ChEMBLBioactivityRow:
     """Build a ChEMBLBioactivityRow from one /activity row.
 
-    Defensive: every optional field uses .get() so a missing key
-    surfaces as None, not a KeyError.
+    Reads the fields the REAL EBI /activity endpoint returns (pchembl_value,
+    standard_relation, target_organism, document_year, document_chembl_id) and
+    still best-effort reads confidence_score / target_components for the rare
+    response that embeds them — neither is on the /activity endpoint (they live
+    on /assay and /target). Every optional field uses ``.get()`` so a missing
+    key surfaces as None, not a KeyError.
     """
     target_components = a.get("target_components") or []
     uniprot = None
@@ -314,20 +377,6 @@ def _parse_activity(
         if isinstance(uniprot, list):
             uniprot = uniprot[0] if uniprot else None
 
-    standard_value = a.get("standard_value")
-    if standard_value is not None:
-        try:
-            standard_value = float(standard_value)
-        except (TypeError, ValueError):
-            standard_value = None
-
-    confidence = a.get("confidence_score")
-    if confidence is not None:
-        try:
-            confidence = int(confidence)
-        except (TypeError, ValueError):
-            confidence = None
-
     return ChEMBLBioactivityRow(
         chembl_id=a.get("molecule_chembl_id") or chembl_id,
         target_chembl_id=a.get("target_chembl_id") or "",
@@ -335,34 +384,47 @@ def _parse_activity(
         target_uniprot_id=uniprot,
         assay_description=a.get("assay_description") or "",
         assay_type=a.get("assay_type") or "",
-        activity_value=standard_value,
+        activity_value=_as_float(a.get("standard_value")),
         activity_units=a.get("standard_units"),
         activity_type=a.get("standard_type"),
-        confidence_score=confidence,
+        confidence_score=_as_int(a.get("confidence_score")),
         source_pmid=None,
         suggested_grade=_SUGGESTED_GRADE,
+        pchembl_value=_as_float(a.get("pchembl_value")),
+        standard_relation=a.get("standard_relation"),
+        target_organism=a.get("target_organism"),
+        document_year=_as_int(a.get("document_year")),
+        document_chembl_id=a.get("document_chembl_id"),
     )
 
 
 def _sort_rows(
     rows: list[ChEMBLBioactivityRow],
 ) -> list[ChEMBLBioactivityRow]:
-    """Sort by confidence desc (None last), then activity asc, then chembl_id.
+    """Sort by pchembl_value desc, then confidence desc, then activity asc,
+    then chembl_id — None always last for each key.
 
-    Smaller IC50/Ki = more potent → display first.
+    pchembl_value (-log10 molar potency) is present on essentially every real
+    quantitative /activity row, so it is the primary potency key (higher =
+    more potent → first). confidence_score is an /assay-level field absent on
+    the /activity endpoint, so it is kept only as a secondary tie-break for any
+    caller that still supplies it (it no longer collapses every row into one
+    bucket). Smaller IC50/Ki then breaks remaining ties.
     """
     def key(r: ChEMBLBioactivityRow):
-        # None last for confidence (negate so None sorts after numerics
-        # when reverse=False). We use a tuple where the first element
-        # is a "has confidence" flag.
-        conf_key = -(r.confidence_score if r.confidence_score is not None else -1)
-        # If no confidence value, push to bottom by setting key high.
-        if r.confidence_score is None:
-            conf_key = 10**9
+        # Ascending sort: negate "higher = better" keys; push None to the end.
+        pchembl_key = (
+            -r.pchembl_value if r.pchembl_value is not None else float("inf")
+        )
+        conf_key = (
+            -r.confidence_score
+            if r.confidence_score is not None
+            else float("inf")
+        )
         act_key = (
             r.activity_value if r.activity_value is not None else float("inf")
         )
-        return (conf_key, act_key, r.chembl_id)
+        return (pchembl_key, conf_key, act_key, r.chembl_id)
 
     return sorted(rows, key=key)
 
@@ -387,7 +449,14 @@ def render_markdown(
         return "\n".join(lines)
     for r in rows:
         activity = "—"
+        relation = "="
         if r.activity_value is not None and r.activity_units:
+            # Preserve censoring: a '>' / '<' Ki/IC50 bound renders with its own
+            # operator (e.g. "Ki > 10000 nM") so it is never shown as a hard
+            # equality. '=' / '~' / absent relations keep the default separator.
+            rel = (r.standard_relation or "").strip()
+            if rel and rel not in ("=", "~"):
+                relation = rel
             activity = f"{r.activity_value:g} {r.activity_units}"
         conf = f"conf {r.confidence_score}" if r.confidence_score is not None else "conf n/a"
         line = (
@@ -397,7 +466,7 @@ def render_markdown(
         if r.target_uniprot_id:
             line += f" [UniProt {r.target_uniprot_id}]"
         line += (
-            f" — {r.activity_type or '?'} = {activity} "
+            f" — {r.activity_type or '?'} {relation} {activity} "
             f"({r.assay_type or '?'}, {conf})."
         )
         if r.url:
