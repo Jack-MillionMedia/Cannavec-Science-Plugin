@@ -63,6 +63,27 @@ _NO_EVIDENCE_MESSAGE = (
 )
 
 
+def _is_no_evidence(a) -> bool:
+    """True when a non-refusal answer is genuinely empty.
+
+    An answer is "no evidence" only when it carries NO curated claim, NO live
+    finding, NO verified-tier finding AND NO monograph section. The monograph
+    check matters: a query for a minor cannabinoid (CBG / CBC / CBN) or a
+    false-premise query about a major cannabinoid ("CBD cures glioblastoma")
+    returns a full Unsupported-graded monograph section (with primary-source
+    citations) but zero typed claims — that is real, useful content, not "no
+    evidence", so it must not be masked by the generic no-evidence message.
+    (A refusal is its own signal and is never "no evidence".)
+    """
+    return (
+        not a.is_refusal
+        and not a.claims
+        and not a.live_findings
+        and not getattr(a, "verified_findings", [])
+        and not getattr(a, "sections", [])
+    )
+
+
 def _sanitize_question(question: str) -> str:
     """Strip angle brackets from the question at the trust boundary.
 
@@ -221,15 +242,7 @@ class handler(BaseHTTPRequestHandler):
             return
 
         live_data = (augment is True) or fallback_used
-        # A non-refusal answer with neither a curated claim nor any live /
-        # verified finding is empty: surface that explicitly instead of a
-        # silent 200. (A refusal is its own signal and is never "no evidence".)
-        no_evidence = (
-            not a.is_refusal
-            and not a.claims
-            and not a.live_findings
-            and not getattr(a, "verified_findings", [])
-        )
+        no_evidence = _is_no_evidence(a)
         if fmt == "markdown":
             md = a.to_markdown()
             if no_evidence:

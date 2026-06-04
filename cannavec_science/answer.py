@@ -707,6 +707,19 @@ class Answer:
             ],
             "cautions": list(self.cautions),
             "notes": list(self.notes),
+            # Monograph sections (major/minor-cannabinoid monographs, etc.) are
+            # structured prose, not typed claims. Expose them so JSON / "at
+            # scale" consumers receive the monograph the Markdown brief shows —
+            # a CBG/CBC/CBN query carries a full Unsupported-graded monograph
+            # here, not just in to_markdown(). Emitted only when present, so the
+            # pinned JSON shape is unchanged for section-less briefs.
+            **(
+                {"sections": [
+                    {"heading": h, "body": b} for h, b in self.sections
+                ]}
+                if self.sections
+                else {}
+            ),
             "live_findings": list(self.live_findings),
             # Emitted only when a live fan-out was woven in, so the pinned
             # offline-answer JSON shape stays unchanged for curated-only briefs.
@@ -1627,6 +1640,30 @@ def compose_answer(
         for row in matched_endocrine_rows:
             _attach_claim_safely(a, row, retraction_policy)
 
+        # c08 — when the question is specifically about MECHANISM ("CBD at
+        # 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding affinity", "CBG α2-adrenoceptor",
+        # "THCV CB1"), surface the matched cannabinoid's curated receptor
+        # activity as first-class typed MECHANISM claims (Russo 2005, Bisogno
+        # 2001, Pertwee 2008, Cascio 2010, …), not only monograph prose. Covers
+        # BOTH major (CBD, Δ⁹-THC) and minor (CBG, THCV, CBN, CBC, CBDV)
+        # cannabinoids — they share the ReceptorActivity schema. This answers
+        # the question on-target AND, by making the answer non-thin, stops the
+        # BM25 fallback from recovering an off-target mechanism row for a
+        # compound-named query.
+        if classify_intent(prompt) == Intent.MECHANISM:
+            added_mech = 0
+            for entry in (*matched_major_cb_rows, *matched_minor_cb_rows):
+                for claim in _mechanism_claims_from_cannabinoid_entry(entry):
+                    before = len(a.claims)
+                    try:
+                        a.add_claim(claim)
+                    except ClaimWordingError:
+                        continue
+                    if len(a.claims) > before:
+                        added_mech += 1
+            if added_mech:
+                a.add_trace("mechanism.receptor_claims", added_mech)
+
         # Minor + major cannabinoids render as monograph sections.
         # No row-level to_claim() — these registries surface as
         # full per-compound evidence pictures with their own
@@ -2214,6 +2251,78 @@ def _specific_or_class(specific: tuple, class_fallback: tuple) -> tuple:
     specific matcher finds nothing does the class-level surface.
     """
     return tuple(specific) if specific else tuple(class_fallback)
+
+
+def _mechanism_claims_from_cannabinoid_entry(entry) -> "list[Claim]":
+    """Build typed MECHANISM claims from a cannabinoid's curated
+    ``receptor_activity`` rows (c08 recall fix).
+
+    A cannabinoid monograph (major OR minor — both share the
+    ``ReceptorActivity`` schema) carries its receptor pharmacology as structured
+    rows, but historically those surfaced only as monograph *prose* — so a
+    MECHANISM-intent query ("CBD at 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding
+    affinity", "CBG α2-adrenoceptor", "THCV CB1") returned no on-target typed
+    claim, and the
+    thin answer let the BM25 fallback recover an *off-target* mechanism row
+    (e.g. a Δ⁹-THC CB1-desensitization row for a CBD query). Emitting one
+    primary-source-anchored MECHANISM claim per receptor row fixes both: the
+    on-target receptor pharmacology becomes a first-class claim, and the answer
+    is no longer thin so the off-target fallback never fires.
+
+    Each row → one Claim graded at the mechanism tier (``SINGLE_ARM_OR_MECH`` →
+    Level C). Rows whose receptor activity carries no primary identifier are
+    skipped (§I). Wording is a neutral receptor descriptor ("— <activity> at
+    <target>"), never an efficacy verb, so it passes the §VII wording check at
+    Level C. Robust to entries lacking ``receptor_activity`` (returns []).
+    """
+    from cannavec_science.evidence import (
+        Claim,
+        ClaimType,
+        Source,
+        SourceTier,
+        required_disclosures,
+    )
+
+    name = getattr(entry, "name", "") or ""
+    long_name = getattr(entry, "long_name", "") or name
+    out: list[Claim] = []
+    for ra in getattr(entry, "receptor_activity", ()) or ():
+        sources = tuple(
+            Source(
+                title=c.label,
+                tier=SourceTier.SINGLE_ARM_OR_MECH,
+                pmid=c.pmid,
+                doi=c.doi,
+                url=getattr(c, "url", None),
+                year=c.year,
+            )
+            for c in (getattr(ra, "citations", ()) or ())
+            if (c.pmid or c.doi or getattr(c, "url", None))
+        )
+        if not sources:
+            continue  # §I — no verifiable primary identifier; do not emit
+        tags = []
+        if getattr(ra, "uniprot", None):
+            tags.append(f"UniProt {ra.uniprot}")
+        if getattr(ra, "gene_symbol", None):
+            tags.append(str(ra.gene_symbol))
+        tag_str = f" ({'; '.join(tags)})" if tags else ""
+        text = f"{long_name} ({name}) — {ra.activity} at {ra.target}{tag_str}."
+        note = (getattr(ra, "affinity_note", "") or "").strip()
+        if note:
+            text += f" {note}"
+        caveat = (getattr(ra, "translation_caveat", None) or "").strip()
+        if caveat:
+            text += f" {caveat}"
+        out.append(
+            Claim(
+                text=text,
+                claim_type=ClaimType.MECHANISM,
+                sources=sources,
+                disclosures_present=required_disclosures(ClaimType.MECHANISM),
+            )
+        )
+    return out
 
 
 def _attach_claim_safely(
