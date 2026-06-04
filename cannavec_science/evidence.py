@@ -396,24 +396,56 @@ class Claim:
         live_sources = [s for s in self.sources if s.retraction_status != "retracted"]
         if not live_sources:
             return EvidenceLevel.UNSUPPORTED
-        n_supporting = len(live_sources)
         missing_count = len(missing_disclosures(self.claim_type, self.disclosures_present))
 
-        # Multiple independent RCT-level sources in agreement → Level A floor.
-        rct_flagships = [s for s in live_sources if s.tier == SourceTier.SR_FLAGSHIP]
-        rct_specialists = [s for s in live_sources if s.tier == SourceTier.JOURNAL_RCT]
-        independent_rcts = len(rct_flagships) + len(rct_specialists)
+        # §VII Level-A floor: "Level A requires a Cochrane/AHRQ/NICE systematic
+        # review OR ≥ 2 independent high-quality RCTs in alignment." Gate the
+        # single-primary-study cap on the *study design* of the evidence base,
+        # NOT on a raw PMID count — otherwise any second co-citation (a
+        # mechanism cite, an open-label PK study) would defeat the cap and lift
+        # a single pivotal RCT to Level A.
+        #
+        # - SR/MA flagship: a tier-1 systematic review / meta-analysis. One is
+        #   sufficient for the Level-A floor.
+        # - confirmatory RCT: a pre-registered, adequately-powered RCT
+        #   (tier-2 JOURNAL_RCT, or a NEJM/JAMA/Lancet RCT carried at tier-1).
+        #   ≥ 2 in alignment clear the floor; a single one caps at Level B.
+        sr_flagships = [s for s in live_sources
+                        if s.tier == SourceTier.SR_FLAGSHIP]
+        confirmatory_rcts = [
+            s for s in live_sources
+            if s.tier in (SourceTier.SR_FLAGSHIP, SourceTier.JOURNAL_RCT)
+            and s.pre_registered and s.adequately_powered
+        ]
+        meets_level_a_floor = (
+            len(sr_flagships) >= 1 or len(confirmatory_rcts) >= 2
+        )
 
+        if meets_level_a_floor:
+            # A qualifying body of evidence (≥ 1 SR/MA or ≥ 2 aligned
+            # confirmatory RCTs) anchors the *body* at Level A, even when an
+            # individual RCT's own base grade is only B. The
+            # missing-disclosure penalty still applies so the output stays
+            # honest about gaps.
+            return _downgrade(EvidenceLevel.A, missing_count)
+
+        # Otherwise the single-primary-study cap governs (§VII): a lone
+        # pre-registered, adequately-powered RCT in a major journal caps at
+        # Level B; any other single source (observational, open-label, PK,
+        # mechanism) caps at Level C. Both the flagship RCT tier (NEJM/JAMA/
+        # Lancet) and the specialist JOURNAL_RCT tier qualify as the
+        # "pre-registered powered RCT in major journal" the rule names.
         for s in live_sources:
             base = grade_from_source(s)
             grade = apply_grade_modifiers(
                 base,
                 missing_disclosure_count=missing_count,
-                single_primary_study=(n_supporting == 1 and independent_rcts <= 1),
+                single_primary_study=True,
                 pre_registered_major_journal=(
                     s.pre_registered
                     and s.adequately_powered
-                    and s.tier == SourceTier.SR_FLAGSHIP
+                    and s.tier in (SourceTier.SR_FLAGSHIP,
+                                   SourceTier.JOURNAL_RCT)
                 ),
             )
             if grade.rank > best.rank:

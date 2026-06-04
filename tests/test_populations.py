@@ -90,6 +90,48 @@ class TestFormatForClinician(unittest.TestCase):
         self.assertIn("Required cautions", out)
 
 
+class TestLgsEnrollmentGroundTruth(unittest.TestCase):
+    """Defect #7: the LGS row's enrolment must match the cited trial.
+
+    PMID 29768152 (Devinsky 2018, NEJM, GWPCARE3) enrolled a total of 225
+    patients across the 10 mg/kg, 20 mg/kg, and placebo arms ("A total of 225
+    patients were enrolled"). The population row previously claimed n=171,
+    which traces to nothing — not the ITT (225), not the 76+73=149 active arms,
+    not a GWPCARE4 figure. The major_cannabinoids monograph for the same PMID
+    already records 225, so the two surfaces disagreed.
+    """
+
+    def _lgs_citation(self):
+        row = find_populations(label_substring="Lennox-Gastaut")[0]
+        for c in row.citations:
+            if c.pmid == "29768152":
+                return c
+        self.fail("LGS row missing its PMID 29768152 citation")
+
+    def test_lgs_enrollment_is_225(self) -> None:
+        self.assertEqual(
+            self._lgs_citation().n, 225,
+            "LGS row must record the ground-truthed ITT enrolment of 225",
+        )
+
+    def test_lgs_enrollment_matches_major_cannabinoid_monograph(self) -> None:
+        # Cross-surface consistency: the same PMID must carry the same n in
+        # both the population registry and the cannabinoid monograph.
+        from cannavec_science.major_cannabinoids import all_major_cannabinoids
+
+        monograph_n = None
+        for entry in all_major_cannabinoids():
+            for crow in getattr(entry, "clinical_evidence", ()) or ():
+                if any(getattr(cit, "pmid", None) == "29768152"
+                       for cit in getattr(crow, "citations", ()) or ()):
+                    monograph_n = crow.n
+        self.assertEqual(
+            self._lgs_citation().n, monograph_n,
+            "the LGS enrolment must agree across the population and "
+            "major-cannabinoid surfaces for PMID 29768152",
+        )
+
+
 class TestIndicationKeywordFallback(unittest.TestCase):
     """Regression tests for the Oracle Auditor §T12 paraphrase finding.
 
