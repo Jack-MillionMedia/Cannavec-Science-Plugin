@@ -922,6 +922,21 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_kb_audit(args: argparse.Namespace) -> int:
+    from cannavec_science.kb_audit.run import audit_path
+    from cannavec_science.kb_audit.report import render
+
+    verdicts = audit_path(args.path)
+    markdown, js = render(verdicts)
+    body = js if args.json else markdown
+    if args.out:
+        Path(args.out).write_text(body, encoding="utf-8")
+        print(f"[kb-audit] report written to {args.out}", file=sys.stderr)
+    else:
+        print(body)
+    return 1 if any(v.status == "FAIL" for v in verdicts) else 0
+
+
 def _cmd_bibliography(args: argparse.Namespace) -> int:
     from cannavec_science.bibliography import render, BibliographyEntry, _entry_from_citation
     from cannavec_science.answer import Answer, Citation
@@ -1190,6 +1205,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rg.set_defaults(func=_cmd_registries)
 
+    # kb-audit (spec 032) — read-only operator tool, not a research surface
+    ka = sub.add_parser(
+        "kb-audit",
+        help=("Read-only credibility audit of a knowledge-base directory "
+              "(citation integrity + claim support + GRADE honesty). Operator tool."),
+    )
+    ka.add_argument("path", help="Path to the knowledge-base repo or a subfolder")
+    ka.add_argument("--json", action="store_true", help="Emit the corpus verdict as JSON.")
+    ka.add_argument("--out", help="Write the report to this file instead of stdout.")
+    ka.set_defaults(func=_cmd_kb_audit)
 
     return p
 
