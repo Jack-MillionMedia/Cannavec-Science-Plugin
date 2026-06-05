@@ -93,7 +93,7 @@ Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliogra
 - **GRADE honesty** — grades are computed by code, not by confident prose; a single RCT caps at Level B.
 - **Phytochemistry precision** — every cannabinoid named by isomer, every receptor by UniProt accession, every dose by route.
 - **Curated reference corpus** — **twenty-one curated science registries** (cannabinoids, terpenes, interactions, adverse events, pharmacokinetics, **endocrine**, and more; 230 rows) are kept as *labelled offline reference the model reasons over* — never presented as the answer itself.
-- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **1,832 unit tests**. The engine is **65 modules**; run `python3 -m unittest discover -s tests`.
+- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **1,887 unit tests**. The engine is **67 modules**; run `python3 -m unittest discover -s tests`.
 
 ## Honest scope (what it does *not* do yet)
 

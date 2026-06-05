@@ -15,7 +15,7 @@ no user-facing surface, or (c) true orphans imported by nothing.
 
 | Cluster | Modules | Reason |
 |---|---|---|
-| Curation flywheel | `flywheel`, `demand`, `curation_store`, `source_index`, `claim_support`, `claim_support_llm` | The §IX registry-growth engine. Zero slash-command / API / agent / skill references. Grows the static-answer substrate (M5). Data: `primary_source_index.csv` (616 KB), `staging_queue.jsonl`, `demand_log.jsonl`. |
+| Curation flywheel | `flywheel`, `demand`, `curation_store`, `source_index` | The §IX registry-growth engine. Zero slash-command / API / agent / skill references. Grows the static-answer substrate (M5). Data: `primary_source_index.csv` (616 KB), `staging_queue.jsonl`, `demand_log.jsonl`. |
 | Meta-analysis | `meta_analysis`, `absolute_effects`, `grade_profile` | ~3.4 K LOC of pooling statistics (DerSimonian-Laird, Egger, trim-and-fill, GRADE Summary-of-Findings). Rigorous, but outside the demo loop. Restore as a `research` sub-analysis post-MVP. |
 | Stat calculators | `fragility`, `disproportionality`, `binding` | Single-purpose calculators (Fragility Index, PRR/ROR, Cheng-Prusoff). Niche; no canonical command. |
 | Researcher scaffolders | `pico`, `power_calc`, `protocol_skeleton`, `sof`, `regulatory_feasibility` | Flag-gated `answer` extras. Convenience, not grounding. `regulatory_feasibility` was already declared out-of-MVP-scope. |
