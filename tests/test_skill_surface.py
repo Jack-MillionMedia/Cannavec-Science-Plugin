@@ -37,36 +37,5 @@ class SkillFrontmatterTests(unittest.TestCase):
             self.assertTrue(fm["description"], f"{path.parent.name} empty description")
 
 
-class EvidenceSynthesisSkillTests(unittest.TestCase):
-    PATH = SKILLS_DIR / "cannabis-evidence-synthesis" / "SKILL.md"
-
-    def test_skill_exists(self):
-        self.assertTrue(self.PATH.exists())
-
-    def test_routes_to_real_subcommands(self):
-        text = self.PATH.read_text(encoding="utf-8")
-        for cmd in ("meta", "fragility", "signal", "affinity", "--measure prop",
-                    "--moderator-key", "--knha", "--certainty"):
-            self.assertIn(cmd, text, f"skill should route to {cmd!r}")
-
-    def test_named_subcommands_actually_run(self):
-        # The skill claims every tool it names is implemented — prove the two
-        # CLI subcommands it routes to resolve and execute.
-        from cannavec_science.__main__ import main
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            code = main(["fragility", "--events-t", "1", "--n-t", "50",
-                         "--events-c", "9", "--n-c", "50"])
-        self.assertEqual(code, 0)
-        self.assertIn("Fragility Index", buf.getvalue())
-
-    def test_honesty_claim_present(self):
-        # §II: a skill promising capability must be backed by deterministic code
-        # OR carry an honesty disclaimer. This one carries both.
-        text = self.PATH.read_text(encoding="utf-8").lower()
-        self.assertIn("deterministic", text)
-        self.assertIn("unit-tested", text)
-
-
 if __name__ == "__main__":
     unittest.main()

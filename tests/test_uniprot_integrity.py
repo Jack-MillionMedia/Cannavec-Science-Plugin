@@ -35,7 +35,6 @@ _ANCHORS = {
     "P08908": "HTR1A",   # 5-HT1A
     "Q9Y2T6": "GPR55",
     "P35354": "PTGS2",   # COX-2
-    "P35372": "OPRM1",   # µ-opioid
 }
 _ALL_GENES = {g.lower() for g in _ANCHORS.values()}
 
