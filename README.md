@@ -524,7 +524,7 @@ disambiguation, MAGL inhibitor ABX-1431, dual JZL195), and **cannabinoid
 biosynthesis pathway** (OLS / OAC polyketide entry, CBGAS
 prenyltransferase, THCA / CBDA synthase enzymology, Luo 2019 yeast
 heterologous expression). Cannavec Science ships exactly those things —
-researcher-only, stdlib-only, deterministic.
+research-grade, primary-source-anchored, and verification-backed.
 
 This is the **v0.5 industry-expert-clinical-depth build** descending from
 the v0.4 industry-expert-depth build (spec 004) and earlier specs. v0.5
@@ -865,9 +865,11 @@ python3 -m cannavec_science answer "how does THC impair driving" --retrieval off
 
 ## The research agents
 
-Three subagents wrap the deterministic backbone. None of them grades,
-refuses, or cites in prose — every verdict is computed by
-`cannavec_science/` and relayed verbatim.
+Three subagents **reason over** the grounded, retrieved, verified evidence the
+backbone supplies — that is their value. But every *credibility* verdict (GRADE
+level, refusal, retraction status, citation validity, rigor violation) is computed
+by `cannavec_science/` and never invented in prose: reasoning is the model's,
+certification is the code's (Constitution §II / M5).
 
 | Agent | Role |
 |---|---|
@@ -875,7 +877,11 @@ refuses, or cites in prose — every verdict is computed by
 | `cannabis-source-hunter` | Live primary-literature discovery across the 17 lanes. Wraps `discover`; never auto-promotes `live_*` rows (Constitution §IX). |
 | `cannabis-research-reviewer` | Final review pass — the Verity Test + the deterministic `rigor` pass + GRADE wording consistency. Returns PASS / REVISE. |
 
-## The deterministic backbone
+## The grounding & verification backbone (deterministic)
+
+This is the credibility harness *around* an AI reasoner, not a substitute for it
+(Constitution §II / M1 / M5): it retrieves, verifies, grades, refuses, and exports
+— the model reasons over what it grounds.
 
 ```
 cannavec_science/                       # 87 modules · stdlib-only
@@ -997,22 +1003,43 @@ and the per-spec gates in `specs/004` → `specs/006`):
 - The total slash-command count remains exactly **five**.
 - Total Python LOC under `cannavec_science/` stays under **25,000**.
 
-## Constitutional principles
+## Mission & constitutional principles
 
-This MVP is governed by 11 principles
+**Cannavec Science exists to ground AI models in credible, verifiable,
+non-hallucinated research so experts can be dramatically more productive without
+sacrificing accuracy, trust, or scientific rigor** — the world's best AI-powered
+cannabis research tool, not a toy chatbot, a static answer engine, or an
+automation script. Every change is judged by the **Mission Test**: does it make
+the AI more grounded, more accurate, more verifiable, more useful to experts, or
+more resistant to hallucination?
+
+Seven non-negotiable **Mission Mandates** govern the project
 ([`.specify/memory/constitution.md`](.specify/memory/constitution.md)):
 
+- **M1** Research grounding over answer generation.
+- **M2** Zero tolerance for hallucinated authority.
+- **M3** Expert productivity is the target metric.
+- **M4** Credibility must be engineered into the system.
+- **M5** No brittle hard-coded intelligence.
+- **M6** Every change must pass the Mission Test.
+- **M7** Build toward modern elite research infrastructure.
+
+They are enforced by 11 operational principles:
+
 1. **Primary-source or refuse.**
-2. **Deterministic backbone over prose.**
+2. **Deterministic verification, not deterministic intelligence** — the backbone
+   grounds and verifies AI reasoning; it does not generate canned answers.
 3. **Test-first (non-negotiable).**
-4. **Researcher audience only (MVP scope lock).**
+4. **Research-grade for experts, at scale** (evidence standard invariant for every
+   reader).
 5. **Safety-layer sovereignty.**
 6. **Phytochemistry precision is non-negotiable.**
 7. **GRADE honesty over confidence-laundering.**
 8. **Retractions are enforced at composition, not post-hoc.**
-9. **Read-time discovery is as important as write-time checking.**
-10. **Stdlib-only until proven insufficient.**
-11. **Citable output is the default.**
+9. **Read-time discovery & grounding retrieval is as important as write-time
+   checking.**
+10. **Reproducible, offline-testable verification core; right tool for retrieval.**
+11. **Citable, presentable, traceable output is the default.**
 
 The full text lives in `.specify/memory/constitution.md`. Amendments
 require the same spec → plan → tasks → implement workflow as a feature.
