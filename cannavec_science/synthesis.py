@@ -97,6 +97,18 @@ _SOURCE_KEYS = (
     "medrxiv",
     # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
     "europepmc",
+    # Spec 029 — EBI chemical-ontology + functional-annotation lanes. These
+    # are context lanes: a ChEBI row clusters on its compound (like PubChem),
+    # a QuickGO row carries no clinical condition, so neither manufactures a
+    # clinical convergence verdict — they appear in the per-source counts.
+    "chebi",
+    "quickgo",
+    # Spec 030 — pathway + disease-ontology context lanes. Reactome rows cluster
+    # on the pathway name's first token, EFO rows on the indication phrase — both
+    # off the cannabinoid axis, so neither manufactures a cannabinoid convergence
+    # verdict; they appear in the per-source counts.
+    "reactome",
+    "efo",
 )
 
 
@@ -483,6 +495,12 @@ _SOURCE_DISPLAY = {
     "medrxiv": "medRxiv",
     # Spec 005 US6 — Europe PMC.
     "europepmc": "Europe PMC",
+    # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
+    "chebi": "ChEBI",
+    "quickgo": "QuickGO",
+    # Spec 030 — pathway + disease-ontology lanes.
+    "reactome": "Reactome",
+    "efo": "EFO",
 }
 
 

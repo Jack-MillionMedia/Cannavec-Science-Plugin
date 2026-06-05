@@ -54,10 +54,13 @@ def _markdown(result: dict) -> str:
             continue
         lines.append(f"### {src} ({len(val)})")
         for r in val:
-            ident = (r.get("pmid") or r.get("nct_id") or r.get("chembl_id")
-                     or r.get("activity_id") or "?")
+            ident = (r.get("chebi_id") or r.get("go_id") or r.get("pathway_id")
+                     or r.get("efo_id") or r.get("pmid") or r.get("nct_id")
+                     or r.get("chembl_id") or r.get("activity_id") or "?")
             title = (r.get("title") or r.get("brief_title")
-                     or r.get("compound") or "")
+                     or r.get("compound") or r.get("chebi_name")
+                     or r.get("go_name") or r.get("display_name")
+                     or r.get("label") or "")
             badge = _RETRACTION_BADGE.get(
                 str(r.get("retraction_status") or "clean").lower(), ""
             )

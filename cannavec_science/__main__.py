@@ -328,8 +328,16 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             print(f"_(live source unavailable: {val['error']})_")
             continue
         for r in val[: args.max]:
+            # Display headline: prefer each lane's native structured id (a
+            # pathway/ontology row reads better as R-HSA-… / GO:… / CHEBI:… /
+            # EFO:… than as its supplementary PMID). Ranking, cross-source
+            # dedup, and citation still resolve PMID-first elsewhere.
             ident = (
-                r.get("pmid")
+                r.get("chebi_id")
+                or r.get("go_id")
+                or r.get("pathway_id")
+                or r.get("efo_id")
+                or r.get("pmid")
                 or r.get("nct_id")
                 or r.get("activity_id")
                 or r.get("cid")
@@ -346,6 +354,10 @@ def _cmd_discover(args: argparse.Namespace) -> int:
                 or r.get("brief_title")
                 or r.get("disease_name")
                 or r.get("compound")
+                or r.get("chebi_name")
+                or r.get("go_name")
+                or r.get("display_name")
+                or r.get("label")
                 or ""
             )
             print(f"- `{ident}` ({yr}) {title}".rstrip())
@@ -434,6 +446,26 @@ def _run_openalex(args):
     )
 
 
+def _run_chebi(args):
+    from cannavec_science.chebi_discover import ChEBISearcher
+    return ChEBISearcher().search(args.query, max_results=args.max)
+
+
+def _run_quickgo(args):
+    from cannavec_science.quickgo_discover import QuickGOSearcher
+    return QuickGOSearcher().search(args.query, max_results=args.max)
+
+
+def _run_reactome(args):
+    from cannavec_science.reactome_discover import ReactomeSearcher
+    return ReactomeSearcher().search(args.query, max_results=args.max)
+
+
+def _run_efo(args):
+    from cannavec_science.efo_discover import EFOSearcher
+    return EFOSearcher().search(args.query, max_results=args.max)
+
+
 _DISCOVERER_REGISTRY = {
     "pubmed": _run_pubmed,
     "chembl": _run_chembl,
@@ -451,6 +483,12 @@ _DISCOVERER_REGISTRY = {
     "europepmc": _run_europepmc,
     # Spec 006 US6 — OpenAlex thirteenth primary-source live lane.
     "openalex": _run_openalex,
+    # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
+    "chebi": _run_chebi,
+    "quickgo": _run_quickgo,
+    # Spec 030 — pathway + disease-ontology lanes.
+    "reactome": _run_reactome,
+    "efo": _run_efo,
 }
 
 
@@ -1738,8 +1776,10 @@ def _build_parser() -> argparse.ArgumentParser:
             "Live multi-source fan-out across primary scientific sources: "
             "pubmed, chembl, ctgov (default) plus optional cannabis-primary "
             "widening: pubchem, pharmgkb, rcsb, opentargets, gwas, bindingdb, "
-            "v0.2 preprint lanes biorxiv, medrxiv, v0.5 europepmc, and v0.6 "
-            "openalex."
+            "v0.2 preprint lanes biorxiv, medrxiv, v0.5 europepmc, v0.6 "
+            "openalex, and v0.7 chebi (chemical ontology), quickgo (receptor "
+            "GO function), reactome (receptor pathways), efo (indication "
+            "normalization)."
         ),
     )
     d.add_argument("query")
@@ -1752,7 +1792,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Comma-separated subset of: pubmed, chembl, ctgov, pubchem, "
             "pharmgkb, rcsb, opentargets, gwas, bindingdb, biorxiv, medrxiv, "
-            "europepmc, openalex."
+            "europepmc, openalex, chebi, quickgo, reactome, efo."
         ),
     )
     d.add_argument(
