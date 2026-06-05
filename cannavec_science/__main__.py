@@ -19,6 +19,9 @@ Subcommands:
 - ``bibliography <answer.json>`` — re-render a saved answer's
   bibliography in BibTeX / RIS / CSL-JSON.
 - ``registries`` — inventory the curated reference registries.
+- ``kb-audit <path>`` — operator-only, read-only credibility audit of a
+  knowledge-base directory (citation integrity + claim support + GRADE
+  honesty); triages each file into READY / IMPROVE / PASS. Not a slash command.
 
 Every subcommand returns a non-zero exit code on refusal / error.
 Stdlib only.
