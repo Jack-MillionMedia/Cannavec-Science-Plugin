@@ -1,35 +1,54 @@
 ---
 name: ask
-description: Fast Q&A for cannabis-science questions. Same composer pipeline as /cannavec-science:research but renders only the short-answer + claims + citations, skipping the full evidence-synthesis block. Use this for sub-15-second answers when you do not need the full brief.
+description: Fast, grounded Q&A for a cannabis-science question. You give a tight answer; the deterministic backbone verifies the citation behind it — every identifier you cite is confirmed real and not retracted before you present it. Use for a sub-15-second verified answer when you do not need the full /cannavec-science:research brief.
 argument-hint: '<question>'
 allowed-tools: Bash
 ---
 
-# Cannabis Science — Fast Q&A
+# Cannabis Science — Fast, Verified Q&A
 
 The user asked:
 
 **`$ARGUMENTS`**
 
-## How to dispatch
+You give a short, expert answer — but you may only state a scientific claim that
+sits behind a **verified** primary source. The backbone does the verifying.
 
-Run the composer in JSON mode and surface the claims + citations:
+## The fast grounded flow
+
+### 1. Pull curated reference + any candidate citations
 
 ```bash
 python3 -m cannavec_science answer "$ARGUMENTS" --json
 ```
 
-Parse the JSON. Render:
+If `is_refusal` is true, surface the refusal and stop. Otherwise read the
+graded claims and their identifiers — but treat them as **candidates to verify**,
+not as the final answer.
 
-1. **Refusal** if `is_refusal` is true.
-2. Otherwise: each claim's text + grade + inline citation, then a
-   compact citation list at the bottom.
+### 2. Verify the identifier(s) behind your answer
 
-Do NOT render the full monograph sections, the trace, or the rigor
-report. Use `/cannavec-science:research` for the full brief.
+For each PMID / DOI / NCT / ChEMBL / UniProt you will cite:
+
+```bash
+python3 -m cannavec_science verify <identifier>
+```
+
+Cite it **only on PASS**. A FAIL means fabricated, not-found, or **retracted** —
+drop it. If the curated layer has no claim for this question, run a quick
+`python3 -m cannavec_science discover "$ARGUMENTS" --sources pubmed --max 3` and
+verify a returned identifier instead.
+
+### 3. Answer
+
+Give a tight, GRADE-honest answer: the bottom line, worded to match the grade,
+with the **verified** citation inline (`PMID 28538134, Level B`). Name
+cannabinoids by isomer; no dose without route. If nothing verifies, say so —
+"no primary source confirms this" is a valid, honest answer (§I).
 
 ## Hard rules
 
 Inherits every constitution principle from `/cannavec-science:research`:
-primary-source-or-refuse, isomer specificity, GRADE wording match,
-retraction enforcement, deterministic phytochemistry rigor.
+primary-source-or-refuse, no self-certification (the backbone verifies, not you),
+retracted-never-cited, isomer specificity, GRADE-wording match, and no
+individualized advice.

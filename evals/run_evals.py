@@ -236,6 +236,13 @@ def main(argv: list[str] | None = None) -> int:
         "--strict-coverage", action="store_true",
         help="Exit non-zero if any category bucket is below its minimum.",
     )
+    parser.add_argument(
+        "--strict-all", action="store_true",
+        help=(
+            "Gate the exit code on EVERY prompt (legacy behaviour), not just "
+            "the MVP-contract buckets. Use to track coverage progress."
+        ),
+    )
     args = parser.parse_args(argv)
 
     path = Path(__file__).parent / "canonical_research_questions.json"
@@ -243,6 +250,11 @@ def main(argv: list[str] | None = None) -> int:
 
     all_prompts = data["prompts"]
     minimums: dict = data.get("category_minimums", {})
+    # MVP contract buckets gate the exit code. Coverage buckets are tracked and
+    # printed but non-gating — the MVP grounds via live retrieval, not curated
+    # breadth recall (forcing the static registry to memorize PMIDs is the M5
+    # anti-pattern). See the seed's _gating_comment.
+    gating_categories: set = set(data.get("gating_categories", []))
     by_category_count: dict[str, int] = {}
     for p in all_prompts:
         by_category_count[p["category"]] = by_category_count.get(p["category"], 0) + 1
@@ -283,19 +295,44 @@ def main(argv: list[str] | None = None) -> int:
         by_category.setdefault(prompt["category"], []).append(ok)
 
     print(f"\nResult: {passed}/{total} passed")
+
+    # Split the scorecard into the gating MVP contract and tracked coverage.
+    gating_pass = gating_total = 0
+    coverage_pass = coverage_total = 0
     print("\nBy category:")
     for cat in sorted(by_category):
         results = by_category[cat]
         total_in_bucket = by_category_count.get(cat, 0)
         minimum = minimums.get(cat, 0)
+        is_gating = cat in gating_categories
+        tag = "contract" if is_gating else "coverage"
+        if is_gating:
+            gating_pass += sum(results)
+            gating_total += len(results)
+        else:
+            coverage_pass += sum(results)
+            coverage_total += len(results)
         print(
-            f"  {cat}: {sum(results)}/{len(results)} pass "
+            f"  [{tag}] {cat}: {sum(results)}/{len(results)} pass "
             f"(loaded {len(results)} of {total_in_bucket}; min {minimum})"
+        )
+
+    if gating_categories:
+        print(
+            f"\nContract (gating): {gating_pass}/{gating_total} — "
+            "verification / rigor / refusal / routing / cross-cutting."
+        )
+        print(
+            f"Coverage (tracked, non-gating): {coverage_pass}/{coverage_total} — "
+            "curated breadth is the roadmap; the MVP grounds via live retrieval."
         )
 
     if args.strict_coverage and coverage_failed:
         return 2
-    return 0 if passed == total else 1
+    if args.strict_all or not gating_categories:
+        return 0 if passed == total else 1
+    # MVP gate: every contract-bucket prompt must pass.
+    return 0 if gating_pass == gating_total else 1
 
 
 if __name__ == "__main__":

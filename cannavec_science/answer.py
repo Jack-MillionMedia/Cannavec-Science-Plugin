@@ -523,6 +523,15 @@ class Answer:
                         )
             lines.append("")
 
+        if self.sections:
+            lines.append(
+                "> **Curated reference (offline).** The sections below are "
+                "graded background from the curated registries — scaffolding "
+                "to reason over, **not** a live-verified answer and not the "
+                "intelligence itself. Verify each identifier before citing "
+                "(Constitution §I / M5)."
+            )
+            lines.append("")
         for heading, body in self.sections:
             lines.append(f"## {heading}")
             lines.append("")

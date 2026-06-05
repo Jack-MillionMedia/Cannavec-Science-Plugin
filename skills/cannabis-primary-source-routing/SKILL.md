@@ -215,13 +215,9 @@ Never cite the EFO/MONDO id as support for a claim — it is normalization only.
 
 ---
 
-## Source-health pre-flight
+## Lane health — surfaced by `discover`
 
-Before a multi-source fan-out, probe liveness so the answer does not silently miss a lane:
-
-```
-python3 -m cannavec_science source-health \
-    --sources pubmed,chembl,ctgov,pubchem,pharmgkb,rcsb,opentargets,gwas,bindingdb
-```
-
-If any source returns red, the discover command will mark that lane unreachable in its synthesis block. Do not paper over the gap — surface it.
+`discover` degrades gracefully: a lane that is unreachable (no network, no API
+key, upstream down) is marked in the synthesis block rather than silently
+dropped. Read that block and **surface the gap** — do not paper over a missing
+lane or imply coverage the fan-out did not actually return.

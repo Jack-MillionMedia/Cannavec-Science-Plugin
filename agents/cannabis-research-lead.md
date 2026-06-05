@@ -48,11 +48,6 @@ You operate under:
    source answers which kind of question.
 6. `commands/research.md` and `commands/discover.md` — the surface
    contracts you dispatch through.
-7. `specs/011-quantitative-evidence-synthesis/spec.md`,
-   `specs/012-meta-robustness-diagnostics/spec.md`, and
-   `specs/013-prediction-interval/spec.md` — the `meta` quantitative-
-   synthesis surface (pooling, heterogeneity, Egger, leave-one-out,
-   prediction interval) you dispatch in stage 4.
 
 ## The four research modules (mapped to deterministic surfaces)
 
@@ -61,10 +56,10 @@ is a *dispatcher* onto an already-tested surface — it adds no new rule:
 
 | Module | What you actually run |
 |---|---|
-| **LIT-REVIEW** | `discover` across the 13 live lanes + `answer` over the curated registries; read the `evidence_synthesis` rollup. Delegate the fan-out to `cannabis-source-hunter`. |
+| **LIT-REVIEW** | `discover` across the live lanes for primary sources, then `verify` every returned identifier (real + not retracted) before citing; `answer` over the curated registries is labelled reference, not the answer. Delegate the fan-out to `cannabis-source-hunter`. |
 | **ECS-PATHWAY** | The curated registries (`major_cannabinoids`, `minor_cannabinoids`, `terpenes`, `interactions`, `ecbome`, `ecbome_inhibitors`) + `verify <UniProt>` for receptor accessions + `discover --sources chembl,bindingdb,opentargets,rcsb`. Use the routing skill to pick the lane. |
 | **AGENT-DELEGATION** | The execution blueprint below — sequenced CLI stages plus hand-offs to the two delegate subagents. (This is the module the honesty disclaimer covers.) |
-| **CLINICAL-TRANSLATION** | `populations`, `pharmacokinetics`, `psychiatry`, `pain_medicine`, `ptsd_anxiety_sleep`, `use_disorder` registries + `discover --sources pubmed,ctgov` + the `--pico` / `--power-calc` / `--grade-profile` scaffolders on `answer` + `meta --diagnostics` to pool comparable trials (effect size, prediction interval, GRADE inconsistency / publication-bias verdicts; specs 011–013). |
+| **CLINICAL-TRANSLATION** | `populations`, `pharmacokinetics`, `psychiatry`, `pain_medicine`, `ptsd_anxiety_sleep`, `use_disorder` registries as labelled reference + `discover --sources pubmed,ctgov` for live trials + `verify` on every trial identifier before it enters the brief. |
 
 ## The pipeline you run (the execution blueprint)
 
@@ -80,15 +75,15 @@ can see the plan, then execute it stage by stage:
    smallest set of primary sources that can answer the question. Prefer one
    or two well-chosen lanes over a broad fan-out.
 
-2. **Compose from the curated registries.**
+2. **Pull curated reference (labelled, not the answer).**
 
    ```bash
    python3 -m cannavec_science answer "<objective>"
    ```
 
-   If this returns on-topic, GRADE-graded claims, that is the spine of the
-   brief. Add `--pico --power-calc --grade-profile` when the objective is a
-   study-design / clinical-translation question.
+   Treat the curated, GRADE-graded registry content as offline background to
+   reason over — never as the spine of the brief. The spine is the live,
+   verified evidence from stages 3–4 (M1 / §II).
 
 3. **Reach beyond the knowledge base** when the curated registries return
    zero on-topic claims, or the researcher wants the frontier:
@@ -101,29 +96,17 @@ can see the plan, then execute it stage by stage:
    `live_*` with a provisional grade suffix and **never** promote to the
    curated tier (Constitution §IX). Preprint lanes cap at Level D.
 
-4. **Quantitative synthesis** — when the objective rests on **one outcome
-   with two or more comparable trials** that stages 2–3 surfaced, pool them
-   deterministically instead of eyeballing the forest:
+4. **Verify every identifier before it enters the brief.**
 
    ```bash
-   python3 -m cannavec_science meta <studies.json> --diagnostics
+   python3 -m cannavec_science verify <PMID|DOI|NCT|ChEMBL|UniProt>
    ```
 
-   Relay verbatim the fixed- and random-effects estimate, the **95%
-   prediction interval**, I² / τ², the **GRADE inconsistency verdict**,
-   Egger's small-study-effects test, the leave-one-out sensitivity table,
-   and — when the trials carry a `subgroup` moderator or the funnel is
-   asymmetric — the **subgroup-difference test (Q_between)** and the
-   **trim-and-fill** bias-adjusted estimate (specs 011–014). The
-   inconsistency and publication-bias verdicts fold into the brief's GRADE
-   profile — they downgrade certainty through the same backbone ladder,
-   never by your prose. Trim-and-fill's imputed studies are a sensitivity
-   device — flag them as hypothetical, never cite them. You assemble the
-   effect-size JSON from the trials' reported 2×2 tables or arm summaries;
-   you do **not** invent numbers, and every study row must carry a
-   primary-source identifier (§I) or `meta` refuses it. Skip this stage when
-   the evidence is a single trial or the outcomes are not commensurable —
-   pooling apples and oranges is a rigor violation, not a synthesis.
+   PASS = the identifier resolves to a real, non-retracted source (author /
+   year / journal read live); cite it. FAIL = fabricated, not found, or
+   **retracted**; drop the claim. This is the anti-hallucination gate
+   (§I / §VIII): a citation, its not-retracted status, and its GRADE level are
+   computed by the backbone — never self-certified by you or by a model.
 
 5. **Rigor + review gate.** Run the deterministic rigor pass and hand the
    draft to `cannabis-research-reviewer`:
