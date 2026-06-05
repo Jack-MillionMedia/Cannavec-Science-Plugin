@@ -2,23 +2,23 @@
 
 Unified entry point: ``python -m cannavec_science <subcommand>``.
 
+The deterministic grounding-and-verification backbone for an AI reasoner —
+it retrieves, verifies, grades, and rigor-checks; the model does the reasoning
+over the verified evidence (Constitution M1 / §II).
+
 Subcommands:
 
-- ``answer "<question>"`` — researcher brief from curated registries.
-- ``discover "<query>"`` — live multi-source fan-out
-  (PubMed + ChEMBL + ClinicalTrials.gov).
-- ``verify <PMID|DOI>`` — spot-check a single identifier.
-- ``rigor "<text>"`` — run the six phytochemistry rigor detectors.
+- ``answer "<question>"`` — assemble a citation-bound brief; curated registry
+  content is labelled offline reference, not the answer itself.
+- ``discover "<query>"`` — live multi-source primary-source fan-out
+  (PubMed + ChEMBL + ClinicalTrials.gov, plus opt-in lanes).
+- ``verify <PMID|DOI|NCT|ChEMBL|UniProt>`` — spot-check one identifier:
+  real? not retracted? (the anti-hallucination gate).
+- ``rigor "<text>"`` — run the phytochemistry + reporting-rigor +
+  banned-pattern detectors on arbitrary text.
 - ``bibliography <answer.json>`` — re-render a saved answer's
   bibliography in BibTeX / RIS / CSL-JSON.
-- ``source-health`` — probe per-source liveness.
-- ``meta <studies.json>`` — pool per-study effect sizes into a
-  fixed/random-effects meta-analysis with heterogeneity (Q, I², τ²) and
-  a GRADE inconsistency verdict (spec 011); ``--diagnostics`` adds Egger /
-  leave-one-out / subgroup / trim-and-fill (specs 012-014) and
-  ``--baseline-risk`` adds the GRADE Summary-of-Findings absolute effect +
-  NNT (spec 015) and ``--certainty`` adds the GRADE ⊕ certainty rating that
-  completes the SoF table (spec 016).
+- ``registries`` — inventory the curated reference registries.
 
 Every subcommand returns a non-zero exit code on refusal / error.
 Stdlib only.
