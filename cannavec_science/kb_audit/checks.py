@@ -1,9 +1,30 @@
 """The three audit gates over a FileRecord. All network is injected (offline-testable)."""
 from __future__ import annotations
 
+import re
+
 from cannavec_science.claim_support import assess_support, Verdict
 from cannavec_science.evidence import EvidenceLevel
 from cannavec_science.kb_audit.model import Citation, Finding
+
+# KB authors write either a clean grade ("Level B") or a compound/per-indication
+# grade ("Level A (Dravet...); Level C (adult epilepsy)"). Extract every Level
+# token and judge the STRONGEST claim made (highest rank).
+_LEVEL_RE = re.compile(r"Level\s+([A-E])\b", re.IGNORECASE)
+
+
+def _parse_declared_grade(declared: str) -> EvidenceLevel | None:
+    s = declared.strip()
+    try:
+        return EvidenceLevel(s)                      # clean "Level B" / "Unsupported"
+    except (KeyError, TypeError, ValueError):
+        pass
+    levels = [EvidenceLevel("Level " + m.group(1).upper()) for m in _LEVEL_RE.finditer(s)]
+    if levels:
+        return max(levels, key=lambda lv: lv.rank)   # the strongest grade claimed
+    if "unsupported" in s.lower():
+        return EvidenceLevel.UNSUPPORTED
+    return None                                       # genuinely unparseable
 
 # verdict.name values from pubmed_verify.VerificationVerdict
 _PASS = {"MATCH", "BARE_CITE_OK"}
@@ -98,11 +119,10 @@ def _ceiling(counts: dict) -> EvidenceLevel:
 def check_grade(declared: str | None, study_counts: dict) -> Finding | None:
     if not declared:
         return None
-    try:
-        declared_level = EvidenceLevel(declared.strip())
-    except (KeyError, TypeError, ValueError):
+    declared_level = _parse_declared_grade(declared)
+    if declared_level is None:
         return Finding(gate="grade", issue=f"declared evidence_grade {declared!r} is unparseable",
-                       evidence="not one of Level A..E / Unsupported", verdict="inflated",
+                       evidence="contains no 'Level A..E' / Unsupported token", verdict="inflated",
                        recommended_action="set evidence_grade to a valid 'Level X' value",
                        route="quick_fix")
     if not study_counts:

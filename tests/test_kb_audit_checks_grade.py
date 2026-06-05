@@ -29,6 +29,17 @@ class GradeGateTests(unittest.TestCase):
         # ceiling, so we must NOT flag it (conservative; avoids real-KB noise).
         self.assertIsNone(checks.check_grade("Level A", {}))
 
+    def test_compound_per_indication_grade_uses_strongest(self):
+        # Real KB pattern: per-indication grades in one field. Judge the
+        # strongest claim against the ceiling — never choke on the format.
+        compound = "Level A (Dravet, LGS, TSC); Level C (Treatment-Resistant Adult Epilepsy)"
+        # SR present → ceiling A → the Level-A claim is supported → no finding.
+        self.assertIsNone(checks.check_grade(compound, {"systematic_reviews": 1}))
+        # only observational → ceiling C → the Level-A claim is inflated.
+        out = checks.check_grade(compound, {"observational_cohort": 1})
+        self.assertEqual(out.verdict, "inflated")
+        self.assertIn("Level C", out.recommended_action)
+
 
 if __name__ == "__main__":
     unittest.main()
