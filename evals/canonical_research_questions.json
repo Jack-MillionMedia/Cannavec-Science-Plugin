@@ -13,6 +13,14 @@
     "clinical_pharmacology_depth": 14,
     "research_domain_breadth": 16
   },
+  "_gating_comment": "MVP contract buckets gate the exit code (must be 100%): verification / rigor / refusal / routing / cross-cutting — the deterministic credibility promises. Coverage buckets (curated, analytical_cultivation, clinical_pharmacology_depth, research_domain_breadth) are tracked and printed but NON-gating: the MVP grounds via LIVE retrieval, not curated breadth recall, and forcing the static registry to memorize specific PMIDs is the M5 anti-pattern. Run with --strict-all to gate on every prompt.",
+  "gating_categories": [
+    "refusal",
+    "rigor_positive",
+    "rigor_negative",
+    "routing_surfacing",
+    "cross_cutting"
+  ],
   "prompts": [
     {
       "id": "curated_cbd_dravet",
