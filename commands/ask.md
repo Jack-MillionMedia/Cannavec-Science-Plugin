@@ -19,7 +19,7 @@ sits behind a **verified** primary source. The backbone does the verifying.
 ### 1. Pull curated reference + any candidate citations
 
 ```bash
-python3 -m cannavec_science answer "$ARGUMENTS" --json
+cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science answer "$ARGUMENTS" --json
 ```
 
 If `is_refusal` is true, surface the refusal and stop. Otherwise read the
@@ -31,12 +31,12 @@ not as the final answer.
 For each PMID / DOI / NCT / ChEMBL / UniProt you will cite:
 
 ```bash
-python3 -m cannavec_science verify <identifier>
+cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science verify <identifier>
 ```
 
 Cite it **only on PASS**. A FAIL means fabricated, not-found, or **retracted** —
 drop it. If the curated layer has no claim for this question, run a quick
-`python3 -m cannavec_science discover "$ARGUMENTS" --sources pubmed --max 3` and
+`cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science discover "$ARGUMENTS" --sources pubmed --max 3` and
 verify a returned identifier instead.
 
 ### 3. Answer

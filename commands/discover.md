@@ -14,7 +14,7 @@ The user wants real-time literature discovery on:
 ## How to dispatch
 
 ```bash
-python3 -m cannavec_science discover "$ARGUMENTS" --since 2024-01-01 --max 10
+cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science discover "$ARGUMENTS" --since 2024-01-01 --max 10
 ```
 
 Optional flags:
