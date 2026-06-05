@@ -60,9 +60,33 @@ def _real_abstract(pmid: str):
 
 def audit_path(root: str, *, include=DEFAULT_INCLUDE, exclude=(),
                verify_fn=_real_verify, retracted_fn=_real_retracted, abstract_fn=_real_abstract):
+    # Verify each identifier / fetch each abstract once per corpus run — the same
+    # PMID cited by many files costs one live call, not N (spec §Reliability: dedupe;
+    # honor NCBI rate limits).
+    _vc: dict = {}
+    _ac: dict = {}
+    _rc: dict = {}
+
+    def _verify(ident, id_type):
+        key = (ident, id_type)
+        if key not in _vc:
+            _vc[key] = verify_fn(ident, id_type)
+        return _vc[key]
+
+    def _abstract(pmid):
+        if pmid not in _ac:
+            _ac[pmid] = abstract_fn(pmid)
+        return _ac[pmid]
+
+    def _retracted(**kw):
+        key = (kw.get("pmid"), kw.get("doi"))
+        if key not in _rc:
+            _rc[key] = retracted_fn(**kw)
+        return _rc[key]
+
     verdicts = []
     for path in select_files(root, include, exclude):
         rec = extract(path, root=root, include=include, exclude=exclude)
-        verdicts.append(audit_record(rec, verify_fn=verify_fn, retracted_fn=retracted_fn,
-                                     abstract_fn=abstract_fn))
+        verdicts.append(audit_record(rec, verify_fn=_verify, retracted_fn=_retracted,
+                                     abstract_fn=_abstract))
     return verdicts

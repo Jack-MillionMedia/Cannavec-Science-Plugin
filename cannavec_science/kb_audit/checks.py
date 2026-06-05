@@ -7,7 +7,7 @@ from cannavec_science.kb_audit.model import Citation, Finding
 
 # verdict.name values from pubmed_verify.VerificationVerdict
 _PASS = {"MATCH", "BARE_CITE_OK"}
-_FABRICATED = {"NOT_FOUND", "MISMATCH"}
+_FABRICATED = {"NOT_FOUND"}
 
 
 def check_citation(c: Citation, *, verify_fn, retracted_fn) -> Finding | None:
@@ -35,6 +35,13 @@ def check_citation(c: Citation, *, verify_fn, retracted_fn) -> Finding | None:
                        evidence="network unavailable", verdict="inconclusive",
                        recommended_action="re-run the audit with network access",
                        route="deeper_research")
+    if name == "MISMATCH":
+        return Finding(gate="citation",
+                       issue=f"{c.id_type} {c.identifier} resolves but its author/year is misattributed",
+                       evidence="record exists but the cited attribution disagrees",
+                       verdict="misattributed",
+                       recommended_action="correct the citation's author/year attribution",
+                       route="improve_agent")
     if name in _FABRICATED:
         return Finding(gate="citation",
                        issue=f"{c.id_type} {c.identifier} does not resolve to a real record",
@@ -98,6 +105,8 @@ def check_grade(declared: str | None, study_counts: dict) -> Finding | None:
                        evidence="not one of Level A..E / Unsupported", verdict="inflated",
                        recommended_action="set evidence_grade to a valid 'Level X' value",
                        route="quick_fix")
+    if not study_counts:
+        return None  # no study-composition data → no basis to judge a ceiling (conservative)
     ceiling = _ceiling(study_counts)
     if declared_level.rank > ceiling.rank:
         return Finding(gate="grade",

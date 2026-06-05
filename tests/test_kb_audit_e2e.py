@@ -39,6 +39,18 @@ class E2ETests(unittest.TestCase):
     def test_non_science_skipped(self):
         self.assertNotIn("x.md", self.verdicts)
 
+    def test_identifiers_verified_once_per_corpus(self):
+        # clean.md and inflated.md both cite PMID 28538134 — dedupe verifies it once.
+        calls = {}
+
+        def counting_verify(ident, id_type):
+            calls[ident] = calls.get(ident, 0) + 1
+            return _stub_verify(ident, id_type)
+
+        audit_path(_FX, verify_fn=counting_verify, retracted_fn=_stub_retracted,
+                   abstract_fn=lambda p: None)
+        self.assertEqual(calls["28538134"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

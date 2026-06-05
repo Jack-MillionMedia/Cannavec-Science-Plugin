@@ -928,8 +928,11 @@ def _cmd_rigor(args: argparse.Namespace) -> int:
 def _cmd_kb_audit(args: argparse.Namespace) -> int:
     from cannavec_science.kb_audit.run import audit_path
     from cannavec_science.kb_audit.report import render
+    from cannavec_science.kb_audit.scope import DEFAULT_INCLUDE
 
-    verdicts = audit_path(args.path)
+    include = tuple(args.include) if getattr(args, "include", None) else DEFAULT_INCLUDE
+    exclude = tuple(args.exclude) if getattr(args, "exclude", None) else ()
+    verdicts = audit_path(args.path, include=include, exclude=exclude)
     markdown, js = render(verdicts)
     body = js if args.json else markdown
     if args.out:
@@ -1215,6 +1218,11 @@ def _build_parser() -> argparse.ArgumentParser:
               "(citation integrity + claim support + GRADE honesty). Operator tool."),
     )
     ka.add_argument("path", help="Path to the knowledge-base repo or a subfolder")
+    ka.add_argument("--include", action="append", default=None,
+                    help=("Path substring to audit (repeatable). Default: the "
+                          "science folders 5 (Medical) + 6 (Evidence)."))
+    ka.add_argument("--exclude", action="append", default=None,
+                    help="Path substring to skip (repeatable).")
     ka.add_argument("--json", action="store_true", help="Emit the corpus verdict as JSON.")
     ka.add_argument("--out", help="Write the report to this file instead of stdout.")
     ka.set_defaults(func=_cmd_kb_audit)

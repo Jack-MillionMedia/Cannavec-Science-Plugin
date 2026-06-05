@@ -24,6 +24,11 @@ class GradeGateTests(unittest.TestCase):
         self.assertEqual(out.verdict, "inflated")
         self.assertIn("unparseable", out.issue.lower())
 
+    def test_no_study_counts_is_not_flagged(self):
+        # A valid grade with no study-composition data → no basis to judge a
+        # ceiling, so we must NOT flag it (conservative; avoids real-KB noise).
+        self.assertIsNone(checks.check_grade("Level A", {}))
+
 
 if __name__ == "__main__":
     unittest.main()

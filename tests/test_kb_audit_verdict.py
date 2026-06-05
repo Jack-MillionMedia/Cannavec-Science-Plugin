@@ -39,6 +39,16 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual(v.status, "FLAG")
         self.assertEqual(v.priority, 0)
 
+    def test_parse_error_file_is_flagged_not_passed(self):
+        # An unparseable file must never be a silent PASS (spec §Reliability).
+        rec = self._rec(parse_error="'utf-8' codec can't decode byte")
+        v = audit_record(rec, verify_fn=_verify("MATCH"), retracted_fn=lambda **k: None,
+                         abstract_fn=lambda p: None)
+        self.assertEqual(v.routing, "IMPROVE")
+        self.assertEqual(v.status, "FLAG")
+        self.assertEqual(len(v.findings), 1)
+        self.assertIn("could not be parsed", v.findings[0].issue)
+
 
 if __name__ == "__main__":
     unittest.main()

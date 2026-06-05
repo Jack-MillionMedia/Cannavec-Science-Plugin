@@ -1,13 +1,24 @@
 """Assemble gate findings into a routed FileVerdict (spec 032 — routing rule)."""
 from __future__ import annotations
 
-from cannavec_science.kb_audit.model import FileRecord, FileVerdict
+from cannavec_science.kb_audit.model import FileRecord, FileVerdict, Finding
 from cannavec_science.kb_audit import checks
 
 _FAIL_VERDICTS = {"retracted", "fabricated", "contradiction"}
 
 
 def audit_record(rec: FileRecord, *, verify_fn, retracted_fn, abstract_fn) -> FileVerdict:
+    if rec.parse_error:
+        # A file we cannot read is flagged for review — never a silent PASS (spec §Reliability).
+        f = Finding(gate="citation", issue=f"file could not be parsed: {rec.parse_error}",
+                    evidence="read error at extraction time", verdict="unverified",
+                    recommended_action="fix the file encoding or remove the file",
+                    route="deeper_research")
+        return FileVerdict(path=rec.path, in_scope=rec.in_scope, routing="IMPROVE",
+                           status="FLAG", priority=2,
+                           credibility={"citations_clean": 0, "citations_total": 0,
+                                        "open_findings": 1},
+                           findings=(f,))
     findings = []
     clean = 0
     for c in rec.citations:
