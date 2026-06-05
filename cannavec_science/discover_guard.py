@@ -68,6 +68,18 @@ class Provenance(str, Enum):
     # preprints + conference proceedings + open citation network).
     # Thirteenth live primary-source lane.
     LIVE_OPENALEX = "live_openalex"
+    # Spec 029 — EBI chemical-ontology + functional-annotation lanes. ChEBI
+    # rows carry a ChEBI accession (verifiable identifier, §I); QuickGO rows
+    # carry a GO id + its annotation reference (a PMID for experimental
+    # evidence). Both are mechanistic/ontological context, capped at Level D.
+    LIVE_CHEBI = "live_chebi"
+    LIVE_QUICKGO = "live_quickgo"
+    # Spec 030 — pathway + disease-ontology lanes. Reactome rows carry a
+    # stable pathway id (R-HSA-…) + the pathway's literature PMIDs; EFO rows
+    # carry an ontology term id (EFO/MONDO/HP/…) and are indication
+    # *normalization* context, not a citable research source. Both Level D.
+    LIVE_REACTOME = "live_reactome"
+    LIVE_EFO = "live_efo"
     # Spec 003 — adverse-event signal feeds (US5).
     LIVE_FAERS = "live_faers"
     LIVE_MAUDE = "live_maude"

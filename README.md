@@ -35,7 +35,9 @@ interval and the OIS, forms a three-part refusal to overstate precision when
 studies are few.
 2,336 unit tests green at HEAD; 188 eval prompts
 (173 offline) across ten buckets; twenty-one curated science registries
-with ≥ 230 total rows; thirteen live-discovery lanes.
+with ≥ 230 total rows; seventeen live-discovery lanes (v0.7 adds ChEBI chemical
+ontology + QuickGO receptor GO-function lanes (spec 029) and Reactome receptor
+pathways + EFO indication normalization (spec 030)).
 
 ## Read this first
 
@@ -131,7 +133,7 @@ If the env var is unset the fetcher sends no mailto — polite-anonymous beats
 impolitely-fake. The same address is forwarded to OpenAlex (which grants
 higher per-IP rate limits to identified clients).
 
-All 13 lanes use bounded retry + exponential backoff on transient HTTP 429
+All 17 lanes use bounded retry + exponential backoff on transient HTTP 429
 / 502 / 503 / 504 and on `URLError`, honouring `Retry-After` (capped at 30
 seconds) so a misbehaving upstream cannot stall the fan-out. Operators who
 want internal diagnostics can set `CANNAVEC_LOG_LEVEL=DEBUG`; the structured
@@ -164,7 +166,7 @@ subcommands are accessible directly via `python3 -m cannavec_science <cmd>`:
 | `meta <studies.json> [--measure OR\|RR\|MD\|SMD\|prop\|generic] [--diagnostics] [--certainty] [--moderator-key K] [--json]` | Pool per-study effect sizes (specs 011–020) into a fixed-effect + DerSimonian–Laird random-effects estimate with heterogeneity (Cochran's Q, I², τ²), a prediction interval, and a **GRADE inconsistency verdict**. `--diagnostics` adds Egger's small-study-effects test, leave-one-out sensitivity, **subgroup analysis** (Q_between), and **trim-and-fill** bias adjustment; `--certainty` adds the GRADE ⊕ rating (with the spec 018 Optimal-Information-Size imprecision criterion); `--measure prop` pools **single-arm rates** (Freeman–Tukey double-arcsine, spec 019 — incidence/prevalence, valid at 0 %/100 %); `--moderator-key K [--knha]` runs a **meta-regression** on a continuous moderator (spec 020 — slope, R², residual heterogeneity); `--knha` also adds a modified **Hartung–Knapp–Sidik–Jonkman** interval (spec 021 — the modern-recommended random-effects CI, never narrower than DL). Every study must carry a primary-source identifier (§I), and may carry a `subgroup` label; the run refuses with a non-zero exit on a missing identifier. |
 
 `discover` accepts `--parallel N` (default 1; recommended ≤ 4 for NCBI
-etiquette) to fan out across the 13 lanes concurrently. Result ordering
+etiquette) to fan out across the 17 lanes concurrently. Result ordering
 stays alphabetical-by-source regardless of completion order so identical
 runs produce identical JSON.
 
@@ -870,13 +872,13 @@ refuses, or cites in prose — every verdict is computed by
 | Agent | Role |
 |---|---|
 | `cannabis-research-lead` | Front-door orchestrator (a.k.a. CANNA-RESEARCH-AGENT). Decomposes a research objective into a deterministic execution blueprint — route → `answer` → `discover` → `rigor`/review → `verify` → bibliography — and relays the backbone's verdicts. Carries an explicit honesty disclaimer: the "research team" is sequenced subcommands plus two delegate subagents, **not** an autonomous swarm (Constitution §II). Emits a "curation candidates" block that feeds the human-approved §IX KB-growth flow; it never promotes rows itself. |
-| `cannabis-source-hunter` | Live primary-literature discovery across the 13 lanes. Wraps `discover`; never auto-promotes `live_*` rows (Constitution §IX). |
+| `cannabis-source-hunter` | Live primary-literature discovery across the 17 lanes. Wraps `discover`; never auto-promotes `live_*` rows (Constitution §IX). |
 | `cannabis-research-reviewer` | Final review pass — the Verity Test + the deterministic `rigor` pass + GRADE wording consistency. Returns PASS / REVISE. |
 
 ## The deterministic backbone
 
 ```
-cannavec_science/                       # 83 modules · stdlib-only
+cannavec_science/                       # 87 modules · stdlib-only
 
 # Core evidence + safety
 ├── evidence.py                  # GRADE, Source, Claim, ClaimType, source-authority weight
@@ -891,7 +893,7 @@ cannavec_science/                       # 83 modules · stdlib-only
 ├── pubmed_verify.py             # E-utilities + Crossref (stdlib urllib)
 ├── uniprot_verify.py            # UniProt accession resolver
 
-# Live discovery (13 lanes)
+# Live discovery (17 lanes)
 ├── pubmed_search.py             # PubMed E-utilities search
 ├── chembl_discover.py           # ChEMBL bioactivity
 ├── ctgov_discover.py            # ClinicalTrials.gov
@@ -905,6 +907,10 @@ cannavec_science/                       # 83 modules · stdlib-only
 ├── medrxiv_discover.py          # medRxiv preprints
 ├── europepmc_discover.py        # Europe PMC (PubMed + PMC full-text + EU journals)
 ├── openalex_discover.py         # OpenAlex open scholarly citation graph
+├── chebi_discover.py            # ChEBI chemical ontology (roles, botanical origin, xrefs)
+├── quickgo_discover.py          # QuickGO receptor GO function (CB1/CB2/… annotations)
+├── reactome_discover.py         # Reactome receptor pathways (+ literature PMIDs)
+├── efo_discover.py              # EFO indication normalization (disease/phenotype ontology)
 ├── _preprint_helpers.py         # Shared DOI/version/Crossref helpers
 ├── discover_guard.py            # Safety + banned-pattern preflight on live queries
 ├── synthesis.py                 # Cross-source convergence verdict

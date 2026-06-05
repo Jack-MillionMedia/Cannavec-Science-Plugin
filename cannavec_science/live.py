@@ -57,7 +57,10 @@ Runner = Callable[[str, Optional[str], int], Iterable]
 # Lean default keeps serverless latency + NCBI rate-limit pressure low. The
 # full set is opt-in per request.
 DEFAULT_SOURCES: tuple[str, ...] = ("pubmed", "ctgov")
-SUPPORTED_SOURCES: tuple[str, ...] = ("pubmed", "ctgov", "chembl", "europepmc")
+SUPPORTED_SOURCES: tuple[str, ...] = (
+    "pubmed", "ctgov", "chembl", "europepmc", "chebi", "quickgo",
+    "reactome", "efo",
+)
 
 _MAX_RESULTS_CEILING = 25
 
@@ -88,6 +91,26 @@ def _run_europepmc(query: str, since: Optional[str], n: int):
     return EuropePMCSearcher().search(query, since=since, max_results=n)
 
 
+def _run_chebi(query: str, since: Optional[str], n: int):
+    from cannavec_science.chebi_discover import ChEBISearcher
+    return ChEBISearcher().search(query, max_results=n)
+
+
+def _run_quickgo(query: str, since: Optional[str], n: int):
+    from cannavec_science.quickgo_discover import QuickGOSearcher
+    return QuickGOSearcher().search(query, max_results=n)
+
+
+def _run_reactome(query: str, since: Optional[str], n: int):
+    from cannavec_science.reactome_discover import ReactomeSearcher
+    return ReactomeSearcher().search(query, max_results=n)
+
+
+def _run_efo(query: str, since: Optional[str], n: int):
+    from cannavec_science.efo_discover import EFOSearcher
+    return EFOSearcher().search(query, max_results=n)
+
+
 def default_runners() -> dict[str, Runner]:
     """The production source → runner map (one tested searcher per lane)."""
     return {
@@ -95,6 +118,12 @@ def default_runners() -> dict[str, Runner]:
         "ctgov": _run_ctgov,
         "chembl": _run_chembl,
         "europepmc": _run_europepmc,
+        # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
+        "chebi": _run_chebi,
+        "quickgo": _run_quickgo,
+        # Spec 030 — pathway + disease-ontology lanes.
+        "reactome": _run_reactome,
+        "efo": _run_efo,
     }
 
 

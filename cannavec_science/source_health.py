@@ -88,6 +88,23 @@ _PROBE_URLS = {
     "openalex": (
         "https://api.openalex.org/works?search=cannabidiol&per_page=1"
     ),
+    # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
+    "chebi": (
+        "https://www.ebi.ac.uk/chebi/backend/api/public/es_search/"
+        "?term=cannabidiol&size=1"
+    ),
+    "quickgo": (
+        "https://www.ebi.ac.uk/QuickGO/services/annotation/search"
+        "?geneProductId=P21554&limit=1"
+    ),
+    # Spec 030 — pathway + disease-ontology lanes.
+    "reactome": (
+        "https://reactome.org/ContentService/data/mapping/UniProt/P21554/"
+        "pathways?species=Homo%20sapiens"
+    ),
+    "efo": (
+        "https://www.ebi.ac.uk/ols4/api/search?q=epilepsy&ontology=efo&rows=1"
+    ),
 }
 
 

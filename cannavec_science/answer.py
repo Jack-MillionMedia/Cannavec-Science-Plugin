@@ -1197,13 +1197,19 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
         row.get("pmid") or row.get("nct_id") or row.get("activity_id")
         or row.get("cid") or row.get("pdb_id") or row.get("accession_id")
         or row.get("ensembl_id") or row.get("monomer_id")
-        or row.get("chembl_id") or row.get("doi")
+        or row.get("chembl_id") or row.get("chebi_id") or row.get("go_id")
+        or row.get("doi")
+        # NOTE: efo_id and pathway_id are intentionally NOT in this chain.
+        # An EFO/ontology id is not a §I primary source (normalization only),
+        # and a Reactome pathway weaves only via its literature `pmid` above —
+        # a pathway id alone is not citable. Do not add them here.
     )
     if not ident:
         return None
     title = (
         row.get("title") or row.get("brief_title") or row.get("disease_name")
-        or row.get("compound") or ""
+        or row.get("compound") or row.get("chebi_name") or row.get("go_name")
+        or ""
     )
     year = row.get("year") or row.get("start_year") or ""
     ident_label = (

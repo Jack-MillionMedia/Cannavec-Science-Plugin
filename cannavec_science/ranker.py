@@ -165,8 +165,8 @@ class Candidate:
     # ranker and the discover surface agree on a row's headline identifier.
     _ID_KEYS = (
         "pmid", "nct_id", "activity_id", "cid", "pdb_id", "accession_id",
-        "ensembl_id", "monomer_id", "chembl_id", "doi", "identifier",
-        "native_id",
+        "ensembl_id", "monomer_id", "chembl_id", "chebi_id", "go_id",
+        "pathway_id", "efo_id", "doi", "identifier", "native_id",
     )
 
     @classmethod

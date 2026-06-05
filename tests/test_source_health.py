@@ -102,6 +102,10 @@ class PingAllTests(unittest.TestCase):
             "europepmc",
             # Spec 006 US6 — OpenAlex thirteenth primary-source live lane.
             "openalex",
+            # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
+            "chebi", "quickgo",
+            # Spec 030 — pathway + disease-ontology lanes.
+            "reactome", "efo",
         })
 
 

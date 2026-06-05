@@ -1,7 +1,7 @@
 ---
 name: cannabis-primary-source-routing
-description: Cannabis-primary-source router. Auto-activate when a cannabis-science question could be answered by more than one primary database — directs you to the right source (PubMed / ChEMBL / ClinicalTrials.gov / PubChem / PharmGKB / RCSB PDB / Open Targets / GWAS Catalog / BindingDB) before composing a claim. Encodes the Constitution §I "Primary-Source-Or-Refuse" gate into a per-question decision tree, with the matching `python -m cannavec_science discover --sources …` invocation for each lane.
-version: 1.0.0
+description: Cannabis-primary-source router. Auto-activate when a cannabis-science question could be answered by more than one primary database — directs you to the right source (PubMed / ChEMBL / ClinicalTrials.gov / PubChem / ChEBI / QuickGO / Reactome / EFO / PharmGKB / RCSB PDB / Open Targets / GWAS Catalog / BindingDB) before composing a claim. Encodes the Constitution §I "Primary-Source-Or-Refuse" gate into a per-question decision tree, with the matching `python -m cannavec_science discover --sources …` invocation for each lane.
+version: 1.2.0
 ---
 
 # Cannabis Primary-Source Routing
@@ -19,6 +19,10 @@ Pick **one** primary lane (and at most one supporting lane).
 | Lane | Triggering question shape | Primary source | Discover flag |
 | ---- | ------------------------- | -------------- | ------------- |
 | Compound structure / properties | "What is the structure / mass / SMILES of THCA?" | **PubChem** (CID) | `--sources pubchem` |
+| Chemical ontology / role / botanical origin | "Is CBD classed as anti-inflammatory? Is it sourced from *Cannabis sativa*?" | **ChEBI** (CHEBI accession) | `--sources chebi` |
+| Receptor molecular function (GO) | "What is the molecular function of CB2? Which GO terms is it annotated with, and from which papers?" | **QuickGO** (GO id + PMID) | `--sources quickgo` |
+| Receptor signalling pathways | "What pathways does CB1 act in?" | **Reactome** (R-HSA id + PMID) | `--sources reactome` |
+| Indication normalization (vocabulary, NOT evidence) | "What's the canonical term for 'MS spasticity' / 'nerve pain'?" | **EFO** (ontology id) | `--sources efo` |
 | Receptor binding (measured) | "What is the Ki of CBD at CB1?" | **ChEMBL** + **BindingDB** | `--sources chembl,bindingdb` |
 | Receptor 3D structure | "Is there a crystal structure of CB2 with WIN-55,212-2?" | **RCSB PDB** | `--sources rcsb` |
 | Target ↔ disease evidence | "What diseases is CB1 associated with?" | **Open Targets** | `--sources opentargets` |
@@ -62,13 +66,17 @@ python3 -m cannavec_science discover "6N4B"  --sources rcsb       --max 1
 
 Every row a discoverer emits already carries:
 
-- `provenance` — one of `live_pubmed`, `live_chembl`, `live_ctgov`, `live_pubchem`, `live_pharmgkb`, `live_rcsb`, `live_opentargets`, `live_gwas`, `live_bindingdb`, `live_biorxiv`, `live_medrxiv`.
+- `provenance` — one of `live_pubmed`, `live_chembl`, `live_ctgov`, `live_pubchem`, `live_chebi`, `live_quickgo`, `live_reactome`, `live_efo`, `live_pharmgkb`, `live_rcsb`, `live_opentargets`, `live_gwas`, `live_bindingdb`, `live_biorxiv`, `live_medrxiv`.
 - `suggested_grade` — a `(Level X, provisional, live_<source>)` triple. The grade is **never** automatically promoted; it is a *hint* the human composer can use, not a binding registry assignment.
 - `native_id`, `url`, `citation` — already formatted for inline citation.
 
 When you compose a final answer, follow Constitution §VII:
 
 - A row from PubChem alone caps the claim at **Level D** (compound metadata, not evidence).
+- A row from ChEBI alone caps at **Level D** (curated chemical ontology — role classification + botanical origin, not clinical evidence). Its value is the §VI context (isomer-clean name, `has role` annotations, *Cannabis sativa* origin), not a grade.
+- A row from QuickGO caps at **Level D** (GO functional annotation). An experimental, **PMID-referenced** annotation is the citable one — cite that PMID; an electronic `IEA` / `GO_REF` annotation is weaker and MUST be labelled as electronic, not asserted as evidence.
+- A row from Reactome caps at **Level D** (curated pathway membership). Cite the pathway's literature **PMID** (the row carries it) for the mechanistic claim, with the `R-HSA-…` stable id for provenance — the pathway id alone is context, not clinical evidence.
+- A row from **EFO is NOT evidence at any level** — it is indication *normalization*. Use the resolved `EFO:`/`MONDO:`/`HP:` term to phrase a precise PubMed/CT.gov query; never cite an ontology id as support for a clinical or mechanistic claim. (The backbone enforces this: an EFO row is not weavable as a live finding.)
 - A row from ChEMBL / BindingDB / RCSB / Open Targets caps at **Level C** (mechanistic, not clinical).
 - A row from PharmGKB caps at **Level B** if PharmGKB level-of-evidence ∈ {1A, 1B}, else Level C.
 - A row from GWAS Catalog caps at **Level B** if genome-wide significant, else Level C.
@@ -149,6 +157,52 @@ python3 -m cannavec_science discover "cannabinoid CB1 agonist" --sources rcsb --
 ```
 
 Cite the PDB ID + resolution + primary citation PMID. Level C (mechanistic).
+
+### Example 7 — "Is CBD classified as anti-inflammatory, and is it actually a *Cannabis sativa* constituent?"
+
+Lane: **chemical ontology**. Single source.
+
+```
+python3 -m cannavec_science discover "cannabidiol" --sources chebi --max 1
+```
+
+Compose: `cannabidiol (ChEBI:69478; C₂₁H₃₀O₂; 3★ curated) has roles {antimicrobial agent, plant metabolite, cannabinoid receptor agonist}; ChEBI records its origin as Cannabis sativa (aerial part) [Level D, live_chebi]`. ChEBI's role ontology and `compound_origins` are the §VI context — they are **not** a clinical grade; an anti-inflammatory *efficacy* claim still needs PubMed/CT.gov.
+
+### Example 8 — "What is the molecular function of CB2, with primary-source references?"
+
+Lane: **receptor GO function**. Single source; accepts the receptor name or the UniProt accession.
+
+```
+python3 -m cannavec_science discover "CB2" --sources quickgo --max 5     # or "P34972"
+```
+
+Compose: cite each `GO:id` with its **PMID-referenced** annotation first — e.g. `CB2 (UniProtKB:P34972) enables GO:0004949 cannabinoid receptor activity [IDA, PMID:…]`. An electronic `IEA`/`GO_REF` annotation is labelled as electronic, never asserted as evidence. A PMID-referenced annotation rides the §VIII retraction guard automatically.
+
+### Example 9 — "What signalling pathways does CB1 act in?"
+
+Lane: **receptor pathways**. Single source; receptor name or UniProt accession.
+
+```
+python3 -m cannavec_science discover "CB1" --sources reactome --max 5     # or "P21554"
+```
+
+Compose: `CB1 (UniProtKB:P21554) participates in Reactome R-HSA-418594 "G alpha (i) signalling events" [PMID 9278091] and R-HSA-373076 "Class A/1 (Rhodopsin-like receptors)"`. Cite the pathway's literature PMID for the mechanism; the `R-HSA-…` id is provenance. Level D — pathway context, not clinical efficacy.
+
+### Example 10 — "A user asked about 'MS spasticity' — what's the precise indication term to search?"
+
+Lane: **indication normalization**. This is a *vocabulary* step, not an evidence step. Search the core indication (a single ontology concept), not a compound phrase — EFO matches terms, so `multiple sclerosis` resolves but `multiple sclerosis spasticity` may not.
+
+```
+python3 -m cannavec_science discover "multiple sclerosis" --sources efo --max 3    # -> MONDO:0005301
+```
+
+Use the resolved term (e.g. `MONDO:0005301 multiple sclerosis` + its synonyms) to phrase a precise clinical query, then route THAT to PubMed/CT.gov for the actual evidence:
+
+```
+python3 -m cannavec_science discover "nabiximols multiple sclerosis spasticity" --sources pubmed,ctgov --max 5
+```
+
+Never cite the EFO/MONDO id as support for a claim — it is normalization only.
 
 ---
 
