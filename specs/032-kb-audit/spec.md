@@ -26,6 +26,23 @@ workflows that measurably improve over time.
 Spec 032 is **Phase 1**: the read-only audit that establishes the credibility
 baseline everything else builds on.
 
+## Guiding principle — compounding excellence, not rushed slop
+
+The north star is ambitious; we reach it by **improving each detail by a small,
+verified percentage on every pass — compounding excellence, never a rushed AI
+rewrite.** Two consequences bind the whole programme:
+
+- **Every improvement is a small, surgical, independently-verified delta.** The
+  downstream improve-agent (Phase 3) fixes one finding at a time — replace a
+  retracted citation with a verified one, add the missing primary source for a
+  claim, correct an inflated grade — and each delta passes the same verification
+  gates before it lands. No wholesale regeneration; no unverified AI prose ("slop")
+  substituted for existing, human-reviewed content.
+- **The audit is re-runnable and the baseline is measurable.** Each pass emits a
+  per-file and corpus credibility summary; re-running after improvements shows the
+  trend moving up. Progress is counted in *verified facts gained and confirmed
+  defects removed*, not files rewritten.
+
 ## The flywheel and roadmap (where Phase 1 fits)
 
 The user already runs this flywheel **by hand** — KB merge logs show
@@ -74,6 +91,29 @@ Given a local clone of `mc-knowledge-base`, produce a **per-file verdict** and a
 retracted citations, claims the cited source does not support, and inflated
 evidence grades — for the operator's human review. Read-only. Deterministic and
 offline-testable; live verification when the network is available.
+
+## Triage and routing — the audit's hand-off
+
+The audit does not just report; it **triages every in-scope file into an actionable
+next step, ordered so the operator starts with the highest-ROI work** (the files the
+system can improve straight away), and routes the rest to the improvement system:
+
+- **`READY`** — verified clean, or carrying only a clear, *mechanical* fix that can
+  be applied in seconds (e.g., remove a single confirmed-fabricated citation,
+  correct a declared grade to its computed ceiling). Surfaced first — the immediate
+  wins.
+- **`IMPROVE`** — flagged for **significant** update and routed to the downstream
+  improvement system/agent (Phase 3). Each `IMPROVE` file carries machine-readable,
+  agent-consumable findings: the issue, the supporting evidence, and a recommended
+  action (e.g., *"claim X has no supporting source — research and cite a primary
+  source, or hedge the claim to its true grade"*; *"PMID Y is retracted — find the
+  superseding study"*).
+- **`PASS`** — clean, no action.
+
+The `IMPROVE` queue **is the input contract for the Phase-3 improve-agent**: Phase 1
+produces exactly the work-list that agent (or a human operator) consumes, finding by
+finding, under the compounding-excellence principle above — one small verified delta
+at a time. This makes the audit the front of the flywheel, not a dead-end report.
 
 ## Access control (standing principle for the whole programme)
 
@@ -150,8 +190,11 @@ what it depends on*:
    (`pubmed_verify`/`uniprot_verify`/`retraction`, `claim_support`, `evidence`).
    Live calls are **injected fetchers** (offline-testable, §III). Depends on: the
    verification engine.
-4. **`report.py`** — `render(verdicts) -> (markdown, json)`. Aggregates and ranks
-   by severity, with summary stats. Pure. Depends on: nothing.
+4. **`report.py`** — `render(verdicts) -> (markdown, json)`. Orders by
+   **actionability** (`READY` quick-wins first, then `IMPROVE` by severity), emits the
+   human-readable report **and** the machine-readable `IMPROVE` queue (the Phase-3
+   agent's work-list), plus the per-corpus credibility baseline for trend tracking.
+   Pure. Depends on: nothing.
 
 **CLI:** `python3 -m cannavec_science kb-audit <repo_path> [--include G] [--exclude G]
 [--changed-only] [--json] [--out FILE]`. (Operator CLI verb; deliberately *not* a
@@ -167,19 +210,31 @@ report.render → markdown + JSON`.
 FileVerdict:
   path: str
   in_scope: true
-  status: "PASS" | "FLAG" | "FAIL"          # FAIL = ≥1 fabricated/retracted/contradiction
-  citation_findings: [{ id, type, verdict, source_title?, note }]
-  claim_findings:    [{ claim, id, verdict, note }]
-  grade_finding:     { declared, ceiling, verdict: "ok"|"inflated"|"inconclusive", note }
-  reasons: [str]                            # human-readable, severity-ordered
+  routing:  "READY" | "IMPROVE" | "PASS"    # the triage bucket (see Triage and routing)
+  status:   "PASS" | "FLAG" | "FAIL"        # FAIL = ≥1 fabricated/retracted/contradiction
+  priority: int                             # actionability rank — quick, high-ROI wins first
+  credibility: { citations_clean, citations_total, open_findings }   # the measurable baseline
+  findings: [{
+    gate: "citation" | "claim" | "grade",
+    issue: str,                             # what's wrong, in one line
+    evidence: str,                          # the verified fact behind it (e.g. "PubMed: retracted 2024")
+    verdict: str,                           # fabricated | retracted | contradiction | inflated | unverified | inconclusive
+    recommended_action: str,                # what a human or the improve-agent should do
+    route: "quick_fix" | "improve_agent" | "deeper_research"
+  }]
   audited_at: <stamped by caller, not the pure core>
 ```
 
-`status` rules: **FAIL** if any citation is `fabricated`/`retracted` or any claim
-is a `contradiction`; **FLAG** if only soft issues (grade inflation, `unverified`
-claims, inconclusive fetches worth a look); **PASS** otherwise. The corpus report
-lists FAILs first, then FLAGs, with counts. The same `FileVerdict` is what the CI
-gate (1.5) thresholds on and what write-back (3a) stamps onto files — designed once.
+`status` rules: **FAIL** if any citation is `fabricated`/`retracted` or any claim is
+a `contradiction`; **FLAG** if only soft issues (grade inflation, `unverified`
+claims, inconclusive fetches worth a look); **PASS** otherwise. `routing` is derived
+from the findings' `route` values: **PASS** (no findings) → `PASS`; only
+`quick_fix` findings → `READY`; any `improve_agent` / `deeper_research` finding →
+`IMPROVE`. `priority` orders the corpus so the operator sees `READY` quick wins
+first, then `IMPROVE` files ranked by severity. The same `FileVerdict` is the
+machine-readable hand-off the Phase-3 improve-agent consumes, what the CI gate (1.5)
+thresholds on, and what write-back (3a) stamps onto files — **one schema, designed
+once, reused by every later phase.**
 
 ## Reliability and determinism (inherits the engine's philosophy)
 
@@ -218,6 +273,13 @@ ordering).
    mis-flagged.
 4. Zero false `fabricated`/`retracted` verdicts on identifiers that merely could not
    be fetched.
+5. **Triage is correct and actionable:** every fixture is routed to the right bucket
+   (`READY` / `IMPROVE` / `PASS`), the report surfaces `READY` quick-wins first, and
+   the `IMPROVE` queue is well-formed enough for a downstream agent to consume each
+   finding (issue + evidence + recommended action + route).
+6. **Re-run shows the trend:** after a fixture's flagged citation is "fixed,"
+   re-running the audit moves its credibility summary up and empties its findings —
+   proving the compounding-improvement loop is measurable.
 
 ## Future work (explicitly documented to inform the north star)
 
@@ -256,3 +318,8 @@ assembled*:
   real corpus, refine.
 - Report destination: stdout + `--out` file (default), with the JSON form ready for
   the CI gate to consume.
+- Finding→route mapping: the rule that assigns each finding `quick_fix` /
+  `improve_agent` / `deeper_research` (e.g., a confirmed-fabricated citation →
+  `quick_fix` removal vs. `improve_agent` replacement; a `contradiction` → always
+  `improve_agent`). Start with a small deterministic rule table; refine on the real
+  corpus. This rule is also the seam where Phase 3's improve-agent plugs in.
