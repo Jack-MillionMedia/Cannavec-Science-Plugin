@@ -1,0 +1,14 @@
+{
+  "name": "cannavec-science",
+  "owner": {
+    "name": "Jack-MillionMedia",
+    "url": "https://github.com/Jack-MillionMedia"
+  },
+  "plugins": [
+    {
+      "name": "cannavec-science",
+      "source": "./",
+      "description": "A grounding-and-verification layer that makes AI trustworthy for cannabis-science research: live primary-source retrieval, identifier verification, retraction enforcement, GRADE grading, and phytochemistry rigor — the model reasons, the deterministic backbone verifies."
+    }
+  ]
+}

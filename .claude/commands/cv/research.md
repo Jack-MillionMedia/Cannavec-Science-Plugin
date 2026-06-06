@@ -24,7 +24,7 @@ The user asked:
 ### 1. Rigor + safety preflight on the question
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science rigor "$ARGUMENTS"
+cd "$(git rev-parse --show-toplevel)" && python3 -m cannavec_science rigor "$ARGUMENTS"
 ```
 
 If this returns a **safety refusal** (e.g. a synthesis-route or individualized-
@@ -34,7 +34,7 @@ note any phytochemistry/banned-pattern flags so you don't repeat them.
 ### 2. Retrieve primary sources — live
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science discover "$ARGUMENTS" --sources pubmed,ctgov,chembl --max 8
+cd "$(git rev-parse --show-toplevel)" && python3 -m cannavec_science discover "$ARGUMENTS" --sources pubmed,ctgov,chembl --max 8
 ```
 
 This fans out live to PubMed, ClinicalTrials.gov, and ChEMBL and returns ranked,
@@ -49,7 +49,7 @@ in step 4, still subject to verification.
 For each PMID / DOI / NCT / ChEMBL / UniProt accession you plan to use:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science verify <identifier>
+cd "$(git rev-parse --show-toplevel)" && python3 -m cannavec_science verify <identifier>
 ```
 
 A **PASS** means the identifier resolves to a real, non-retracted source (with
@@ -60,7 +60,7 @@ anti-hallucination gate: you may only cite identifiers the backbone confirmed.
 ### 4. (Optional) Pull curated reference context — clearly labelled, never the answer
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science answer "$ARGUMENTS" --json
+cd "$(git rev-parse --show-toplevel)" && python3 -m cannavec_science answer "$ARGUMENTS" --json
 ```
 
 Treat the curated registry content (monographs, receptor pharmacology, PK,

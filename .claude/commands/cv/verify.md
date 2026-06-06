@@ -14,7 +14,7 @@ The user wants to verify the identifier:
 ## How to dispatch
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science verify "$ARGUMENTS"
+cd "$(git rev-parse --show-toplevel)" && python3 -m cannavec_science verify "$ARGUMENTS"
 ```
 
 The verifier:

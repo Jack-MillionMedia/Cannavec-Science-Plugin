@@ -14,7 +14,7 @@ The user wants real-time literature discovery on:
 ## How to dispatch
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science discover "$ARGUMENTS" --since 2024-01-01 --max 10
+cd "$(git rev-parse --show-toplevel)" && python3 -m cannavec_science discover "$ARGUMENTS" --since 2024-01-01 --max 10
 ```
 
 Optional flags:
@@ -60,7 +60,7 @@ The composer:
 - If one source is unavailable, the other sources still surface their
   rows; the failing source surfaces a "live source unavailable" note.
 
-## When to use this instead of /cannavec-science:research
+## When to use this instead of /cv:research
 
 - The user is looking for literature published after the curated
   registries' snapshot date.
@@ -70,4 +70,4 @@ The composer:
   in one pass.
 
 For curated, GRADE-graded, retraction-enforced answers, use
-`/cannavec-science:research` instead.
+`/cv:research` instead.

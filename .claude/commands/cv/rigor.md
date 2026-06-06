@@ -14,7 +14,7 @@ The user wants to run the rigor + banned-pattern detectors on:
 ## How to dispatch
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science rigor "$ARGUMENTS"
+cd "$(git rev-parse --show-toplevel)" && python3 -m cannavec_science rigor "$ARGUMENTS"
 ```
 
 The audit runs six phytochemistry rigor detectors plus the

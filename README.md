@@ -86,6 +86,19 @@ pipeline can gate on it.
 
 Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|registries>`.
 
+### Operator tools (not slash commands)
+
+A separate, **read-only, operator-only** CLI surface — not part of the five
+research commands and not exposed as a slash command:
+
+| Tool | What it does |
+|---|---|
+| `kb-audit <path>` | Audits the science files of a knowledge-base directory — verifies every citation is real and not retracted, checks each claim against its cited source, and flags inflated evidence grades — then triages each file into `READY` / `IMPROVE` / `PASS`. Nothing is ever written back. See `specs/032-kb-audit/spec.md`. |
+
+```bash
+python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
+```
+
 ## What makes it credible (engineered, not asserted)
 
 - **Primary-source-or-refuse** — no claim ships without a verified identifier; a model-authored sentence is held to the same bar as a curated row.
