@@ -97,6 +97,10 @@ _SOURCE_KEYS = (
     "medrxiv",
     # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
     "europepmc",
+    # Spec 006 — OpenAlex citation-graph lane. A CLI discover lane, so it must
+    # appear here or its rows are silently dropped from the convergence verdict
+    # (enforced by tests/test_lane_registry_invariants.py).
+    "openalex",
     # Spec 029 — EBI chemical-ontology + functional-annotation lanes. These
     # are context lanes: a ChEBI row clusters on its compound (like PubChem),
     # a QuickGO row carries no clinical condition, so neither manufactures a
@@ -289,34 +293,96 @@ def _normalise(s: str) -> str:
     return s
 
 
+# Compound canonicalisation — collapse display synonyms ("CBD"/"cannabidiol")
+# to ONE token so the convergence clusterer counts them as the SAME compound.
+# Word boundaries prevent the bare-acronym trap (``\bthc\b`` does NOT match
+# inside "thcv"/"tetrahydrocannabinol"). More-specific varins (THCV/CBDV) are
+# listed before THC/CBD for clarity; boundaries make order non-load-bearing.
+_COMPOUND_CANON: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+    ("thcv", re.compile(r"\b(?:thcv|tetrahydrocannabivarin)\b", re.IGNORECASE)),
+    ("cbdv", re.compile(r"\b(?:cbdv|cannabidivarin)\b", re.IGNORECASE)),
+    ("thca", re.compile(r"\bthca\b", re.IGNORECASE)),
+    ("cbda", re.compile(r"\bcbda\b", re.IGNORECASE)),
+    ("cbd", re.compile(r"\b(?:cbd|cannabidiol)\b", re.IGNORECASE)),
+    ("thc", re.compile(
+        r"\b(?:thc|tetrahydrocannabinol|dronabinol|nabilone|"
+        r"delta[-\s]?9[-\s]?thc|δ9[-\s]?thc|δ⁹[-\s]?thc)\b", re.IGNORECASE)),
+    ("cbg", re.compile(r"\b(?:cbg|cannabigerol)\b", re.IGNORECASE)),
+    ("cbn", re.compile(r"\b(?:cbn|cannabinol)\b", re.IGNORECASE)),
+    ("cbc", re.compile(r"\b(?:cbc|cannabichromene)\b", re.IGNORECASE)),
+    ("nabiximols", re.compile(r"\b(?:nabiximols|sativex)\b", re.IGNORECASE)),
+)
+
+# Non-indication condition synonyms (sleep/anxiety/pain/cancer) collapsed for
+# clustering. Curated medical indications are canonicalised through
+# ``intent.indication_terms`` instead (the single source of truth that already
+# knows the epilepsy family: seizure / Dravet / LGS / TSC → epilepsy).
+_CONDITION_TOPIC_CANON: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+    ("sleep", re.compile(r"\b(?:sleep|insomnia)\b", re.IGNORECASE)),
+    ("anxiety", re.compile(r"\b(?:anxiet\w*|anxious|panic)\b", re.IGNORECASE)),
+    ("pain", re.compile(r"\b(?:pain|analges\w*|nocicept\w*)\b", re.IGNORECASE)),
+    ("cancer", re.compile(
+        r"\b(?:cancer|tumou?r\w*|oncolog\w*|carcinom\w*)\b", re.IGNORECASE)),
+)
+
+
+def _canonical_compound(text: str) -> str:
+    """Canonical compound token for clustering, or '' if none recognised."""
+    for canon, rx in _COMPOUND_CANON:
+        if rx.search(text):
+            return canon
+    return ""
+
+
+def _canonical_condition(text: str) -> str:
+    """Canonical condition token for clustering, or '' if none recognised.
+
+    Reuses ``intent.indication_terms`` (single source of truth) so the curated
+    indication families cluster correctly — the epilepsy family (seizure /
+    Dravet / LGS / TSC) collapses to ``epilepsy`` so genuinely-converging
+    epilepsy rows form ONE cluster. Falls back to the topic synonyms above for
+    non-indication conditions (sleep / anxiety / pain / cancer).
+    """
+    from cannavec_science.intent import indication_terms
+
+    terms = indication_terms(text)
+    if terms:
+        # Prefer the family tag so all epilepsy-family rows cluster together;
+        # otherwise the single named indication (deterministic).
+        return "epilepsy" if "epilepsy" in terms else sorted(terms)[0]
+    for canon, rx in _CONDITION_TOPIC_CANON:
+        if rx.search(text):
+            return canon
+    return ""
+
+
 def _row_compound(source: str, row: dict) -> str:
-    """The compound this row makes a claim about."""
+    """The compound this row makes a claim about.
+
+    An explicit ``_compound`` (the test seam) is honoured verbatim — only the
+    production heuristic path canonicalises, so existing seam-based tests are
+    byte-identically unaffected.
+    """
     explicit = row.get("_compound")
     if explicit:
         return _normalise(explicit)
-    # Heuristic: pull from title.
     title = row.get("title") or ""
-    title = title.lower()
-    for needle in ("cbd", "cannabidiol", "thc", "tetrahydrocannabinol",
-                   "cbg", "cbn", "cbc", "thcv", "cbdv"):
-        if needle in title:
-            return needle
-    return _normalise(title.split()[0]) if title else ""
+    canon = _canonical_compound(title)
+    if canon:
+        return canon
+    return _normalise(title.lower().split()[0]) if title else ""
 
 
 def _row_condition(source: str, row: dict) -> str:
-    """The condition this row claims about (or '' for non-clinical sources)."""
+    """The condition this row claims about (or '' for non-clinical sources).
+
+    An explicit ``_condition`` (the test seam, including ``""``) is honoured
+    verbatim; only the production heuristic path canonicalises.
+    """
     explicit = row.get("_condition")
     if explicit is not None:
         return _normalise(explicit)
-    # Heuristic from title.
-    title = row.get("title") or ""
-    title = title.lower()
-    for needle in ("epilepsy", "seizure", "anxiety", "sleep", "insomnia",
-                   "pain", "ptsd", "cancer", "nausea", "spasticity"):
-        if needle in title:
-            return needle
-    return ""
+    return _canonical_condition(row.get("title") or "")
 
 
 # ── Cluster builder ──────────────────────────────────────────────────
@@ -495,6 +561,8 @@ _SOURCE_DISPLAY = {
     "medrxiv": "medRxiv",
     # Spec 005 US6 — Europe PMC.
     "europepmc": "Europe PMC",
+    # Spec 006 — OpenAlex citation graph.
+    "openalex": "OpenAlex",
     # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
     "chebi": "ChEBI",
     "quickgo": "QuickGO",

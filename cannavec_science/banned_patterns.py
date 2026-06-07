@@ -206,11 +206,20 @@ BANNED_PATTERN_REGISTRY: tuple[BannedPattern, ...] = (
         id="cure_claim",
         title="“Cure” claims",
         regex=_ci(
-            r"\b(?:cures?|cured|curing|reverses?|reversal of|"
+            # 'cure rate(s)' is legitimate clinical terminology, not a cure
+            # claim — exclude it so the named-syndrome tokens below don't
+            # false-fire on "cure rate for ... TSC / cancer".
+            r"\b(?:cures?(?!\s+rates?\b)|cured|curing|reverses?|reversal of|"
             r"eradicat\w*|eliminat\w*|heals?|healed|healing|"
             r"miracle\w*)\b[^.\n]{0,40}\b"
             r"(?:cancer|tumou?rs?|alzheimer\w*|parkinson\w*|"
-            r"epileps\w*|seizures?|ptsd|depression|anxiet\w*|"
+            r"epileps\w*|seizures?|"
+            # Named epilepsy syndromes — the exact words an epilepsy reviewer
+            # writes; the bare family token 'epileps\w*' missed them (the
+            # reproduced 'CBD cures Dravet syndrome' demo-killer).
+            r"dravet\w*|lennox[- ]?gastaut\w*|tuberous sclerosis(?:\s+complex)?|"
+            r"tsc|cdkl5|scn1a|rett\w*|"
+            r"ptsd|depression|anxiet\w*|"
             r"autism|crohn\w*|ms|multiple sclerosis|aids|hiv|"
             r"diabetes|arthritis|fibromyalgi\w*)\b"
         ),
@@ -223,6 +232,67 @@ BANNED_PATTERN_REGISTRY: tuple[BannedPattern, ...] = (
             "Cannabinoids cure no condition under current evidence. "
             "Even the most evidence-supported cannabinoid medicines "
             "manage rather than cure."
+        ),
+    ),
+    BannedPattern(
+        id="false_safety_claim",
+        title="Absolute safety / no-side-effects claim",
+        regex=_ci(
+            r"\b(?:completely|totally|perfectly|entirely|fully|absolutely|"
+            r"100\s*%|guaranteed)\s+safe\b"
+            r"|\bharmless\b"
+            r"|\bnon-?toxic\b"
+            r"|\bsafe\s+(?:for everyone|for all|"
+            r"with no (?:risk|side[- ]effects?))\b"
+            r"|\b(?:no|zero)\s+(?:known\s+)?"
+            r"(?:side[- ]effects?|adverse (?:effects?|events?))\s+"
+            r"(?:whatsoever|at all)\b"
+            # Blanket present-tense property claim ("CBD has no side effects",
+            # "there are no side effects") — distinct from a past-tense trial
+            # report ("no adverse events were observed"), which is not matched.
+            r"|\b(?:has|have|having|there\s+(?:are|is))\s+no\s+(?:known\s+)?"
+            r"side[- ]effects?\b"
+        ),
+        replacement=(
+            "State the observed safety profile with its denominator and study "
+            "context (e.g. “no serious adverse events in n=X over Y weeks "
+            "(Devinsky 2017)”). No cannabinoid is “completely safe”; "
+            "CBD has documented hepatotoxicity and CYP drug-interaction risk."
+        ),
+        why=(
+            "Absolute safety language (“completely safe”, “no side "
+            "effects whatsoever”, “harmless”) is an overclaim: every "
+            "active cannabinoid medicine carries a documented adverse-event and "
+            "interaction profile. Safety is reported with a denominator and a "
+            "study context, never asserted absolutely."
+        ),
+    ),
+    BannedPattern(
+        id="absolutist_efficacy",
+        title="Absolutist efficacy claim",
+        regex=_ci(
+            r"\beffective\s+in\s+(?:100\s*%|all\b|every\b)"
+            r"|\b(?:100\s*%|all\b|every\b|each\b)\s+(?:of\s+(?:the\s+)?)?"
+            r"(?:patients?|people|subjects?|cases)\b[^.\n]{0,30}\b"
+            r"(?:respond\w*|improv\w*|cured?|benefit\w*|recover\w*|remission)\b"
+            r"|\b(?:respond\w*|improv\w*|benefit\w*|recover\w*)\b[^.\n]{0,20}\b"
+            r"in\s+(?:100\s*%|all\b|every\b)"
+            r"|\balways\s+work\w*\b"
+            r"|\bworks?\s+(?:every\s+time|for everyone|in everyone)\b"
+            r"|\buniversally\s+effective\b"
+            r"|\bguaranteed\s+(?:to\s+work|results?|cure|efficac\w*)\b"
+        ),
+        replacement=(
+            "Report the response rate with its denominator and comparator "
+            "(e.g. “43% responder rate vs 27% placebo, n=120”). No "
+            "cannabinoid therapy works for every patient."
+        ),
+        why=(
+            "Absolutist efficacy language (“effective in 100% of patients”, "
+            "“always works”, “every patient responded”) is an "
+            "overclaim: real trials report partial response rates against a "
+            "comparator. Universal efficacy is not a finding any cannabinoid "
+            "trial supports."
         ),
     ),
     BannedPattern(
@@ -511,25 +581,44 @@ _NEGATION_PREFIX = re.compile(
     re.IGNORECASE,
 )
 
-# Patterns for which negation-prefix filtering is safe.  The cure_claim
-# pattern is the only one currently needing this guard — the others
-# (indica-as-pharmacology, marketing-ratio, etc.) are positive assertions
-# that are unlikely to appear in negated form in legitimate answers.
-_NEGATION_FILTERED_IDS: frozenset[str] = frozenset({"cure_claim"})
+# A clause break between a negation and the matched claim means the negation
+# governs a DIFFERENT verb/clause and must NOT suppress the match — e.g.
+# "does not just help -- it cures cancer" negates 'help', not 'cures' (the
+# reproduced negation-laundering case). Comma is intentionally excluded so the
+# honest rebuttals "is not a cure for cancer" / "No, cannabis cannot cure …"
+# still suppress.
+_NEGATION_CLAUSE_BREAK = re.compile(
+    r"(?:--|—|[;:.]|\b(?:but|yet|however|though|although|it|they)\b)",
+    re.IGNORECASE,
+)
+
+# Patterns for which negation-prefix filtering is safe.  cure_claim and the
+# two absolutist overclaim detectors can legitimately appear negated ("does
+# not cure", "is not completely safe", "not effective in all patients"); the
+# others (indica-as-pharmacology, marketing-ratio, etc.) are positive
+# assertions that are unlikely to appear in negated form in legitimate answers.
+_NEGATION_FILTERED_IDS: frozenset[str] = frozenset(
+    {"cure_claim", "false_safety_claim", "absolutist_efficacy"}
+)
 
 
 def _is_negated(text: str, match_start: int, pattern_id: str) -> bool:
-    """True if the match at ``match_start`` is preceded by a negation phrase.
+    """True if the match at ``match_start`` is GOVERNED by a negation phrase.
 
-    Only applied for patterns in :data:`_NEGATION_FILTERED_IDS`.  Looks
-    back up to :data:`_NEGATION_WINDOW` characters before the match for a
-    negation word / phrase.
+    Only applied for patterns in :data:`_NEGATION_FILTERED_IDS`.  Looks back up
+    to :data:`_NEGATION_WINDOW` characters for a negation, and treats it as
+    governing the match only when no clause break (:data:`_NEGATION_CLAUSE_BREAK`)
+    sits between the negation and the match — so a negation that negates a
+    different clause cannot launder the matched claim clean.
     """
     if pattern_id not in _NEGATION_FILTERED_IDS:
         return False
     window_start = max(0, match_start - _NEGATION_WINDOW)
     preceding = text[window_start:match_start]
-    return bool(_NEGATION_PREFIX.search(preceding))
+    for m in _NEGATION_PREFIX.finditer(preceding):
+        if not _NEGATION_CLAUSE_BREAK.search(preceding[m.end():]):
+            return True
+    return False
 
 
 def detect_banned_patterns(text: str) -> list[BannedPatternHit]:

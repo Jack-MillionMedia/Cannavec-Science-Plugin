@@ -1,5 +1,14 @@
 # Cannavec Science (v0.7 — citation-accuracy, recall & mechanism-claims build)
 
+> ⚠️ **Historical snapshot — predates the v3.0.0 first-principles MVP teardown
+> (PR #41, merged 2026-06-05).** This document describes machinery that was
+> subsequently archived under `archive/` (meta-analysis / GRADE calculators,
+> the larger CLI surface, etc.) and its hard numbers (test counts, module
+> counts, eval-prompt counts) are **stale**. It is preserved as engineering
+> history, **not** as a description of the current shipped product. For the
+> current surface and live, mechanically-enforced numbers see `README.md` and
+> run `python3 -m unittest discover -s tests` / `python3 evals/run_evals.py`.
+
 **A focused Claude Code plugin for elite-tier cannabis-research science.**
 
 The **v0.7 build** is a correctness-, recall-, and mechanism-claims pass driven
