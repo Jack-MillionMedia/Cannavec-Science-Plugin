@@ -428,5 +428,132 @@ class TestEcsMasterRegulator(unittest.TestCase):
         )
 
 
+class TestCureClaimNamedSyndromes(unittest.TestCase):
+    """A cure claim about a NAMED epilepsy syndrome must fire — the disease
+    list previously had only the family token 'epilepsy', so the exact words
+    an epilepsy reviewer writes ('cures Dravet') passed clean (reproduced
+    demo-killer)."""
+
+    def _fires(self, text: str) -> bool:
+        return any(
+            h.pattern.id == "cure_claim" for h in detect_banned_patterns(text)
+        )
+
+    def test_cures_dravet_detected(self) -> None:
+        self.assertTrue(self._fires("CBD cures Dravet syndrome."))
+
+    def test_cures_lennox_gastaut_detected(self) -> None:
+        self.assertTrue(self._fires("Cannabidiol cures Lennox-Gastaut syndrome."))
+
+    def test_cures_tuberous_sclerosis_detected(self) -> None:
+        self.assertTrue(self._fires("This product cures tuberous sclerosis complex."))
+
+    def test_negated_named_syndrome_cure_still_suppressed(self) -> None:
+        # The negation guard must extend to the new tokens.
+        self.assertFalse(self._fires("CBD does not cure Dravet syndrome."))
+
+    def test_cure_rate_clinical_term_does_not_fire(self) -> None:
+        # 'cure rate' is legitimate clinical terminology — adding the TSC token
+        # must not make "cure rate ... TSC" a false positive.
+        self.assertFalse(
+            self._fires("The cure rate for patients with comorbid TSC was not reported.")
+        )
+        self.assertFalse(self._fires("Five-year cure rates in the cancer cohort were 60%."))
+
+
+class TestNegationClauseBreak(unittest.TestCase):
+    """The negation window must not be defeated by a clause break: a negation
+    that governs a DIFFERENT verb ('does not just help') must not suppress a
+    cure claim in a later clause ('-- it cures cancer')."""
+
+    def _cure_fires(self, text: str) -> bool:
+        return any(
+            h.pattern.id == "cure_claim" for h in detect_banned_patterns(text)
+        )
+
+    def test_clause_break_does_not_suppress_cure(self) -> None:
+        # Reproduced laundering case: 'not' negates 'help', not 'cures'.
+        self.assertTrue(
+            self._cure_fires(
+                "Cannabis does not just help -- it cures cancer outright."
+            )
+        )
+
+    def test_governing_negation_still_suppresses(self) -> None:
+        # Control: a real negation immediately before the cure verb still wins.
+        self.assertFalse(self._cure_fires("Cannabis does not cure cancer."))
+
+
+class TestFalseSafetyClaim(unittest.TestCase):
+    """Absolutist safety language ('completely safe', 'no side effects
+    whatsoever', 'harmless') is an overclaim regardless of the
+    CBD-non-psychoactive chain. Hedged study reports must stay clean."""
+
+    def _fires(self, text: str) -> bool:
+        return any(
+            h.pattern.id == "false_safety_claim"
+            for h in detect_banned_patterns(text)
+        )
+
+    def test_completely_safe_detected(self) -> None:
+        self.assertTrue(self._fires("This cannabinoid is completely safe."))
+
+    def test_no_side_effects_whatsoever_detected(self) -> None:
+        self.assertTrue(
+            self._fires("Nabiximols has no side effects whatsoever.")
+        )
+
+    def test_bare_has_no_side_effects_detected(self) -> None:
+        # The most common blanket form, without "whatsoever".
+        self.assertTrue(self._fires("CBD has no side effects."))
+
+    def test_there_are_no_side_effects_detected(self) -> None:
+        self.assertTrue(self._fires("With this product there are no side effects."))
+
+    def test_harmless_detected(self) -> None:
+        self.assertTrue(self._fires("CBD is completely harmless."))
+
+    def test_negated_safety_claim_does_not_fire(self) -> None:
+        # Correct, honest statement — must NOT fire.
+        self.assertFalse(self._fires("CBD is not completely safe."))
+
+    def test_hedged_adverse_event_report_does_not_fire(self) -> None:
+        # A legitimate trial report (mirrors a rigor_negative eval shape).
+        self.assertFalse(
+            self._fires(
+                "No serious adverse events were observed in the 14-week trial."
+            )
+        )
+
+
+class TestAbsolutistEfficacy(unittest.TestCase):
+    """Absolutist efficacy language ('effective in 100% of patients', 'always
+    works', 'every patient responded') is an overclaim. Neutral enrolment prose
+    ('all patients completed the trial') must stay clean."""
+
+    def _fires(self, text: str) -> bool:
+        return any(
+            h.pattern.id == "absolutist_efficacy"
+            for h in detect_banned_patterns(text)
+        )
+
+    def test_effective_in_100_percent_detected(self) -> None:
+        self.assertTrue(
+            self._fires("This treatment is effective in 100% of patients.")
+        )
+
+    def test_always_works_detected(self) -> None:
+        self.assertTrue(self._fires("It always works for chronic pain."))
+
+    def test_every_patient_responded_detected(self) -> None:
+        self.assertTrue(self._fires("Every patient responded to therapy."))
+
+    def test_enrolment_all_patients_does_not_fire(self) -> None:
+        # Neutral trial-flow prose — no efficacy overclaim.
+        self.assertFalse(
+            self._fires("All patients completed the 12-week study.")
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
