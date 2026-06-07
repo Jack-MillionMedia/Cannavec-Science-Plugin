@@ -141,8 +141,10 @@ _DOSE_ASKING = _ci(
 # as REFUSE_INDIVIDUALIZED.
 _IMPERATIVE_DOSING = _ci(
     r"(?:^|[.!?]\s+)"
-    r"(?:take|start(?:\s+with)?|use|inhale|vape|smoke|eat|swallow|"
-    r"chew|dose|titrate|consume|drink|try)"
+    r"(?:take|start(?:\s+with)?|begin(?:\s+with)?|use|inhale|vape|smoke|eat|"
+    r"swallow|chew|dose|titrate(?:\s+(?:up\s+)?to)?|consume|drink|try|"
+    r"ramp(?:\s+up)?(?:\s+to)?|work\s+up\s+to|build\s+up\s+to|"
+    r"bump(?:\s+up)?(?:\s+to)?|increase\s+to)"
     r"\s+"
     r"(?:[0-9]+(?:\.[0-9]+)?|a\s+|one\s+|two\s+|three\s+|four\s+|five\s+)"
     r"[^.\n]{0,60}"
@@ -159,6 +161,24 @@ _IMPERATIVE_LAB_CARVEOUT = _ci(
     r"(?:sample|aliquot|reading|measurement|chromatogram|cutting|"
     r"clone|cross|seedling|experiment|seed|seeds|cuttings|"
     r"hplc|gc|temperature|temp)"
+)
+
+# Second-person personalized dosing — the framing-flip sibling of the
+# imperative form. The first-person detector refused "I should take 50 mg",
+# but "You should take 50 mg of THC for your insomnia" sailed through as
+# PROCEED (reproduced §V bypass). Dose-ANCHORED (a quantity + unit) so it
+# only fires on a personal dose recommendation directed at the reader, never
+# on a generic method question ("What temperature do you use to decarb?").
+_SECOND_PERSON_DOSING = _ci(
+    r"\byou\b[^.\n]{0,30}\b"
+    r"(?:should|shall|can|could|may|might|must|ought to|need to|"
+    r"have to|want to|may want to)\b"
+    r"[^.\n]{0,20}\b"
+    r"(?:take|use|consume|smoke|vape|inhale|eat|swallow|chew|drink|"
+    r"dose|start|begin|titrate|microdose)\b"
+    r"[^.\n]{0,40}"
+    r"\b[0-9]+(?:\.[0-9]+)?\s?"
+    r"(?:mg|g|grams?|milligrams?|ml|mL|mcg|µg|micrograms?|mg/kg)\b"
 )
 
 _INTERACTION_ASKING = _ci(
@@ -676,6 +696,30 @@ def is_individualized_medical_question(text: str) -> bool:
     return False
 
 
+def _deobfuscate(text: str) -> str:
+    """De-obfuscate character-spaced / period-broken tokens for §V synthesis
+    matching ONLY (never shown to the user).
+
+    Designer-cannabinoid names get spaced or period-broken to evade the name
+    list ("J W H 0 1 8", "A.B.-F.U.B.I.N.A.C.A"). This strips interstitial
+    periods/middots and collapses runs of single word-characters separated by
+    single spaces, so "A.B.-F.U.B.I.N.A.C.A" → "AB-FUBINACA" and
+    "J W H 0 1 8" → "JWH018". Ordinary prose (multi-character words) is left
+    intact. The regex tier remains paraphrasable by design — this closes the
+    trivial-spacing bypass, not every conceivable obfuscation.
+    """
+    t = text.replace(".", "").replace("·", "")
+    # Collapse runs of single word-chars separated by a single space, hyphen, or
+    # underscore ("J W H 0 1 8", "J-W-H-0-1-8", "J_W_H_0_1_8" → "JWH018"). The
+    # canonical names keep their own hyphen ("AB-FUBINACA"), which the
+    # name list matches with an optional separator.
+    return re.sub(
+        r"\b(\w(?:[\s\-_]\w){2,})\b",
+        lambda m: re.sub(r"[\s\-_]", "", m.group(1)),
+        t,
+    )
+
+
 def check_safety(text: str) -> SafetyVerdict:
     """Run every safety check and return the aggregated verdict.
 
@@ -724,6 +768,45 @@ def check_safety(text: str) -> SafetyVerdict:
                     "decisions to a clinician."
                 ),
                 action=SafetyAction.REFUSE_INDIVIDUALIZED,
+            ))
+
+    # Second-person personalized dosing ("You should take 50 mg of THC for
+    # your insomnia") — the framing-flip sibling of the imperative form, and a
+    # personal dose recommendation directed at the reader. Dose-anchored so it
+    # cannot trip on generic method questions ("what temperature do you use?").
+    if _SECOND_PERSON_DOSING.search(text):
+        if not any(f.action == SafetyAction.REFUSE_INDIVIDUALIZED
+                   for f in fired):
+            fired.append(FiredFlag(
+                flag=SafetyFlag.INDIVIDUALIZED_DOSING,
+                matched_text=text[:120],
+                why=(
+                    "Prompt directs a specific dose at the reader "
+                    "('you should take N mg') — a personalised dose "
+                    "recommendation. Cannavec reports trial-supported "
+                    "population dose ranges; it never recommends a personal "
+                    "dose. Refer all dosing decisions to a clinician."
+                ),
+                action=SafetyAction.REFUSE_INDIVIDUALIZED,
+            ))
+
+    # Synthesis-intent obfuscation guard (§V). Re-run the synthesis detector
+    # against a de-obfuscated copy so character-spacing / period-breaking of a
+    # designer-cannabinoid name cannot defeat the hard-refuse. Reuses the rule's
+    # own ``why`` so the refusal message stays single-sourced.
+    if not any(f.flag == SafetyFlag.SYNTHETIC_CANNABINOID_SYNTHESIS
+               for f in fired):
+        deobf = _deobfuscate(text)
+        if deobf != text and _SYNTHETIC_CANNABINOID_SYNTHESIS.search(deobf):
+            why = next(
+                w for rx, fl, w, ac in _FLAG_RULES
+                if fl == SafetyFlag.SYNTHETIC_CANNABINOID_SYNTHESIS
+            )
+            fired.append(FiredFlag(
+                flag=SafetyFlag.SYNTHETIC_CANNABINOID_SYNTHESIS,
+                matched_text=text[:120],
+                why=why,
+                action=SafetyAction.REFUSE_HARMFUL,
             ))
 
     # Promote dose / interaction questions to "individualized" only if
