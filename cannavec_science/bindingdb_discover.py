@@ -24,6 +24,7 @@ caps at Level C without clinical anchoring (Constitution §VII).
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -109,6 +110,11 @@ class BindingDBRow:
     affinity_value_nm: Optional[float]
     source_pmid: Optional[str]
     source_doi: Optional[str]
+    # Relational qualifier on the affinity (">", "<", "~"), or None for an
+    # exact value. BindingDB reports many affinities as bounds (e.g. ">2820");
+    # keeping the qualifier prevents presenting a bound as an exact
+    # measurement (Constitution §VII — GRADE / evidence honesty).
+    affinity_qualifier: Optional[str] = None
     suggested_grade: str = _SUGGESTED_GRADE
     source: Provenance = Provenance.LIVE_BINDINGDB
     retraction_status: str = "ok"
@@ -239,28 +245,68 @@ class BindingDBSearcher:
             ) from exc
 
 
+# The live API wraps results under an envelope key whose exact spelling
+# varies and is, in BindingDB's own JSON, misspelled: BOTH the UniProt and
+# the PDB endpoints return ``getLindsBy…Response`` ("Linds", not "Ligands").
+# Match any ``getL…Response`` envelope rather than hard-coding spellings so a
+# future spelling fix (or the PDB variant) keeps parsing.
+_ENVELOPE_KEY_RE = re.compile(r"^getL.*Response$")
+
+
 def _affinity_rows(data: dict) -> list[dict]:
     """Normalise BindingDB's varying response shapes to a list of dicts."""
     if not isinstance(data, dict):
         return []
-    if "affinities" in data and isinstance(data["affinities"], list):
-        return data["affinities"]
-    if (
-        "getLindandsByUniprotsResponse" in data
-        or "getLigandsByUniprotsResponse" in data
-    ):
-        key = (
-            "getLigandsByUniprotsResponse"
-            if "getLigandsByUniprotsResponse" in data
-            else "getLindandsByUniprotsResponse"
-        )
-        block = data.get(key) or {}
+    # Defensive: a bare top-level affinities list (also what the empty-body
+    # sentinel emits). The real API never returns this shape.
+    for top in ("affinities", "Affinities"):
+        val = data.get(top)
+        if isinstance(val, list):
+            return val
+    for key, block in data.items():
+        if not _ENVELOPE_KEY_RE.match(key) or not isinstance(block, dict):
+            continue
         nested = block.get("affinities")
         if isinstance(nested, list):
             return nested
-    if "Affinities" in data and isinstance(data["Affinities"], list):
-        return data["Affinities"]
+        # An XML→JSON conversion can collapse a single-element list to one
+        # object; normalise it back to a list.
+        if isinstance(nested, dict):
+            return [nested]
     return []
+
+
+_AFFINITY_RE = re.compile(
+    r"^\s*(?P<qual><=|>=|<|>|~|=)?\s*(?P<num>[0-9]*\.?[0-9]+)"
+)
+
+
+def _parse_affinity(raw: object) -> tuple[Optional[float], Optional[str]]:
+    """Split a BindingDB affinity into ``(value_nM, qualifier)``.
+
+    The live API returns ``affinity`` as a string that may carry a
+    relational qualifier — e.g. ``">2820"`` (a lower bound) or ``"<10"``
+    (an upper bound). Returns the numeric portion plus the qualifier
+    (``">"``, ``"<"``, ``"~"``, or ``None`` for an exact value).
+    ``(None, None)`` when no number can be parsed.
+    """
+    if raw is None:
+        return None, None
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return float(raw), None
+    match = _AFFINITY_RE.match(str(raw))
+    if not match:
+        return None, None
+    try:
+        value = float(match.group("num"))
+    except (TypeError, ValueError):
+        return None, None
+    qual = match.group("qual")
+    # "=" is an exact value; "<="/">=" collapse to their strict form for
+    # display. Anything non-exact is retained as a bound.
+    if qual in (None, "="):
+        return value, None
+    return value, qual[0]
 
 
 def _parse_row(
@@ -279,10 +325,7 @@ def _parse_row(
         or item.get("type")
     )
     raw_val = item.get("affinity") or item.get("affinity_nM") or item.get("Ki")
-    try:
-        affinity_value = float(raw_val) if raw_val is not None else None
-    except (TypeError, ValueError):
-        affinity_value = None
+    affinity_value, affinity_qualifier = _parse_affinity(raw_val)
 
     target_uniprot = (
         item.get("uniprot")
@@ -290,8 +333,14 @@ def _parse_row(
         or uniprot
         or (f"PDB:{uniprot_from_pdb}" if uniprot_from_pdb else "")
     )
-    target_name = item.get("target_name") or item.get("targetName")
-    smiles = item.get("SMILES") or item.get("smiles")
+    # The live API carries the target name under "query".
+    target_name = (
+        item.get("target_name")
+        or item.get("targetName")
+        or item.get("query")
+    )
+    # The live API uses the singular "smile" key.
+    smiles = item.get("SMILES") or item.get("smiles") or item.get("smile")
     pmid = item.get("pmid") or item.get("PMID")
     doi = item.get("doi") or item.get("DOI")
 
@@ -302,6 +351,7 @@ def _parse_row(
         smiles=smiles,
         affinity_type=affinity_type,
         affinity_value_nm=affinity_value,
+        affinity_qualifier=affinity_qualifier,
         source_pmid=str(pmid) if pmid else None,
         source_doi=str(doi) if doi else None,
     )
@@ -319,8 +369,9 @@ def render_markdown(query: str, rows: list[BindingDBRow]) -> str:
             f"- **BDBM {r.monomer_id}** @ {r.target_name or r.target_uniprot}"
         )
         if r.affinity_value_nm is not None and r.affinity_type:
+            rel = r.affinity_qualifier or "="
             head += (
-                f"  \n  {r.affinity_type} = {r.affinity_value_nm:g} nM"
+                f"  \n  {r.affinity_type} {rel} {r.affinity_value_nm:g} nM"
             )
         if r.source_pmid:
             head += f"  \n  PMID: {r.source_pmid}"

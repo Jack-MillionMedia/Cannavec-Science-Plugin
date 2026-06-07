@@ -1,0 +1,33 @@
+{
+  "getLindsByPDBsResponse": {
+    "affinities": [
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "21243",
+        "smile": "O=C(NN1CCCCC1)c1cc(-n2cccc2)n(n1)-c1ccccc1",
+        "affinity_type": "Ki",
+        "affinity": ">2820",
+        "pmid": "18293908",
+        "doi": "10.1021/jm070566z"
+      },
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "21245",
+        "smile": "Cc1c(nn(c1-n1cccc1)-c1ccccc1)C(=O)NN1CCCCC1",
+        "affinity_type": "Ki",
+        "affinity": ">2820",
+        "pmid": "18293908",
+        "doi": "10.1021/jm070566z"
+      },
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "21246",
+        "smile": "O=C(NN1CCCCC1)c1nn(c(c1C#N)-n1cccc1)-c1ccccc1",
+        "affinity_type": "Ki",
+        "affinity": ">2820",
+        "pmid": "18293908",
+        "doi": "10.1021/jm070566z"
+      }
+    ]
+  }
+}

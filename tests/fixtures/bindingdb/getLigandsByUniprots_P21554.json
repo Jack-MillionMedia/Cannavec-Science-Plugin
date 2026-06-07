@@ -1,0 +1,51 @@
+{
+  "getLindsByUniprotsResponse": {
+    "affinities": [
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "21256",
+        "smile": "Cc1c(nn(c1-n1cccc1)-c1ccc(Cl)cc1Cl)C(=O)NCc1ccc(Cl)c(Cl)c1",
+        "affinity_type": "Ki",
+        "affinity": "37",
+        "pmid": "18293908",
+        "doi": "10.1021/jm070566z"
+      },
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "50265648",
+        "smile": "CCCCCCc1cc(O)c2C3=C(CN(C)CC3)C(C)(C)Oc2c1 |t:11|",
+        "affinity_type": "Ki",
+        "affinity": ">50",
+        "pmid": "19143566",
+        "doi": "10.1021/jm801044g"
+      },
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "614222",
+        "smile": "CC(C)(CCCCCCCl)c1cc(O)c2[C@@H]3C[C@H](Cn4cc(COC(=O)CCCC[C@@H]5SC[C@@H]6NC(=O)N[C@H]56)nn4)CC[C@H]3C(C)(C)Oc2c1 |r|",
+        "affinity_type": "Ki",
+        "affinity": "<10",
+        "pmid": "",
+        "doi": "10.7270/Q25X2F12"
+      },
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "762749",
+        "smile": "C[C@@H](CS(N)(=O)=O)N/C(=N\\S(=O)(=O)c1ccc(Cl)cc1)N1C[C@H](c2ccccc2)C(c2ccc(Cl)cc2)=N1",
+        "affinity_type": "IC50",
+        "affinity": "<100",
+        "pmid": "",
+        "doi": "10.7270/Q2833XSR"
+      },
+      {
+        "query": "Cannabinoid receptor 1",
+        "monomerid": "111084",
+        "smile": "FC(F)(F)S(=O)(=O)N1CCN(CC1)c1n[nH]c2ccc(cc12)C(c1ccc(Cl)cc1)c1ccc(Cl)cc1",
+        "affinity_type": "EC50",
+        "affinity": "6",
+        "pmid": "",
+        "doi": "10.7270/Q2M61HD7"
+      }
+    ]
+  }
+}
