@@ -559,7 +559,9 @@ class DocsConsistencyTests(unittest.TestCase):
         # Module count claim must match the real module count.
         n_modules = self._module_count()
         self.assertIn(f"{n_modules} modules", readme)
-        self.assertNotIn("68 modules", readme)
+        # Off-by-one guard, count-relative so it can't rot when a module is
+        # added: the README must not claim more modules than actually exist.
+        self.assertNotIn(f"{n_modules + 1} modules", readme)
 
 
 if __name__ == "__main__":

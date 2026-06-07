@@ -84,7 +84,7 @@ pipeline can gate on it.
 | `/verify` | Spot-check one identifier (PMID / DOI / NCT / ChEMBL / UniProt): real? retracted? |
 | `/rigor` | Run the deterministic phytochemistry + reporting-rigor + banned-pattern detectors on any text. |
 
-Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|registries>`.
+Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|registries|kb-audit>`.
 
 ### Operator tools (not slash commands)
 
@@ -106,7 +106,7 @@ python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
 - **GRADE honesty** — grades are computed by code, not by confident prose; a single RCT caps at Level B.
 - **Phytochemistry precision** — every cannabinoid named by isomer, every receptor by UniProt accession, every dose by route.
 - **Curated reference corpus** — **twenty-one curated science registries** (cannabinoids, terpenes, interactions, adverse events, pharmacokinetics, **endocrine**, and more; 230 rows) are kept as *labelled offline reference the model reasons over* — never presented as the answer itself.
-- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **1,887 unit tests**. The engine is **67 modules**; run `python3 -m unittest discover -s tests`.
+- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **1,970+ unit tests**. The engine is **68 modules**; run `python3 -m unittest discover -s tests`. (The "+" is a floor enforced by `tests/test_readme_claims.py` — the suite is asserted to meet it, so this number can never silently overstate reality.)
 
 ## Honest scope (what it does *not* do yet)
 
