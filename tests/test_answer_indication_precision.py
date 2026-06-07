@@ -322,6 +322,110 @@ class SiblingFilterPreservesRecallAndUnrelated(unittest.TestCase):
         self.assertEqual(_efficacy_populations(a), [])
 
 
+class WrongIndicationPhrasingRobustness(unittest.TestCase):
+    """The wrong-indication gate must hold across PHRASINGS, not just the one
+    the recovery path happens to cover.
+
+    The reproduced demo-killer: ``"cannabidiol for Tourette syndrome tics"``
+    routes through the BM25 recovery path (gated by
+    ``_recovered_claim_is_wrong_indication``) and is blocked, but
+    ``"What is the evidence for CBD in Tourette syndrome?"`` fans wrong-disease
+    efficacy claims in through the PRIMARY populations detector (ungated), so it
+    surfaced a confident ``Level A`` bottom line about chronic neuropathic pain
+    for a Tourette query. The fix extends the same indication-relevance gate to
+    the primary path and makes the BLUF honest when the named indication is
+    uncurated (§I / M2 / §VII).
+    """
+
+    _WRONG_POPS = {
+        "paediatric Dravet syndrome",
+        "paediatric Lennox-Gastaut syndrome",
+        "paediatric tuberous sclerosis complex (TSC)",
+        "adult chronic neuropathic pain",
+    }
+
+    def test_tourette_question_phrasing_drops_wrong_efficacy(self):
+        a = compose_answer("What is the evidence for CBD in Tourette syndrome?")
+        self.assertEqual(
+            set(_efficacy_populations(a)) & self._WRONG_POPS,
+            set(),
+            f"question-phrasing Tourette query leaked wrong-indication "
+            f"efficacy claims: {_efficacy_populations(a)}",
+        )
+
+    def test_tourette_question_phrasing_bluf_is_honest_not_level_a(self):
+        a = compose_answer("What is the evidence for CBD in Tourette syndrome?")
+        sa = a.short_answer.lower()
+        self.assertIn("no curated", sa, f"BLUF not honest: {a.short_answer!r}")
+        self.assertIn("tourette", sa, f"BLUF omits indication: {a.short_answer!r}")
+        # The wrong-disease Level A / neuropathic-pain content must not lead.
+        self.assertNotIn("level a", sa, a.short_answer)
+        self.assertNotIn("neuropathic", sa, a.short_answer)
+
+    def test_tourette_short_phrasing_bluf_is_honest(self):
+        a = compose_answer("CBD evidence in Tourette syndrome")
+        sa = a.short_answer.lower()
+        self.assertIn("no curated", sa, f"BLUF not honest: {a.short_answer!r}")
+        self.assertNotIn("dravet", sa, a.short_answer)
+        self.assertNotIn("diarrh", sa, a.short_answer)
+
+    def test_autism_question_phrasing_drops_wrong_efficacy(self):
+        a = compose_answer("What is the evidence for CBD in autism?")
+        self.assertEqual(
+            set(_efficacy_populations(a)) & self._WRONG_POPS, set(),
+            f"autism query leaked wrong-indication efficacy: "
+            f"{_efficacy_populations(a)}",
+        )
+        joined = " ".join(a.notes).lower()
+        self.assertIn("autism", joined, a.notes)
+
+    def test_offkb_indication_drop_is_traced(self):
+        # The drop is fail-loud, recorded as a trace counter (never silently
+        # swallowed). The question phrasing fans wrong-disease efficacy claims
+        # in via the primary detector, so at least one must be dropped.
+        a = compose_answer("What is the evidence for CBD in Tourette syndrome?")
+        dropped = sum(
+            h for d, h in a.trace if d == "binding.offkb_indication_dropped"
+        )
+        self.assertGreaterEqual(dropped, 1, dict(a.trace))
+
+    # ── Controls: the curated "What is the evidence" phrasing is UNCHANGED ──
+
+    def test_curated_dravet_question_phrasing_unchanged(self):
+        # Same "What is the evidence …" phrasing on a CURATED indication must
+        # still return the Dravet efficacy claim + Level B BLUF (the fix is
+        # phrasing-robust and never harms a curated query).
+        a = compose_answer("What is the evidence for CBD in Dravet syndrome?")
+        self.assertIn("paediatric Dravet syndrome", _efficacy_populations(a))
+        self.assertEqual(a.evidence_summary.highest_grade.value, "Level B")
+        self.assertNotIn("no curated", a.short_answer.lower(), a.short_answer)
+
+    def test_curated_neuropathic_pain_unchanged(self):
+        a = compose_answer("What is the evidence for cannabis in neuropathic pain?")
+        self.assertIn(
+            "adult chronic neuropathic pain", _efficacy_populations(a)
+        )
+        self.assertNotIn("no curated", a.short_answer.lower(), a.short_answer)
+
+    def test_mixed_curated_and_uncurated_leads_with_curated(self):
+        # A query naming BOTH a curated and an uncurated indication must NOT
+        # suppress the curated finding in the BLUF — the override is for the
+        # all-uncurated case only. The honest note still flags the uncovered
+        # half; the bottom line leads with the real Level B Dravet evidence.
+        a = compose_answer(
+            "Compare the evidence for CBD in Dravet syndrome and autism."
+        )
+        sa = a.short_answer.lower()
+        self.assertNotIn(
+            "no curated", sa,
+            f"mixed query buried the curated Dravet finding: {a.short_answer!r}",
+        )
+        self.assertIn("paediatric Dravet syndrome", _efficacy_populations(a))
+        self.assertEqual(a.evidence_summary.highest_grade.value, "Level B")
+        # The uncovered half is still flagged honestly in the note.
+        self.assertIn("autism", " ".join(a.notes).lower(), a.notes)
+
+
 class RecoveredClaimWrongIndicationUnit(unittest.TestCase):
     """Direct unit coverage for the BM25 recovery-path guard. compose_answer's
     primary sibling drop usually removes wrong siblings before this runs, so the

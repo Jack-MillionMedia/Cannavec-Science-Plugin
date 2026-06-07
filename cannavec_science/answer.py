@@ -192,6 +192,33 @@ def _is_same_citation(new: Citation, existing: Citation) -> bool:
     return False
 
 
+def _stronger_grade(
+    a: "EvidenceLevel | None", b: "EvidenceLevel | None"
+) -> "EvidenceLevel | None":
+    """The higher-rank of two optional grades (A > B > C > D > E > Unsupported).
+
+    ``None`` only when both are ``None``. Used by
+    :meth:`Answer._citation_grade_map` so that when two surviving claims cite the
+    same source the citation keeps the STRONGEST of their grades — matching
+    :func:`bibliography._evidence_level_for_citation`, the other place that
+    resolves a citation's grade from its claims.
+    """
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a if a.rank >= b.rank else b
+
+
+def _lookup_citation_grade(grade_map: dict, citation: Citation):
+    """Resolve a citation's serialized grade from the surviving-claims grade map
+    (PMID, then DOI, then URL), or ``None`` if no surviving claim grades it."""
+    for key in (citation.pmid, citation.doi, citation.url):
+        if key and key in grade_map:
+            return grade_map[key].value
+    return None
+
+
 @dataclass
 class Answer:
     """Composable Cannavec Science answer artifact.
@@ -271,6 +298,32 @@ class Answer:
             if _is_same_citation(citation, existing):
                 return
         self.citations.append(citation)
+
+    def _citation_grade_map(self) -> "dict[str, EvidenceLevel]":
+        """Best grade per source identifier, derived from the SURVIVING claims.
+
+        GRADE authoritatively lives on the claim. Serialization recomputes each
+        citation's grade from the *current* ``self.claims`` rather than a value
+        stored when the citation was attached — so a claim dropped afterward
+        (e.g. a wrong-indication efficacy claim removed by the off-KB gate, whose
+        citation is correctly retained for the bibliography under §I) leaves NO
+        orphaned Level-A/B grade on the citation. Without this, a "no curated
+        evidence for X" answer could still export a Level-A-stamped bibliography
+        for X — the citation→claim binding lie this project exists to prevent
+        (§I / §VII / M2). The strongest grade across claims citing a source wins
+        (matches :func:`bibliography._evidence_level_for_citation`).
+        """
+        by_id: "dict[str, EvidenceLevel]" = {}
+        for claim in self.claims:
+            try:
+                g = claim.best_supportable_grade()
+            except Exception:
+                continue
+            for s in claim.sources:
+                for key in (s.pmid, s.doi, s.url):
+                    if key:
+                        by_id[key] = _stronger_grade(by_id.get(key), g)
+        return by_id
 
     def add_caution(self, caution: str) -> None:
         if caution and caution not in self.cautions:
@@ -634,8 +687,13 @@ class Answer:
         if self.citations:
             lines.append("## Citations")
             lines.append("")
+            # Grade from the surviving claims (same recompute as to_dict) so the
+            # Markdown references and the JSON citations carry identical grades
+            # and a dropped claim never orphans a grade here either (§XI/§I).
+            _cite_grades = self._citation_grade_map()
             for c in self.citations:
-                grade_tag = f" — {c.grade.value}" if c.grade else ""
+                _g = _lookup_citation_grade(_cite_grades, c)
+                grade_tag = f" — {_g}" if _g else ""
                 year = f" ({c.year})" if c.year else ""
                 # Spec 002 US1 preprint badge.
                 badge = ""
@@ -676,6 +734,10 @@ class Answer:
 
     def to_dict(self) -> dict:
         """JSON-serializable dict representation."""
+        # Per-citation grade is recomputed from the surviving claims so a
+        # dropped claim never orphans a grade onto its retained citation
+        # (§I/§VII — see _citation_grade_map).
+        _cite_grades = self._citation_grade_map()
         return {
             "prompt": self.prompt,
             "audience": self.audience,
@@ -718,7 +780,7 @@ class Answer:
                     "doi": c.doi,
                     "url": c.url,
                     "year": c.year,
-                    "grade": c.grade.value if c.grade else None,
+                    "grade": _lookup_citation_grade(_cite_grades, c),
                     # Per-citation provenance timestamps. Emitted only
                     # when populated so the existing pinned JSON shape
                     # stays unchanged for any citation that doesn't
@@ -1151,6 +1213,38 @@ def _set_short_answer(a: Answer) -> None:
     merely shares a population keyword.
     """
     if a.is_refusal or a.short_answer:
+        return
+    # §I / M2 / §VII — when the prompt names a recognised indication the curated
+    # KB has no graded efficacy claim for, the bottom line must say so, never
+    # lead with a wrong-indication efficacy claim. Shares
+    # _uncovered_offkb_indications with the note + drop so the BLUF can never
+    # contradict them (the desync that surfaced a Level A bottom line about the
+    # wrong disease was the reproduced defect). The wrong-indication efficacy
+    # claims are already dropped upstream; any claims that remain are adjacent
+    # context the note flags as not-evidence-for-this-indication.
+    uncovered_offkb = _uncovered_offkb_indications(
+        a, getattr(a, "prompt", "") or ""
+    )
+    # Fire the honest override only when the named indication is uncurated AND
+    # no curated efficacy claim survives for ANY part of the query. A mixed
+    # "Dravet and autism" query keeps its real Level B Dravet BLUF (the
+    # uncurated-indication note still flags the uncovered half); only an
+    # all-uncurated query gets the "no curated efficacy evidence" bottom line.
+    has_curated_efficacy = any(
+        c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims
+    )
+    if uncovered_offkb and not has_curated_efficacy:
+        pretty = ", ".join(
+            sorted(_INDICATION_LABEL.get(t, t) for t in uncovered_offkb)
+        )
+        a.short_answer = (
+            f"**No curated efficacy evidence for {pretty}.** The Cannavec "
+            f"Science knowledge base holds no graded trial-efficacy claim for "
+            f"this indication; any curated context below is adjacent (e.g. "
+            f"compound pharmacology or a different indication), not evidence "
+            f"that the cannabinoid works for {pretty}. Use the `discover` "
+            f"subcommand for a live PubMed / ClinicalTrials.gov search."
+        )
         return
     relevant = getattr(a, "_topically_relevant_claims", None)
     if not relevant:
@@ -1701,6 +1795,15 @@ def compose_answer(
         # BLUF / grade / zero-claim consumers, which key off ``a.claims``.
         _drop_wrong_sibling_indication_claims(a, prompt)
 
+        # §I / M2 — when the prompt names a recognised indication the curated KB
+        # has no efficacy claim for (Tourette / autism / migraine / …), drop the
+        # wrong-disease efficacy claims the high-recall populations detector
+        # fanned in, so the answer never substitutes a different disease's
+        # efficacy as the bottom line. Complements the sibling drop above
+        # (curated siblings) and the recovery-path gate (BM25); this closes the
+        # PRIMARY detector path. No-op for curated / condition-agnostic queries.
+        _drop_offkb_indication_efficacy_claims(a, prompt)
+
         # c08 — when the question is specifically about MECHANISM ("CBD at
         # 5-HT1A / TRPV1", "Δ⁹-THC CB1 binding affinity", "CBG α2-adrenoceptor",
         # "THCV CB1"), surface the matched cannabinoid's curated receptor
@@ -2167,6 +2270,31 @@ _CURATED_INDICATION_TAGS = frozenset({
 })
 
 
+def _uncovered_offkb_indications(a: Answer, prompt: str) -> "set[str]":
+    """Recognised indications named in the prompt that the curated KB has NO
+    graded clinical-efficacy claim for (and that are not curated tags).
+
+    Single source of truth shared by the uncurated-indication note
+    (``_note_uncurated_indication``), the wrong-indication efficacy drop
+    (``_drop_offkb_indication_efficacy_claims``), and the honest BLUF override
+    (``_set_short_answer``) so the three can never disagree — the desync between
+    a silent wrong-disease BLUF and a contradictory "not curated" note was the
+    reproduced §I/M2 defect. Empty for curated-indication and condition-agnostic
+    prompts (no recognised off-KB indication named).
+    """
+    from cannavec_science.intent import indication_terms
+
+    prompt_indications = indication_terms(prompt)
+    if not prompt_indications:
+        return set()
+    covered: set[str] = set()
+    for c in a.claims:
+        if c.claim_type == ClaimType.CLINICAL_EFFICACY and c.population:
+            covered |= indication_terms(f"{c.population} {c.text}")
+    uncovered = prompt_indications - covered
+    return {t for t in uncovered if t not in _CURATED_INDICATION_TAGS}
+
+
 def _note_uncurated_indication(
     a: Answer,
     prompt: str,
@@ -2186,22 +2314,11 @@ def _note_uncurated_indication(
     query (the matching efficacy claim covers the tag) nor for a
     condition-agnostic prompt (no indication tag at all). Skipped on refusals.
     """
-    from cannavec_science.intent import indication_terms
-
     if a.is_refusal:
         return
-    prompt_indications = indication_terms(prompt)
-    if not prompt_indications:
-        return
-    covered: set[str] = set()
-    for c in a.claims:
-        if c.claim_type == ClaimType.CLINICAL_EFFICACY and c.population:
-            covered |= indication_terms(f"{c.population} {c.text}")
-    uncovered = prompt_indications - covered
-    # Only surface conditions that are genuinely outside the curated set — a
-    # curated tag that simply didn't surface this run is handled by the
-    # existing zero-claim classifier, not duplicated here.
-    uncovered_offkb = {t for t in uncovered if t not in _CURATED_INDICATION_TAGS}
+    # Conditions genuinely outside the curated set — a curated tag that simply
+    # didn't surface this run is handled by the zero-claim classifier, not here.
+    uncovered_offkb = _uncovered_offkb_indications(a, prompt)
     if not uncovered_offkb:
         return
     names = sorted(_INDICATION_LABEL.get(t, t) for t in uncovered_offkb)
@@ -2585,6 +2702,58 @@ def _drop_wrong_sibling_indication_claims(a: Answer, prompt: str) -> int:
     if dropped:
         a.claims = kept
         a.add_trace("binding.wrong_sibling_dropped", dropped)
+    return dropped
+
+
+def _drop_offkb_indication_efficacy_claims(a: Answer, prompt: str) -> int:
+    """§I / M2 — when the prompt names a recognised indication the curated KB
+    has NO graded efficacy claim for, drop the wrong-indication
+    CLINICAL_EFFICACY claims the high-recall populations DETECTOR fanned in.
+
+    Closes the primary populations-detector path for an *off-knowledge-base*
+    indication (Tourette / autism / Parkinson / migraine / IBD …) — the case the
+    two narrower gates miss: ``_drop_wrong_sibling_indication_claims`` only
+    separates curated epilepsy *siblings*, and
+    ``_recovered_claim_is_wrong_indication`` only gates the BM25 *recovery* path.
+    Without this, the detector surfaced a different curated disease's efficacy as
+    a confident bottom line for an uncurated query (the reproduced demo-killer:
+    "What is the evidence for CBD in Tourette syndrome?" → a Level A neuropathic-
+    pain brief).
+
+    Scope limit: "uncurated indication" is detected via
+    ``intent.indication_terms``, so this only covers indications that
+    recogniser knows (Tourette / autism / Parkinson / glaucoma / migraine /
+    IBD / Crohn / ALS / PTSD / …). An indication outside that vocabulary is not
+    yet recognised as off-KB and can still leak — widening the recogniser's
+    vocabulary is the tracked follow-up.
+
+    Tightly scoped — fires ONLY when ``_uncovered_offkb_indications`` is
+    non-empty (the prompt names an uncurated indication), so curated-indication
+    and condition-agnostic queries are untouched (recall preserved). It reuses
+    the already-tested ``_recovered_claim_is_wrong_indication`` predicate, so an
+    efficacy claim is dropped only when its OWN indication does not overlap the
+    prompt's (a mixed "Dravet and autism" query keeps the Dravet claim). Only
+    CLINICAL_EFFICACY claims are touched; adjacent PK / AE / interaction /
+    mechanism context is kept and self-labelled by the uncurated-indication note.
+    A dropped claim's CITATIONS stay in the bibliography (attached upstream, §I).
+    Returns the count, traced as ``binding.offkb_indication_dropped``
+    (fail-loud, never silently swallowed).
+    """
+    from cannavec_science.intent import indication_terms
+
+    if not _uncovered_offkb_indications(a, prompt):
+        return 0
+    prompt_indications = indication_terms(prompt)
+    kept: list[Claim] = []
+    dropped = 0
+    for claim in a.claims:
+        if _recovered_claim_is_wrong_indication(claim, prompt_indications):
+            dropped += 1
+            continue
+        kept.append(claim)
+    if dropped:
+        a.claims = kept
+        a.add_trace("binding.offkb_indication_dropped", dropped)
     return dropped
 
 
