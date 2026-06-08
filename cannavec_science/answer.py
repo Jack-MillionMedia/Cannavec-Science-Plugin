@@ -48,6 +48,7 @@ from cannavec_science.evidence import (
     EvidenceLevel,
     Source,
     SourceTier,
+    grade_rationale,
     missing_disclosures,
 )
 from cannavec_science.intent import Intent, classify_intent
@@ -142,7 +143,7 @@ class Citation:
     def inline(self) -> str:
         """Inline citation suitable for prose, e.g. ``(PMID 28538134, Level A)``."""
         if self.grade is not None:
-            grade_tag = f", {self.grade.value}"
+            grade_tag = f", {self.grade.certainty} certainty"
         else:
             grade_tag = ""
         if self.pmid:
@@ -520,7 +521,7 @@ class Answer:
             lines.append("")
             lines.append(
                 f"- Highest evidence grade across claims: "
-                f"**{es.highest_grade.value}**"
+                f"**{es.highest_grade.display()}**"
             )
             lines.append(f"- Claims: {es.n_claims}")
             lines.append(
@@ -549,7 +550,7 @@ class Answer:
                     Citation.from_source(s, grade=grade).inline
                     for s in claim.sources
                 )
-                lines.append(f"- **[{grade.value}]** {claim.text} {cites}".rstrip())
+                lines.append(f"- **[{grade.display()}]** {claim.text} {cites}".rstrip())
                 # WP-RETRIEVAL #5 — surface the cited trial's effect size,
                 # 95% CI, and P at the citation site, and guard a curated NNT
                 # derived from a non-significant endpoint with an explicit
@@ -754,6 +755,8 @@ class Answer:
                     "text": c.text,
                     "claim_type": c.claim_type.value,
                     "grade": c.best_supportable_grade().value,
+                    "certainty": c.best_supportable_grade().certainty,
+                    "grade_rationale": grade_rationale(c).summary(),
                     "sources": [
                         {
                             "title": s.title,
@@ -1014,17 +1017,17 @@ def _monograph_sections_for(prompt: str) -> "frozenset[str] | None":
 # already grade-validated claim cannot over-claim (Constitution §VII).
 _GRADE_FRAME: "dict[EvidenceLevel, str]" = {
     EvidenceLevel.A: (
-        "High-certainty evidence (Level A — systematic review / "
+        "High certainty (Level A — systematic review / "
         "meta-analysis or ≥ 2 aligned RCTs)"
     ),
     EvidenceLevel.B: (
-        "Moderate-certainty evidence (Level B — single adequately-powered RCT)"
+        "Moderate certainty (Level B — single adequately-powered RCT)"
     ),
     EvidenceLevel.C: (
-        "Low-certainty evidence (Level C — observational / single small trial)"
+        "Low certainty (Level C — observational / single small trial)"
     ),
-    EvidenceLevel.D: "Preclinical evidence only (Level D)",
-    EvidenceLevel.E: "Traditional-use evidence only (Level E)",
+    EvidenceLevel.D: "Very low certainty (Level D — preclinical evidence only)",
+    EvidenceLevel.E: "Very low certainty (Level E — traditional-use evidence only)",
     EvidenceLevel.UNSUPPORTED: "No admissible primary evidence",
 }
 

@@ -65,8 +65,12 @@ class TestInflationIsCaught(unittest.TestCase):
         # still passes — only the inflation gate can catch this.
         a = compose_answer("CBD evidence in Dravet syndrome")
         md = a.to_markdown()
-        self.assertIn("(PMID 28538134, Level B)", md)
-        forged = md.replace("(PMID 28538134, Level B)", "(PMID 28538134, Level A)", 1)
+        self.assertIn("(PMID 28538134, Moderate certainty)", md)
+        forged = md.replace(
+            "(PMID 28538134, Moderate certainty)",
+            "(PMID 28538134, High certainty)",
+            1,
+        )
         # Floor is satisfied (Level B survives in the citations list / BLUF).
         self.assertTrue(assert_citation_lossless(a, forged).ok)
         # Inflation gate flags the upgraded citation.

@@ -147,7 +147,9 @@ class ProvenanceDistinctionTests(unittest.TestCase):
         md = a.to_markdown()
         # Curated claims under their own heading with inline GRADE.
         self.assertIn("## Claims", md)
-        self.assertRegex(md, r"\*\*\[Level [A-E]\]\*\*")
+        self.assertRegex(
+            md, r"\*\*\[(?:High|Moderate|Low|Very low) certainty \(Level [A-E]\)\]\*\*"
+        )
         # Live tier under its own fenced, provisional heading.
         self.assertIn("## Live discovery — provisional, not curated", md)
         self.assertIn("§IX", md)

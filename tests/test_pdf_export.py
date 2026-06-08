@@ -79,8 +79,12 @@ class TestRefusesTamperedRenders(unittest.TestCase):
         # evidence surface. Upgrade it B → A while the true label survives
         # elsewhere (other chips / the reference badge), so only the inflation
         # gate can catch it.
-        self.assertIn("PMID 28538134, Level B", doc)
-        forged = doc.replace("PMID 28538134, Level B", "PMID 28538134, Level A", 1)
+        self.assertIn("PMID 28538134, Moderate certainty", doc)
+        forged = doc.replace(
+            "PMID 28538134, Moderate certainty",
+            "PMID 28538134, High certainty",
+            1,
+        )
         with self.assertRaises(P.FaithfulnessError):
             P.assert_render_faithful(a, forged)
 
@@ -146,10 +150,10 @@ class TestRefusesKnownBypasses(unittest.TestCase):
         # Cyrillic "А" reads as "Level A" to a human but evades an ASCII regex.
         a = compose_answer(self.Q)
         doc = P.render_html(a)
-        self.assertIn("PMID 28538134, Level B", doc)
+        self.assertIn("PMID 28538134, Moderate certainty", doc)
         forged = doc.replace(
-            "PMID 28538134, Level B",
-            "PMID 28538134, Level B — also Level А",  # Cyrillic А
+            "PMID 28538134, Moderate certainty",
+            "PMID 28538134, Moderate certainty — also Level А",  # Cyrillic А
             1,
         )
         with self.assertRaises(P.FaithfulnessError):
@@ -171,7 +175,9 @@ class TestRefusesKnownBypasses(unittest.TestCase):
         a = compose_answer(self.Q)
         doc = P.render_html(a)
         forged = doc.replace(
-            "PMID 28538134, Level B", "PMID 28538134, Level B — Leveӏ A", 1
+            "PMID 28538134, Moderate certainty",
+            "PMID 28538134, Moderate certainty — Leveӏ A",
+            1,
         )
         with self.assertRaises(P.FaithfulnessError):
             P.assert_render_faithful(a, forged)
@@ -181,7 +187,9 @@ class TestRefusesKnownBypasses(unittest.TestCase):
         a = compose_answer(self.Q)
         doc = P.render_html(a)
         forged = doc.replace(
-            "PMID 28538134, Level B", "PMID 28538134, Level B; also Level&nbsp;A", 1
+            "PMID 28538134, Moderate certainty",
+            "PMID 28538134, Moderate certainty; also Level&nbsp;A",
+            1,
         )
         with self.assertRaises(P.FaithfulnessError):
             P.assert_render_faithful(a, forged)
@@ -216,8 +224,8 @@ class TestRefusesKnownBypasses(unittest.TestCase):
         a = compose_answer(self.Q)
         doc = P.render_html(a)
         forged = doc.replace(
-            "PMID 28538134, Level B",
-            "PMID 28538134, Level B; rated Level \U0001F170", 1,
+            "PMID 28538134, Moderate certainty",
+            "PMID 28538134, Moderate certainty; rated Level \U0001F170", 1,
         )
         with self.assertRaises(P.FaithfulnessError):
             P.assert_render_faithful(a, forged)
@@ -229,8 +237,8 @@ class TestRefusesKnownBypasses(unittest.TestCase):
         doc = P.render_html(a)
         for fake in ("Level 1", "Level I"):
             forged = doc.replace(
-                "PMID 28538134, Level B",
-                f"PMID 28538134, Level B ({fake} per CEBM)", 1,
+                "PMID 28538134, Moderate certainty",
+                f"PMID 28538134, Moderate certainty ({fake} per CEBM)", 1,
             )
             with self.assertRaises(P.FaithfulnessError):
                 P.assert_render_faithful(a, forged)
