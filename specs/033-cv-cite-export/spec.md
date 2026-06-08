@@ -27,8 +27,10 @@ problem (live tier, then semantic retrieval), not a job for this skill.
 
 ## Goals
 
-- Given a research question, emit a **reference export** (BibTeX, RIS, or
-  CSL-JSON) of the verified citations behind the composed Answer.
+- Given a research question, emit a **reference export** of the verified
+  citations behind the composed Answer — **all three formats (BibTeX + RIS +
+  CSL-JSON) by default** for maximum reference-manager compatibility, or a single
+  format via `--format`.
 - Enforce the **citation-lossless guarantee in code** (§XI): every
   primary-source identifier and every GRADE label survives into the rendered
   output, or the export is refused. This is the credibility verdict computed by
@@ -75,16 +77,23 @@ render_citation_export(answer: Answer, fmt: str) -> str | None
 ### 2. `cite` CLI subcommand — `cannavec_science/__main__.py`
 
 ```
-python3 -m cannavec_science cite "<question>" [--format bibtex|ris|csljson] [--out FILE]
+python3 -m cannavec_science cite "<question>" [--format bibtex|ris|csljson] [--out PREFIX]
 ```
 
-- Composes the offline curated Answer (`compose_answer(question)`), calls
-  `render_citation_export`.
-- On a string result: print to stdout (or write `--out`), exit `0`.
-- On `None`: print an honest one-line reason to **stderr** — `no citable answer:
-  <refusal | no verified citations | not citation-lossless>` — and exit non-zero
-  (so a pipeline / CI can gate). Never prints a partial or fabricated export.
-- Default `--format bibtex`.
+- Composes the offline curated Answer (`compose_answer(question)`).
+- **Default (no `--format`): emit ALL THREE formats**, each produced and
+  **independently** gated by `render_citation_export(answer, fmt)`. In stdout
+  each is delimited by a clear header (`=== BibTeX ===`, `=== RIS ===`,
+  `=== CSL-JSON ===`). With `--out PREFIX`, writes `PREFIX.bib`, `PREFIX.ris`,
+  `PREFIX.json` (one file per format).
+- `--format bibtex|ris|csljson`: emit just that one (for piping into a single
+  tool). With `--out`, writes the single corresponding file.
+- **Refuse-if-any-fails**: if `render_citation_export` returns `None` for ANY
+  requested format (refusal Answer, no verified citations, or a lossless
+  failure), emit nothing for the whole command, print an honest one-line reason
+  to **stderr** — `no citable answer: <refusal | no verified citations | not
+  citation-lossless (<fmt>)>` — and exit non-zero. Never a partial or fabricated
+  export.
 - Registered in `_build_parser`; README CLI line + `test_readme_claims` updated
   so the documented subcommand surface stays in lockstep with argparse.
 
@@ -130,14 +139,21 @@ question
 - **Lossy render fails the gate**: a render with a PMID or GRADE stripped →
   `render_citation_export`-level guard returns `None` (unit test on the gate).
 - **All three formats** preserve identifiers + GRADE.
+- **Default emits all three**: `cite "CBD for Dravet"` (no `--format`) emits a
+  BibTeX, RIS, and CSL-JSON section, each independently lossless; `--out PREFIX`
+  writes the three files.
+- **Refuse-if-any-fails**: the command emits nothing and exits non-zero if any
+  requested format is not citation-lossless.
 - **CLI exit codes**: `0` on success, non-zero on every refusal/empty/lossy path.
 - **Docs lockstep**: `test_readme_claims` CLI-line guard covers the new
   subcommand.
 
 ## Acceptance criteria
 
-1. `cite "CBD for Dravet" --format bibtex|ris|csljson` emits a citation-lossless
-   reference export containing the verified PMIDs/DOIs with GRADE preserved.
+1. `cite "CBD for Dravet"` emits all three citation-lossless reference exports
+   (BibTeX + RIS + CSL-JSON) containing the verified PMIDs/DOIs with GRADE
+   preserved; `--format <one>` emits a single format; `--out PREFIX` writes the
+   files.
 2. `cite` on a refusal or uncurated-indication question emits nothing and exits
    non-zero.
 3. The lossless guarantee is enforced by `export.py`, asserted by tests, not by
