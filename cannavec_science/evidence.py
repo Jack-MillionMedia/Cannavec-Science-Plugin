@@ -80,6 +80,27 @@ class EvidenceLevel(str, Enum):
             EvidenceLevel.UNSUPPORTED: ("no admissible primary evidence",),
         }[self]
 
+    @property
+    def certainty(self) -> str:
+        """GRADE certainty word for this level (the recognized clinical
+        vocabulary experts read). The letter is retained separately for audit."""
+        return {
+            EvidenceLevel.A: "High",
+            EvidenceLevel.B: "Moderate",
+            EvidenceLevel.C: "Low",
+            EvidenceLevel.D: "Very low",
+            EvidenceLevel.E: "Very low",
+            EvidenceLevel.UNSUPPORTED: "Insufficient",
+        }[self]
+
+    def display(self, letter: bool = True) -> str:
+        """Human label: '<Certainty> certainty (Level X)'. UNSUPPORTED has no
+        letter ('Insufficient evidence')."""
+        if self is EvidenceLevel.UNSUPPORTED:
+            return "Insufficient evidence"
+        word = f"{self.certainty} certainty"
+        return f"{word} ({self.value})" if letter else word
+
 
 class SourceTier(int, Enum):
     """Source-Authority Hierarchy tier. Lower is stronger.
