@@ -221,7 +221,21 @@ BANNED_PATTERN_REGISTRY: tuple[BannedPattern, ...] = (
             r"tsc|cdkl5|scn1a|rett\w*|"
             r"ptsd|depression|anxiet\w*|"
             r"autism|crohn\w*|ms|multiple sclerosis|aids|hiv|"
-            r"diabetes|arthritis|fibromyalgi\w*)\b"
+            r"diabetes|arthritis|fibromyalgi\w*|"
+            # Condition-agnostic broadening — the cure-claim CLASS is not a
+            # 20-name allowlist; an overclaim about ANY disease is an overclaim.
+            r"als|amyotrophic|huntington\w*|glaucoma|ibs|irritable bowel|"
+            r"eczema|psorias\w*|dermatitis|addiction|dependence|lupus|"
+            r"migrain\w*|insomnia|colitis|hepatitis|copd|asthma|nausea|"
+            r"emesis|neuropath\w*|chronic pain|inflammation)\b"
+            # (2) Universal-cure framing — "cures everything / anything / all
+            # diseases / any condition" needs no specific disease name.
+            r"|\b(?:cures?(?!\s+rates?\b)|cured|curing|heals?|healed)\b"
+            r"[^.\n]{0,15}\b(?:everything|anything|"
+            r"all\s+(?:diseases?|conditions?|ailments?|illnesses?|ills)|"
+            r"any\s+(?:disease|condition|ailment|illness))\b"
+            # (3) Standalone panacea / cure-all framing.
+            r"|\bcure[\s-]?all\b|\bpanacea\b"
         ),
         replacement=(
             "State the quantified effect on a specific outcome (e.g. "
@@ -232,6 +246,33 @@ BANNED_PATTERN_REGISTRY: tuple[BannedPattern, ...] = (
             "Cannabinoids cure no condition under current evidence. "
             "Even the most evidence-supported cannabinoid medicines "
             "manage rather than cure."
+        ),
+    ),
+    BannedPattern(
+        id="miracle_framing",
+        title="Miracle / wonder-drug framing",
+        regex=_ci(
+            # Hype framing that asserts panacea-grade efficacy without evidence.
+            # Deliberately EXCLUDES "breakthrough" / "revolutionary" — they have
+            # legitimate uses ("FDA Breakthrough Therapy designation").
+            r"\b(?:miracle|wonder|magic|magical)\s+"
+            r"(?:drug|cure|treatment|remedy|medicine|compound|pill|plant|"
+            r"herb|molecule|solution)\b"
+            r"|\bmagic\s+bullet\b"
+            r"|\bgame[\s-]?changer\b"
+            r"|\bnature'?s?\s+(?:perfect|miracle|wonder)\s+"
+            r"(?:medicine|remedy|cure|drug)\b"
+            r"|\bperfect\s+medicine\b"
+        ),
+        replacement=(
+            "State the specific, quantified, comparator-anchored effect from a "
+            "named trial. “Miracle / wonder drug” is marketing, not a finding."
+        ),
+        why=(
+            "“Miracle drug”, “wonder drug”, “game-changer”, and "
+            "“nature’s perfect medicine” are hype framings that assert "
+            "panacea-grade efficacy no cannabinoid trial supports. Report the "
+            "effect with its denominator and comparator instead."
         ),
     ),
     BannedPattern(
@@ -252,6 +293,11 @@ BANNED_PATTERN_REGISTRY: tuple[BannedPattern, ...] = (
             # report ("no adverse events were observed"), which is not matched.
             r"|\b(?:has|have|having|there\s+(?:are|is))\s+no\s+(?:known\s+)?"
             r"side[- ]effects?\b"
+            # Blanket "no risk" framing — keyed on a possessive / existential
+            # verb so it cannot trip on "low risk of" or "risk-benefit".
+            r"|\b(?:has|have|having|carries|carry|carrying|poses?|posing|"
+            r"presents?|there\s+(?:are|is))\s+no\s+(?:known\s+)?risks?\b"
+            r"|\bno\s+risk\s+of\s+harm\b"
         ),
         replacement=(
             "State the observed safety profile with its denominator and study "
@@ -281,6 +327,11 @@ BANNED_PATTERN_REGISTRY: tuple[BannedPattern, ...] = (
             r"|\bworks?\s+(?:every\s+time|for everyone|in everyone)\b"
             r"|\buniversally\s+effective\b"
             r"|\bguaranteed\s+(?:to\s+work|results?|cure|efficac\w*)\b"
+            # "100% effective for X" / "completely effective" — the natural
+            # phrasing the "effective in 100%" shape missed.
+            r"|\b(?:100\s*%|completely|totally|fully|entirely)\s+effective\b"
+            # "never fails" — absolutist by construction.
+            r"|\bnever\s+fails?\b"
         ),
         replacement=(
             "Report the response rate with its denominator and comparator "
@@ -598,7 +649,7 @@ _NEGATION_CLAUSE_BREAK = re.compile(
 # others (indica-as-pharmacology, marketing-ratio, etc.) are positive
 # assertions that are unlikely to appear in negated form in legitimate answers.
 _NEGATION_FILTERED_IDS: frozenset[str] = frozenset(
-    {"cure_claim", "false_safety_claim", "absolutist_efficacy"}
+    {"cure_claim", "false_safety_claim", "absolutist_efficacy", "miracle_framing"}
 )
 
 
