@@ -29,7 +29,7 @@ class TestAddLiveFinding(unittest.TestCase):
         )
         md = a.to_markdown()
         self.assertIn("## Live discovery — provisional, not curated", md)
-        self.assertIn("§IX", md)
+        self.assertIn("provenance-tagged", md)
         self.assertIn("never auto-promote", md)
         self.assertIn("[live_pubmed]", md)
         self.assertIn("PMID 99999999", md)

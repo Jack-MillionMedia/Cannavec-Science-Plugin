@@ -579,11 +579,9 @@ class Answer:
 
         if self.sections:
             lines.append(
-                "> **Curated reference (offline).** The sections below are "
-                "graded background from the curated registries — scaffolding "
-                "to reason over, **not** a live-verified answer and not the "
-                "intelligence itself. Verify each identifier before citing "
-                "(Constitution §I / M5)."
+                "> **Background.** Compound pharmacology and related-indication "
+                "context from the curated registries — not specific efficacy "
+                "evidence for this question. Confirm each source before citing."
             )
             lines.append("")
         for heading, body in self.sections:
@@ -596,13 +594,12 @@ class Answer:
             lines.append("## Verified breadth — gate-passed, human-approved")
             lines.append("")
             lines.append(
-                "_Primary sources that cleared the SAME admission gate as a "
-                "curated claim (identifier audit · not-retracted · claim-support "
-                "with a verbatim quote · phytochemistry rigor) AND were promoted "
-                "by a named curator (Constitution §IX flywheel). Each carries a "
-                "conservative single-source GRADE — the middle tier between the "
-                "curated core above and the provisional live frontier below, and "
-                "it never re-grades the core._"
+                "_Primary sources that cleared the full admission gate "
+                "(identifier audit · not-retracted · claim-support with a "
+                "verbatim quote · phytochemistry rigor) and a named-curator "
+                "review. Each carries a conservative single-source GRADE — the "
+                "middle tier between the curated core above and the provisional "
+                "live frontier below, and it never re-grades the core._"
             )
             lines.append("")
             for f in self.verified_findings:
@@ -625,11 +622,10 @@ class Answer:
             lines.append("")
             lines.append(
                 "_Live-source breadth woven onto the verified curated core "
-                "above (Constitution §IX). Each hit is provenance-tagged "
-                "(`live_<source>`), reranked, and citation-checked against the "
-                "retraction registry, but carries NO curated grade and never "
-                "auto-promotes into the knowledge base — verify each identifier "
-                "before citing._"
+                "above. Each hit is provenance-tagged (`live_<source>`), "
+                "reranked, and checked against the retraction registry, but "
+                "carries no curated grade and never auto-promotes into the "
+                "knowledge base — confirm each source before citing._"
             )
             lines.append("")
             if self.live_synthesis:
@@ -2230,16 +2226,16 @@ def _classify_zero_claims(
         a.notes = a.notes + (
             "0 curated claims: this question targets a non-researcher "
             "audience (cultivation / lab-QC / retail / hemp-derived) — "
-            "see the parent Cannavec plugin for those surfaces. The v0.x "
-            "Cannavec Science MVP is researcher-only per Constitution §IV.",
+            "see the parent Cannavec plugin for those surfaces. Cannavec "
+            "Science is researcher-grade.",
         )
         return
     if _ZERO_CLAIM_DEFERRED_RE.search(prompt):
         a.notes = a.notes + (
-            "0 curated claims: this question is in §IV (research-grade) "
-            "but sits in the v0.4 analytical-chemistry / cultivation-"
-            "science horizon — see spec 003 US11 / US12. Use the "
-            "`discover` subcommand for a live PubMed / ChEMBL search.",
+            "0 curated claims: this is a research-grade question but sits "
+            "in the v0.4 analytical-chemistry / cultivation-science "
+            "horizon. Use the `discover` subcommand for a live "
+            "PubMed / ChEMBL search.",
         )
         return
     if cannabinoid_set.all_names:

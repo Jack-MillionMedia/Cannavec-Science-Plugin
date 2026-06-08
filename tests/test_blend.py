@@ -152,7 +152,7 @@ class ProvenanceDistinctionTests(unittest.TestCase):
         )
         # Live tier under its own fenced, provisional heading.
         self.assertIn("## Live discovery — provisional, not curated", md)
-        self.assertIn("§IX", md)
+        self.assertIn("provenance-tagged", md)
         self.assertIn("never auto-promote", md)
         self.assertIn("[live_pubmed]", md)
         # The curated section comes before the live section (core then breadth).
