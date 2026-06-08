@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cannavec_science._pdf_style import CLINICAL_BRIEF_CSS
+from cannavec_science.evidence import EvidenceLevel, grade_rationale
 from cannavec_science.export import (
     assert_citation_lossless,
     export_provenance,
@@ -184,7 +185,8 @@ def _grade_badge(grade: "str | None") -> str:
     if not grade:
         return ""
     cls = _GRADE_CLASS.get(grade, "gu")
-    return f'<span class="grade {cls}">{html.escape(grade)}</span>'
+    label = EvidenceLevel(grade).display()  # "Moderate certainty (Level B)"
+    return f'<span class="grade {cls}">{html.escape(label)}</span>'
 
 
 # HTML-comment markers (invisible in any rendered output) fence the EVIDENCE
@@ -308,6 +310,11 @@ def _claims(answer: "Answer") -> str:
             for s in claim.sources
         )
         cite_html = f'<div class="cite-row">{chips}</div>' if chips else ""
+        rationale = grade_rationale(claim).summary()
+        why_html = (
+            f'<div class="grade-why">Why this grade: {html.escape(rationale)}</div>'
+            if rationale else ""
+        )
         est_html = ""
         ests = _effect_estimates_for_claim(claim)
         if ests:
@@ -337,7 +344,7 @@ def _claims(answer: "Answer") -> str:
         rows.append(
             '<div class="claim">'
             f'<div class="claim-grade">{_grade_badge(grade.value)}</div>'
-            f'<div class="claim-body">{_inline(claim.text)}{cite_html}{est_html}</div>'
+            f'<div class="claim-body">{_inline(claim.text)}{cite_html}{why_html}{est_html}</div>'
             "</div>"
         )
     return (

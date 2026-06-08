@@ -58,6 +58,7 @@ h4{font-size:10pt;margin:12px 0 4px;color:var(--muted);
 .claim-grade{flex:0 0 auto;padding-top:2px}
 .claim-body{flex:1 1 auto}
 .cite-row{margin:7px 0 0;display:flex;flex-wrap:wrap;gap:5px}
+.grade-why{font-size:8pt;color:var(--muted);margin-top:4px}
 .cite{display:inline-block;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   font-size:8pt;font-variant-numeric:tabular-nums;color:var(--accent);background:#eef3f5;
   border:1px solid #cfe0e6;padding:1px 7px;border-radius:4px;line-height:1.7;
