@@ -132,6 +132,19 @@ _GRADE_LABEL_RE = re.compile(
     "(?<![A-Za-z])(?:Level|Grade)[  \t]+"
     "(?:([A-E])(?![A-Za-z])|([1-9])(?![0-9])|([IVX]+)(?![A-Za-z])|([^\\x00-\\x7F]))"
 )
+# GRADE-certainty wording the render carries alongside the letter ("High certainty
+# (Level B)", "(PMID …, Moderate certainty)"). The gate must learn these words so a
+# forged "High certainty" beside a Moderate citation is caught like a forged "Level A".
+# "Very low" is rank 1 deliberately: D and E both display "Very low", so ranking at the
+# LOWER of the two avoids false-positives on a Level-E citation; the secondary "(Level
+# D/E)" letter disambiguates where present and still satisfies the lossless floor.
+_CERTAINTY_RANK = {"high": 5, "moderate": 4, "low": 3, "very low": 1, "insufficient": 0}
+# "Very low" FIRST in the alternation so it is consumed WHOLE (and is non-overlapping
+# under finditer) — the embedded "low" must never also emit a spurious rank-3 "Low" hit.
+_CERTAINTY_RE = re.compile(
+    r"(?<![A-Za-z])(Very[  \t]+low|High|Moderate|Low|Insufficient)[  \t]+certainty\b",
+    re.IGNORECASE,
+)
 _TAG_OR_COMMENT_RE = re.compile(r"<!--.*?-->|<[^>]+>", re.S)
 
 
@@ -179,6 +192,9 @@ def _grade_label_positions(
             hits.append((m.start(), _HOMOGLYPH_GRADE_RANK))
         elif (digit or roman) and strict:
             hits.append((m.start(), _HOMOGLYPH_GRADE_RANK))
+    for m in _CERTAINTY_RE.finditer(normalized):
+        word = re.sub(r"\s+", " ", m.group(1).strip().lower())
+        hits.append((m.start(), _CERTAINTY_RANK.get(word, 0)))
     return hits
 
 
