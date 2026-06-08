@@ -8,14 +8,17 @@ class PdfCertainty(unittest.TestCase):
     def test_badges_show_certainty_and_letter(self):
         a = compose_answer("CBD evidence in Dravet syndrome")
         doc = P.render_html(a)
-        self.assertIn("Moderate certainty", doc)
-        self.assertIn("Level B", doc)            # letter kept (gate floor)
-        P.assert_render_faithful(a, doc)         # gate holds under new wording
+        # Pin the actual badge HTML: certainty word + canonical letter, colour
+        # class keyed off the letter (gb). Locks the gate-floor letter too.
+        self.assertIn('class="grade gb">Moderate certainty (Level B)</span>', doc)
+        P.assert_render_faithful(a, doc)
 
     def test_claim_shows_grade_rationale(self):
         a = compose_answer("CBD evidence in Dravet syndrome")
         doc = P.render_html(a)
-        self.assertIn("rct", doc.lower())        # rationale "single adequately-powered RCT"
+        # Pin the grade-why div specifically (not incidental "RCT" in prose).
+        self.assertIn('grade-why">Why this grade:', doc)
+        self.assertIn("single adequately-powered RCT", doc)
 
     def test_curated_set_all_faithful(self):
         for q in ("What is the evidence for cannabis in chronic pain?",
