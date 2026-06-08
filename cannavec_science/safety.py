@@ -146,9 +146,17 @@ _IMPERATIVE_DOSING = _ci(
     r"ramp(?:\s+up)?(?:\s+to)?|work\s+up\s+to|build\s+up\s+to|"
     r"bump(?:\s+up)?(?:\s+to)?|increase\s+to)"
     r"\s+"
-    r"(?:[0-9]+(?:\.[0-9]+)?|a\s+|one\s+|two\s+|three\s+|four\s+|five\s+)"
+    # Quantity: a digit (possibly glued to its unit, "50mg") OR a spelled-out
+    # cardinal — closes the "take fifty mg" spelled-number bypass.
+    r"(?:[0-9]+(?:\.[0-9]+)?|"
+    r"(?:a|an|half|one|two|three|four|five|six|seven|eight|nine|ten|"
+    r"eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|"
+    r"eighty|ninety|hundred)\s+)"
     r"[^.\n]{0,60}"
-    r"\b(?:mg|g|grams?|milligrams?|ml|mL|µg|micrograms?|"
+    # Unit boundary is a non-letter lookbehind, NOT ``\b`` — ``\b`` never matches
+    # the digit→letter seam in "50mg", which let the most natural glued phrasing
+    # ("take 50mg twice daily") bypass the refusal.
+    r"(?<![A-Za-z])(?:mg|g|grams?|milligrams?|ml|mL|µg|micrograms?|"
     r"hit|hits|puff|puffs|drop|drops|gummy|gummies|edible|edibles|"
     r"dose|doses|drag|drags|toke|tokes)\b"
 )
@@ -179,6 +187,29 @@ _SECOND_PERSON_DOSING = _ci(
     r"[^.\n]{0,40}"
     r"\b[0-9]+(?:\.[0-9]+)?\s?"
     r"(?:mg|g|grams?|milligrams?|ml|mL|mcg|µg|micrograms?|mg/kg)\b"
+)
+
+# Third-party / weight-anchored individualized dosing — the framing-flip that
+# escaped BOTH the first-person ("I should take") and second-person ("you
+# should take") detectors. A dose recommendation for a NAMED individual — a
+# third party (he/she/they) or a specific body weight / age — is individualized
+# and refused (§V). Precision is preserved by requiring a SPECIFIC referent: a
+# personal pronoun or a numeric weight/age, never a generic "a beginner / a
+# patient", so the deliberate population-level research carve-out ("what dose was
+# used in the trial", "how much should a beginner take") is untouched.
+_THIRD_PARTY_DOSING = _ci(
+    # (a) weight/age-anchored dose request — names a real individual's body.
+    r"\b(?:dose|dosage|amount|how much|how many)\b[^.\n]{0,50}\b"
+    r"for\s+(?:a|an|my)\b[^.\n]{0,20}"
+    r"\b\d+\s?(?:kg|kgs|kilo\w*|lb|lbs|pound\w*|stone|"
+    r"year[\s-]?old|years?\s+old|yo|month[\s-]?old)\b"
+    r"|"
+    # (b) third-person advice: "how much / what dose ... should ... he/she/they
+    # ... take" — a personalised recommendation aimed at a specific person.
+    r"\b(?:how much|how many\s+\w+|what\s+(?:dose|dosage|amount))\b"
+    r"[^.\n]{0,60}\b(?:should|would|ought\s+to)\b[^.\n]{0,25}"
+    r"\b(?:he|she|they|him|her)\b[^.\n]{0,25}\b"
+    r"(?:take|use|have|consume|dose|need)\b"
 )
 
 _INTERACTION_ASKING = _ci(
@@ -783,6 +814,27 @@ def check_safety(text: str) -> SafetyVerdict:
                 why=(
                     "Prompt directs a specific dose at the reader "
                     "('you should take N mg') — a personalised dose "
+                    "recommendation. Cannavec reports trial-supported "
+                    "population dose ranges; it never recommends a personal "
+                    "dose. Refer all dosing decisions to a clinician."
+                ),
+                action=SafetyAction.REFUSE_INDIVIDUALIZED,
+            ))
+
+    # Third-party / weight-anchored individualized dosing ("how much should they
+    # take", "what dose of THC for a 70 kg adult") — a personal dose
+    # recommendation for a named individual, the framing-flip that escaped the
+    # first/second-person detectors. Refused like its siblings (§V).
+    if _THIRD_PARTY_DOSING.search(text):
+        if not any(f.action == SafetyAction.REFUSE_INDIVIDUALIZED
+                   for f in fired):
+            fired.append(FiredFlag(
+                flag=SafetyFlag.INDIVIDUALIZED_DOSING,
+                matched_text=text[:120],
+                why=(
+                    "Prompt asks for a dose for a specific individual — a "
+                    "third party ('how much should they take') or a particular "
+                    "body weight / age. That is an individualised dose "
                     "recommendation. Cannavec reports trial-supported "
                     "population dose ranges; it never recommends a personal "
                     "dose. Refer all dosing decisions to a clinician."

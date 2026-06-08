@@ -1222,7 +1222,11 @@ def _set_short_answer(a: Answer) -> None:
     # wrong disease was the reproduced defect). The wrong-indication efficacy
     # claims are already dropped upstream; any claims that remain are adjacent
     # context the note flags as not-evidence-for-this-indication.
-    uncovered_offkb = _uncovered_offkb_indications(
+    # Vocabulary OR the structural "<cannabinoid> for <indication>" frame, so an
+    # off-lexicon disease (diabetes / breast cancer / lupus) refuses as honestly
+    # as a recognised one — the gate is claim coverage, not a hardcoded
+    # disease list.
+    uncovered_label = _uncovered_efficacy_indication_label(
         a, getattr(a, "prompt", "") or ""
     )
     # Fire the honest override only when the named indication is uncurated AND
@@ -1233,10 +1237,8 @@ def _set_short_answer(a: Answer) -> None:
     has_curated_efficacy = any(
         c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims
     )
-    if uncovered_offkb and not has_curated_efficacy:
-        pretty = ", ".join(
-            sorted(_INDICATION_LABEL.get(t, t) for t in uncovered_offkb)
-        )
+    if uncovered_label and not has_curated_efficacy:
+        pretty = uncovered_label
         a.short_answer = (
             f"**No curated efficacy evidence for {pretty}.** The Cannavec "
             f"Science knowledge base holds no graded trial-efficacy claim for "
@@ -1998,6 +2000,16 @@ def compose_answer(
     # the 0-claim case so the user gets actionable guidance.
     _classify_zero_claims(a, prompt, cannabinoid_set, banned_hits)
 
+    # §I / M2 / §VII — vocabulary-independent backstop. When the prompt asks
+    # efficacy about an indication the curated KB has no clinical-efficacy claim
+    # for (a recognised one OR an off-lexicon one like diabetes / breast cancer /
+    # lupus via the structural "<cannabinoid> for <indication>" frame), clear the
+    # off-topic claims the BM25 recovery / high-recall detectors fanned in so the
+    # graded body matches the honest BLUF (no confident "Level C" lead on a
+    # wrong-disease mechanism / interaction row). Runs after recovery so it sees
+    # the full claim set, and before the note / summary / BLUF that key off it.
+    _clear_claims_for_uncovered_efficacy_indication(a, prompt)
+
     # WP-RETRIEVAL #2 — when the prompt names a specific indication the KB does
     # not curate (e.g. Tourette / Parkinson / glaucoma), say so explicitly so a
     # dropped wrong-indication claim is not silently replaced by adjacent
@@ -2754,6 +2766,125 @@ def _drop_offkb_indication_efficacy_claims(a: Answer, prompt: str) -> int:
     if dropped:
         a.claims = kept
         a.add_trace("binding.offkb_indication_dropped", dropped)
+    return dropped
+
+
+# ── Vocabulary-independent off-KB efficacy refusal ──────────────────────────
+# The closed indication lexicon (``intent._INDICATION_PATTERNS``) cannot
+# enumerate every disease a researcher probes, so an off-list disease (diabetes,
+# breast cancer, lupus, Graves, endometriosis …) used to fall through to a
+# confident grade-led BLUF stitched onto a BM25-recovered off-topic mechanism /
+# interaction row — the citation->claim binding lie this project exists to
+# prevent (§I / M2 / §VII). This structural frame is the backstop: a
+# "<cannabinoid> for/to-treat <indication>" efficacy question. It is high
+# precision by construction — it requires a cannabis cue AND the efficacy
+# preposition AND a captured indication object, and the caller fires the honest
+# refusal ONLY when no on-topic curated clinical-efficacy claim survives, so
+# curated indications and condition-agnostic pharmacology / PK / mechanism
+# questions (which carry no "for <indication>" frame) are never swept in. The
+# safe failure direction is over-refusal (an honest "no curated efficacy"), never
+# a confident wrong answer.
+_EFFICACY_FRAME_RX = re.compile(
+    r"\b(?:for|to\s+treat|treating|treatment\s+of|therapy\s+for|"
+    r"manage|managing|against)\s+"
+    r"(?P<indication>[A-Za-z][A-Za-z0-9'’\-]*"
+    r"(?:\s+[A-Za-z0-9'’\-]+){0,4})",
+    flags=re.IGNORECASE,
+)
+
+# Objects after the efficacy preposition that are NOT an indication — model
+# systems, study scaffolding, and obvious non-disease nouns. Keeps the structural
+# refusal from naming a nonsense "indication" (e.g. "CBD for sale").
+_NON_INDICATION_OBJECTS = frozenset({
+    "sale", "research", "study", "studies", "trial", "trials", "review",
+    "humans", "human", "animals", "animal", "mice", "rats", "dogs", "cats",
+    "adults", "adult", "children", "child", "patients", "patient",
+    "beginners", "vitro", "vivo", "you", "me", "us", "them", "the", "use",
+})
+
+# Cannabis cue — the structural refusal applies only to a "<cannabinoid> for
+# <indication>" efficacy frame, never to arbitrary "for X" prose.
+_CANNABIS_CUE_RX = re.compile(
+    r"\b(?:cannabi\w*|cbd|cannabidiol|thc\w*|tetrahydrocannabinol|cbg\w*|"
+    r"cbn|cbc|cbdv|thcv|cbda|thca|marijuana|hemp|cannabinoid\w*|"
+    r"nabiximols|sativex|epidiolex|epidyolex|dronabinol|delta.?[89])\b",
+    flags=re.IGNORECASE,
+)
+
+
+def _structural_efficacy_indication(prompt: str) -> "str | None":
+    """Extract the indication of a "<cannabinoid> for <indication>" efficacy
+    question, or ``None`` when the prompt is not that shape.
+
+    Vocabulary-independent — the backstop for diseases ``indication_terms`` does
+    not recognise. Conservative: requires a cannabis cue, the efficacy
+    preposition, and an indication object that is neither a model-system /
+    non-disease noun nor a cannabinoid. Returns the trimmed indication phrase for
+    the honest BLUF.
+    """
+    if not prompt or not _CANNABIS_CUE_RX.search(prompt):
+        return None
+    m = _EFFICACY_FRAME_RX.search(prompt)
+    if not m:
+        return None
+    phrase = m.group("indication").strip().strip("'’-").strip()
+    if len(phrase) < 3:
+        return None
+    head = phrase.split()[0].lower().strip("'’-")
+    if head in _NON_INDICATION_OBJECTS:
+        return None
+    # An object that is itself a cannabinoid ("THC for CBD") is not an indication.
+    if _CANNABIS_CUE_RX.fullmatch(head) or _CANNABIS_CUE_RX.fullmatch(phrase):
+        return None
+    return phrase
+
+
+def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None":
+    """Display label for an indication the prompt asks efficacy about but the
+    curated KB has NO clinical-efficacy claim for — vocabulary first (nice
+    labels for the recognised diseases), the structural frame as the backstop for
+    the long tail. ``None`` when the prompt names no such indication. The caller
+    fires the honest refusal only when no curated efficacy claim survives, so this
+    never suppresses a real curated answer (Dravet, chronic pain) or a
+    condition-agnostic pharmacology question."""
+    offkb = _uncovered_offkb_indications(a, prompt)
+    if offkb:
+        return ", ".join(sorted(_INDICATION_LABEL.get(t, t) for t in offkb))
+    return _structural_efficacy_indication(prompt)
+
+
+def _clear_claims_for_uncovered_efficacy_indication(
+    a: Answer, prompt: str
+) -> int:
+    """§I / M2 / §VII — an efficacy question about an indication with NO curated
+    clinical-efficacy claim must surface an honest refusal with an EMPTY graded
+    claim set, never a BM25-recovered off-topic mechanism / interaction /
+    wrong-disease row stamped with a clinical-evidence grade frame.
+
+    The vocabulary-independent generalisation of
+    ``_drop_offkb_indication_efficacy_claims`` AND the citation->claim binding
+    fix (closes the Hashimoto's-thyroiditis leak into Alzheimer's / Parkinson's /
+    Crohn's, and the confident "Level C" BLUF for diabetes / breast cancer /
+    lupus). Fires only when the prompt asks efficacy about an indication
+    (vocabulary OR the structural "<cannabinoid> for <indication>" frame) AND no
+    surviving CLINICAL_EFFICACY claim covers ANY part of the query. In that
+    refuse state every remaining claim is, by construction, adjacent context the
+    honest BLUF already demotes — so it is removed from the graded body (its
+    CITATIONS stay in the bibliography, §I; the compound monograph stays as fenced
+    reference). No-op for curated indications (a covering efficacy claim survives)
+    and condition-agnostic queries (no efficacy frame). Returns the count, traced
+    as ``binding.uncovered_indication_cleared`` (fail-loud, never silent)."""
+    if a.is_refusal:
+        return 0
+    if any(c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims):
+        return 0
+    if not _uncovered_efficacy_indication_label(a, prompt):
+        return 0
+    dropped = len(a.claims)
+    if dropped:
+        a.claims = []
+        a._topically_relevant_claims = ()
+        a.add_trace("binding.uncovered_indication_cleared", dropped)
     return dropped
 
 

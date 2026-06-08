@@ -54,6 +54,22 @@ class TestLaneRegistryInvariants(unittest.TestCase):
             f"web-API lanes not in the CLI registry: {dr - cli}",
         )
 
+    def test_cli_registry_and_web_runners_share_one_canonical_map(self) -> None:
+        # The CLI ``_DISCOVERER_REGISTRY`` and the web-API runners used to be two
+        # hand-maintained copies of ~25 near-identical wrappers that drifted.
+        # They now derive from ONE canonical lane->runner map; pin that so the
+        # duplication cannot silently return.
+        self.assertEqual(
+            set(_DISCOVERER_REGISTRY.keys()),
+            set(live.ALL_LANE_RUNNERS.keys()),
+            "the CLI registry must expose exactly the canonical lane set.",
+        )
+        # The blended-answer default is a curated SUBSET of the canonical map.
+        self.assertTrue(
+            set(live.default_runners().keys()) <= set(live.ALL_LANE_RUNNERS.keys()),
+            "default_runners() must be a subset of the canonical lane map.",
+        )
+
     def test_every_synthesis_source_has_a_display_label(self) -> None:
         # render_markdown does ``_SOURCE_DISPLAY[s]`` for every s in _SOURCE_KEYS;
         # a missing label is a hard KeyError at render time. Lock the alignment.

@@ -34,8 +34,9 @@ import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
+from cannavec_science import live as _live_lanes
 from cannavec_science._log import get_logger
 
 
@@ -294,128 +295,22 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_pubmed(args):
-    from cannavec_science.pubmed_search import PubMedSearcher
-    return PubMedSearcher().search(
-        args.query, since=args.since, max_results=args.max
-    )
-
-
-def _run_chembl(args):
-    from cannavec_science.chembl_discover import ChEMBLSearcher
-    return ChEMBLSearcher().search(args.query, max_results=args.max)
-
-
-def _run_ctgov(args):
-    from cannavec_science.ctgov_discover import CTGovSearcher
-    # Per-source relevance gate: CT.gov free-text matching is broad, so a
-    # cannabis-science query must not surface unrelated trials.
-    return CTGovSearcher().search(
-        args.query, max_results=args.max, cannabis_relevant_only=True
-    )
-
-
-def _run_pubchem(args):
-    from cannavec_science.pubchem_discover import PubChemSearcher
-    return PubChemSearcher().search(args.query, max_results=args.max)
-
-
-def _run_pharmgkb(args):
-    from cannavec_science.pharmgkb_discover import PharmGKBSearcher
-    return PharmGKBSearcher().search(args.query, max_results=args.max)
-
-
-def _run_rcsb(args):
-    from cannavec_science.rcsb_discover import RCSBSearcher
-    return RCSBSearcher().search(args.query, max_results=args.max)
-
-
-def _run_opentargets(args):
-    from cannavec_science.opentargets_discover import OpenTargetsSearcher
-    return OpenTargetsSearcher().search(args.query, max_results=args.max)
-
-
-def _run_gwas(args):
-    from cannavec_science.gwas_discover import GWASSearcher
-    return GWASSearcher().search(args.query, max_results=args.max)
-
-
-def _run_bindingdb(args):
-    from cannavec_science.bindingdb_discover import BindingDBSearcher
-    return BindingDBSearcher().search(args.query, max_results=args.max)
-
-
-def _run_biorxiv(args):
-    from cannavec_science.biorxiv_discover import BioRxivSearcher
-    return BioRxivSearcher().search(
-        args.query, since=args.since, max_results=args.max,
-    )
-
-
-def _run_medrxiv(args):
-    from cannavec_science.medrxiv_discover import MedRxivSearcher
-    return MedRxivSearcher().search(
-        args.query, since=args.since, max_results=args.max,
-    )
-
-
-def _run_europepmc(args):
-    from cannavec_science.europepmc_discover import EuropePMCSearcher
-    return EuropePMCSearcher().search(
-        args.query, since=args.since, max_results=args.max,
-    )
-
-
-def _run_openalex(args):
-    from cannavec_science.openalex_discover import OpenAlexSearcher
-    return OpenAlexSearcher().search(
-        args.query, since=args.since, max_results=args.max,
-    )
-
-
-def _run_chebi(args):
-    from cannavec_science.chebi_discover import ChEBISearcher
-    return ChEBISearcher().search(args.query, max_results=args.max)
-
-
-def _run_quickgo(args):
-    from cannavec_science.quickgo_discover import QuickGOSearcher
-    return QuickGOSearcher().search(args.query, max_results=args.max)
-
-
-def _run_reactome(args):
-    from cannavec_science.reactome_discover import ReactomeSearcher
-    return ReactomeSearcher().search(args.query, max_results=args.max)
-
-
-def _run_efo(args):
-    from cannavec_science.efo_discover import EFOSearcher
-    return EFOSearcher().search(args.query, max_results=args.max)
+# The CLI ``discover`` registry derives from the ONE canonical lane→runner map
+# in ``live.ALL_LANE_RUNNERS`` — the single source of truth shared with the
+# web-API blended path. (These were two hand-maintained copies of ~25
+# near-identical wrappers that drifted; that duplication is now gone.) The
+# canonical runners take ``(query, since, n)``; the CLI calls a runner with an
+# argparse / ``SimpleNamespace`` object, so adapt the signature here. Kept as a
+# module-level dict so tests can ``patch.dict`` it to inject offline fakes.
+def _lane_from_args(runner: "Callable") -> "Callable":
+    def _run(args):
+        return runner(args.query, getattr(args, "since", None), args.max)
+    return _run
 
 
 _DISCOVERER_REGISTRY = {
-    "pubmed": _run_pubmed,
-    "chembl": _run_chembl,
-    "ctgov": _run_ctgov,
-    "pubchem": _run_pubchem,
-    "pharmgkb": _run_pharmgkb,
-    "rcsb": _run_rcsb,
-    "opentargets": _run_opentargets,
-    "gwas": _run_gwas,
-    "bindingdb": _run_bindingdb,
-    # Spec 002 US1 — preprint lanes (Level D cap per FR-202).
-    "biorxiv": _run_biorxiv,
-    "medrxiv": _run_medrxiv,
-    # Spec 005 US6 — Europe PMC twelfth primary-source live lane.
-    "europepmc": _run_europepmc,
-    # Spec 006 US6 — OpenAlex thirteenth primary-source live lane.
-    "openalex": _run_openalex,
-    # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
-    "chebi": _run_chebi,
-    "quickgo": _run_quickgo,
-    # Spec 030 — pathway + disease-ontology lanes.
-    "reactome": _run_reactome,
-    "efo": _run_efo,
+    src: _lane_from_args(runner)
+    for src, runner in _live_lanes.ALL_LANE_RUNNERS.items()
 }
 
 
@@ -993,6 +888,60 @@ def _cmd_bibliography(args: argparse.Namespace) -> int:
     return 0
 
 
+_CITE_FORMATS = ("bibtex", "ris", "csljson")
+_CITE_EXT = {"bibtex": "bib", "ris": "ris", "csljson": "json"}
+_CITE_HEADER = {"bibtex": "BibTeX", "ris": "RIS", "csljson": "CSL-JSON"}
+
+
+def _cmd_cite(args: argparse.Namespace) -> int:
+    """Spec 033 — citation-lossless reference export (the surface behind
+    /cv:cite).
+
+    Composes the offline curated Answer and emits its verified citations as a
+    reference export — all three formats by default, or a single ``--format``.
+    Every format is independently gated by ``export.render_citation_export``; if
+    ANY requested format is not citation-lossless (or the Answer is a refusal /
+    has no graded evidence), the command emits nothing and exits non-zero — it
+    never fabricates or partially-emits a reference set (§I / §XI / M5).
+    """
+    from cannavec_science.answer import compose_answer
+    from cannavec_science.export import render_citation_export
+
+    fmts = [args.format] if getattr(args, "format", None) else list(_CITE_FORMATS)
+    answer = compose_answer(args.question)
+
+    rendered: dict[str, str] = {}
+    for fmt in fmts:
+        body = render_citation_export(answer, fmt)
+        if body is None:
+            if answer.is_refusal:
+                reason = "refusal"
+            elif not answer.claims:
+                reason = "no verified citations"
+            else:
+                reason = f"not citation-lossless ({fmt})"
+            print(f"[cite] no citable answer: {reason}", file=sys.stderr)
+            return 2
+        rendered[fmt] = body
+
+    if getattr(args, "out", None):
+        written: list[str] = []
+        for fmt in fmts:
+            path = f"{args.out}.{_CITE_EXT[fmt]}"
+            Path(path).write_text(rendered[fmt], encoding="utf-8")
+            written.append(path)
+        print(f"[cite] {len(written)} format(s) → {', '.join(written)}",
+              file=sys.stderr)
+        return 0
+
+    if len(fmts) == 1:
+        print(rendered[fmts[0]], end="")
+    else:
+        blocks = [f"=== {_CITE_HEADER[f]} ===\n{rendered[f]}" for f in fmts]
+        print("\n".join(blocks), end="")
+    return 0
+
+
 def _cmd_registries(args: argparse.Namespace) -> int:
     """Emit the curated-registry inventory (spec 003 US8 / FR-008).
 
@@ -1181,6 +1130,26 @@ def _build_parser() -> argparse.ArgumentParser:
                    required=True)
     b.add_argument("--out", help="Write to file (else stdout)")
     b.set_defaults(func=_cmd_bibliography)
+
+    # cite (spec 033) — citation-lossless reference export behind /cv:cite
+    ct = sub.add_parser(
+        "cite",
+        help=(
+            "Export the verified citations behind a composed answer as a "
+            "citation-lossless reference set (BibTeX + RIS + CSL-JSON by "
+            "default). Refuses to emit anything it cannot preserve losslessly."
+        ),
+    )
+    ct.add_argument("question")
+    ct.add_argument(
+        "--format", choices=list(_CITE_FORMATS), default=None,
+        help="Emit a single format (default: all three).",
+    )
+    ct.add_argument(
+        "--out",
+        help="Write one file per format to <PREFIX>.bib/.ris/.json (else stdout).",
+    )
+    ct.set_defaults(func=_cmd_cite)
 
     # registries (spec 003 US8 / FR-008)
     rg = sub.add_parser(
