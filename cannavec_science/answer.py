@@ -744,6 +744,11 @@ class Answer:
             "generated_at": self.generated_at,
             "short_answer": self.short_answer,
             "refusal_reason": self.refusal_reason,
+            # First-class refusal flag (§V / §XI) — a refusal still serializes its
+            # reference citations, so a /cv output skill must be able to detect the
+            # refusal state directly rather than infer it from citations being
+            # present. Mirrors the ``is_refusal`` property.
+            "is_refusal": self.is_refusal,
             "claims": [
                 {
                     "text": c.text,
