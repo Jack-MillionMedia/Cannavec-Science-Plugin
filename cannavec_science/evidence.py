@@ -538,3 +538,51 @@ class Claim:
             population=population,
             jurisdiction=jurisdiction,
         )
+
+
+@dataclass(frozen=True)
+class GradeRationale:
+    """Why a claim earned its grade — the determinants made transparent.
+
+    Expository only: it never alters the grade value.
+    """
+
+    design_basis: str
+    notes: tuple[str, ...] = ()
+
+    def summary(self) -> str:
+        return "; ".join(p for p in (self.design_basis, *self.notes) if p)
+
+
+def grade_rationale(claim: Claim) -> GradeRationale:
+    """Expository rationale for ``claim``, built from the SAME determinants
+    :meth:`Claim.best_supportable_grade` uses — so the 'why' can never drift
+    from the grade. Reports the design basis (canonical-SR / confirmatory-RCT
+    counts, single study, observational) plus a missing-disclosure note.
+    Un-assessable GRADE factors (indirectness, publication bias) are omitted,
+    never fabricated.
+    """
+    live = [s for s in claim.sources if s.retraction_status != "retracted"]
+    srs = [s for s in live if _is_canonical_sr(s)]
+    rcts = [
+        s for s in live
+        if s.tier in (SourceTier.SR_FLAGSHIP, SourceTier.JOURNAL_RCT)
+        and s.pre_registered and s.adequately_powered
+    ]
+    if srs:
+        basis = f"{len(srs)} systematic review/meta-analysis" + ("s" if len(srs) > 1 else "")
+        if rcts:
+            basis += f" + {len(rcts)} aligned RCT" + ("s" if len(rcts) > 1 else "")
+    elif len(rcts) >= 2:
+        basis = f"{len(rcts)} aligned adequately-powered RCTs"
+    elif rcts:
+        basis = "single adequately-powered RCT"
+    elif live:
+        basis = "single observational / small trial"
+    else:
+        basis = "no admissible primary source"
+    notes: list[str] = []
+    n_missing = len(missing_disclosures(claim.claim_type, claim.disclosures_present))
+    if n_missing:
+        notes.append(f"{n_missing} required disclosure(s) missing (downgraded)")
+    return GradeRationale(design_basis=basis, notes=tuple(notes))
