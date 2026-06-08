@@ -1,5 +1,29 @@
 # Changelog
 
+## GRADE-certainty grading + expert credibility (2026-06)
+
+- **GRADE-certainty wording, system-wide.** Every output surface (Markdown brief,
+  JSON, CLI, `/cv:cite`, `/cv:pdf`) now leads with the recognized GRADE vocabulary
+  — **High / Moderate / Low / Very low / Insufficient** certainty — with the letter
+  kept as a small secondary auditable tag: "High certainty (Level A)". Single source
+  of truth in `EvidenceLevel.certainty` + `display()` (spec 035).
+- **Transparent per-source grade rationale.** The determinants already computed by
+  `best_supportable_grade` (SR/RCT counts, pre-registration, power, single-study cap,
+  missing-disclosure downgrades) are now surfaced as a short, honest rationale string
+  alongside each citation — explicitly marking un-assessable factors (indirectness,
+  publication bias) as "not assessed" rather than fabricating them.
+- **Per-study certainty in the references/evidence list.** Each curated citation is
+  rendered as a distinct entry with its own certainty, rationale, study type, year,
+  and key result — not a flat link list.
+- **Internal/system language removed from all rendered output.** Constitutional
+  framing (`§…`, `M5`, "scaffolding to reason over") is stripped from every
+  user-facing surface; guarded by `tests/test_no_system_language.py` regression.
+- **§XI citation-integrity gate extended to the certainty vocabulary.** The
+  citation-lossless + grade-inflation gate and its bypass-regression tests stay green
+  under the new certainty wording; the audit is pinned by
+  `tests/test_grade_value_unchanged_audit.py`, which asserts the GRADE *letter* per
+  curated question is unchanged (display-only change, not a grade shift).
+
 ## Output layer — `/cv:pdf` + grade-inflation gate (2026-06)
 
 - **`/cv:pdf` — the flagship output skill.** Renders the verified `Answer` into a
