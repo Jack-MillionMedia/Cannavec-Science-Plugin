@@ -694,7 +694,7 @@ class Answer:
             _cite_grades = self._citation_grade_map()
             for c in self.citations:
                 _g = _lookup_citation_grade(_cite_grades, c)
-                grade_tag = f" — {_g}" if _g else ""
+                grade_tag = f" — {EvidenceLevel(_g).display()}" if _g else ""
                 year = f" ({c.year})" if c.year else ""
                 # Spec 002 US1 preprint badge.
                 badge = ""
