@@ -888,6 +888,60 @@ def _cmd_bibliography(args: argparse.Namespace) -> int:
     return 0
 
 
+_CITE_FORMATS = ("bibtex", "ris", "csljson")
+_CITE_EXT = {"bibtex": "bib", "ris": "ris", "csljson": "json"}
+_CITE_HEADER = {"bibtex": "BibTeX", "ris": "RIS", "csljson": "CSL-JSON"}
+
+
+def _cmd_cite(args: argparse.Namespace) -> int:
+    """Spec 033 — citation-lossless reference export (the surface behind
+    /cv:cite).
+
+    Composes the offline curated Answer and emits its verified citations as a
+    reference export — all three formats by default, or a single ``--format``.
+    Every format is independently gated by ``export.render_citation_export``; if
+    ANY requested format is not citation-lossless (or the Answer is a refusal /
+    has no graded evidence), the command emits nothing and exits non-zero — it
+    never fabricates or partially-emits a reference set (§I / §XI / M5).
+    """
+    from cannavec_science.answer import compose_answer
+    from cannavec_science.export import render_citation_export
+
+    fmts = [args.format] if getattr(args, "format", None) else list(_CITE_FORMATS)
+    answer = compose_answer(args.question)
+
+    rendered: dict[str, str] = {}
+    for fmt in fmts:
+        body = render_citation_export(answer, fmt)
+        if body is None:
+            if answer.is_refusal:
+                reason = "refusal"
+            elif not answer.claims:
+                reason = "no verified citations"
+            else:
+                reason = f"not citation-lossless ({fmt})"
+            print(f"[cite] no citable answer: {reason}", file=sys.stderr)
+            return 2
+        rendered[fmt] = body
+
+    if getattr(args, "out", None):
+        written: list[str] = []
+        for fmt in fmts:
+            path = f"{args.out}.{_CITE_EXT[fmt]}"
+            Path(path).write_text(rendered[fmt], encoding="utf-8")
+            written.append(path)
+        print(f"[cite] {len(written)} format(s) → {', '.join(written)}",
+              file=sys.stderr)
+        return 0
+
+    if len(fmts) == 1:
+        print(rendered[fmts[0]], end="")
+    else:
+        blocks = [f"=== {_CITE_HEADER[f]} ===\n{rendered[f]}" for f in fmts]
+        print("\n".join(blocks), end="")
+    return 0
+
+
 def _cmd_registries(args: argparse.Namespace) -> int:
     """Emit the curated-registry inventory (spec 003 US8 / FR-008).
 
@@ -1076,6 +1130,26 @@ def _build_parser() -> argparse.ArgumentParser:
                    required=True)
     b.add_argument("--out", help="Write to file (else stdout)")
     b.set_defaults(func=_cmd_bibliography)
+
+    # cite (spec 033) — citation-lossless reference export behind /cv:cite
+    ct = sub.add_parser(
+        "cite",
+        help=(
+            "Export the verified citations behind a composed answer as a "
+            "citation-lossless reference set (BibTeX + RIS + CSL-JSON by "
+            "default). Refuses to emit anything it cannot preserve losslessly."
+        ),
+    )
+    ct.add_argument("question")
+    ct.add_argument(
+        "--format", choices=list(_CITE_FORMATS), default=None,
+        help="Emit a single format (default: all three).",
+    )
+    ct.add_argument(
+        "--out",
+        help="Write one file per format to <PREFIX>.bib/.ris/.json (else stdout).",
+    )
+    ct.set_defaults(func=_cmd_cite)
 
     # registries (spec 003 US8 / FR-008)
     rg = sub.add_parser(

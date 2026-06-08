@@ -84,7 +84,7 @@ pipeline can gate on it.
 | `/verify` | Spot-check one identifier (PMID / DOI / NCT / ChEMBL / UniProt): real? retracted? |
 | `/rigor` | Run the deterministic phytochemistry + reporting-rigor + banned-pattern detectors on any text. |
 
-Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|registries|kb-audit>`.
+Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|registries|kb-audit>`.
 
 ### Operator tools (not slash commands)
 
