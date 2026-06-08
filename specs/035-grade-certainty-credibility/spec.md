@@ -75,16 +75,20 @@ separate spec and renders through the grading/credibility layer built here.
   human string (e.g. *"1 Cochrane SR + 2 aligned RCTs; large effect"*, *"single
   adequately-powered RCT; wide CI (imprecision)"*, *"observational; not assessed
   for indirectness"*).
-- `Claim` / `Source` expose a rationale alongside the grade. `best_supportable_
-  grade` is refactored to *also* return its reasoning (the canonical-SR /
-  confirmatory-RCT counts and downgrades it already computes), plus:
-  - **imprecision** — derived from a cited `EffectEstimate`'s `confidence_interval`
-    (CI crossing the null / a flagged non-significant endpoint → an imprecision
-    note, and a conservative one-level downgrade where it governs the body grade);
-  - **large effect** — a noted up-factor from a large `effect_size` (rendered as a
-    reason; an upgrade only where GRADE permits — observational bodies).
-  Each enhancement ships with explicit before/after grade review so no grade
-  silently changes incorrectly (§VII).
+- `Claim` exposes a rationale alongside the grade via `grade_rationale(claim)`.
+  It reports the determinants `best_supportable_grade` already computes (canonical-
+  SR / confirmatory-RCT counts, single-study cap, missing-disclosure downgrades)
+  plus data-derivable factor **notes**:
+  - **imprecision** — a note read from a cited `EffectEstimate` (a flagged
+    non-significant / wide-CI endpoint), shown so an expert sees the caveat;
+  - **large effect** — a note from a clearly large `effect_size`.
+  **Expository only — the rationale never changes the grade VALUE.** The grade
+  computation is left exactly as-is (already principled + human-curated); a naive
+  imprecision auto-downgrade would wrongly demote sound grades (e.g. Dravet's NNT
+  caveat is on a *secondary* endpoint while the *primary* endpoint is significant).
+  Grade-VALUE modelling of GRADE factors is deferred to a separately-audited
+  enhancement; Phase 1 makes the *existing* accuracy transparent (§VII). A
+  grade-value-unchanged audit test pins this.
 
 ### 3. Render layer — certainty + rationale on every surface
 - BLUF frame (`_GRADE_FRAME`) → *"High certainty — <rationale>."*
