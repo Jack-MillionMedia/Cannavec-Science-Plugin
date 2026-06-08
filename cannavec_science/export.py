@@ -46,6 +46,7 @@ __all__ = [
     "export_provenance",
     "assert_citation_lossless",
     "grade_adjacency_failures",
+    "render_citation_export",
 ]
 
 
@@ -162,6 +163,41 @@ def assert_citation_lossless(answer: "Answer", rendered: str) -> LosslessReport:
         missing_identifiers=missing_ids,
         missing_grades=missing_grades,
     )
+
+
+def render_citation_export(answer: "Answer", fmt: str) -> "str | None":
+    """Render the verified citations behind ``answer`` as a reference export
+    (``fmt`` ∈ ``{"bibtex", "ris", "csljson"}``), or ``None`` when there is
+    nothing citation-lossless to emit (§XI / M5 — spec 033).
+
+    The single deterministic primitive every ``/cv:cite`` output skill calls. It
+    is a *transform* of verified evidence, never an author of citations:
+
+    - Returns ``None`` for a refusal Answer, or one with **no graded claims** —
+      an uncurated-indication "no curated efficacy" brief carries the compound
+      monograph's cross-cutting citations, which are reference context, not
+      evidence for the asked question; exporting them would be the
+      citation→claim leak this project exists to prevent (§I / M2).
+    - Otherwise renders the bibliography (each entry's GRADE preserved in the
+      format's note field) and runs :func:`assert_citation_lossless`; returns the
+      rendered string only if every identifier and GRADE label survived, else
+      ``None`` (refuse to emit a lossy transform).
+
+    Pure, deterministic, offline — same contract as the rest of the verification
+    core (§II / §X). ``fmt`` is delegated to :func:`bibliography.render`, which
+    raises ``ValueError`` on an unknown format.
+    """
+    from cannavec_science import bibliography
+
+    if answer.is_refusal or not answer.claims:
+        return None
+    entries = bibliography.bibliography_from_answer(answer)
+    if not entries:
+        return None
+    rendered = bibliography.render(entries, fmt)
+    if not assert_citation_lossless(answer, rendered):
+        return None
+    return rendered
 
 
 def grade_adjacency_failures(
