@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -942,6 +943,46 @@ def _cmd_cite(args: argparse.Namespace) -> int:
     return 0
 
 
+def _pdf_slug(question: str) -> str:
+    """A safe, short filename stem from a question (for the default --out)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", question.lower()).strip("-")
+    return ("cannavec-" + (slug[:48].rstrip("-") or "brief"))
+
+
+def _cmd_pdf(args: argparse.Namespace) -> int:
+    """Render the composed answer as a polished, citation-lossless evidence brief
+    (the surface behind /cv:pdf).
+
+    Composes the offline curated Answer and renders it to a self-contained HTML
+    evidence brief (clinical-journal style), then to PDF via the best available
+    backend (headless Chrome → reportlab → HTML-only). Every primary-source
+    identifier and GRADE label is preserved and none is inflated — the §XI gate is
+    enforced in ``pdf_export`` and the command refuses (non-zero) rather than emit
+    a lossy or inflated transform. Refusal and uncurated-indication answers render
+    an honest brief (no evidence fabricated); only a gate failure or write error
+    is non-zero.
+    """
+    from cannavec_science.answer import compose_answer
+    from cannavec_science import pdf_export
+
+    answer = compose_answer(args.question)
+    out_prefix = args.out or _pdf_slug(args.question)
+    try:
+        result = pdf_export.export_pdf(
+            answer, out_prefix, html_only=getattr(args, "html_only", False)
+        )
+    except pdf_export.FaithfulnessError as exc:
+        print(f"[pdf] refused — render not citation-lossless: {exc}",
+              file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(f"[pdf] write error: {exc}", file=sys.stderr)
+        return 2
+    print(f"[pdf] {result.summary()}", file=sys.stderr)
+    print(result.pdf_path or result.html_path)
+    return 0
+
+
 def _cmd_registries(args: argparse.Namespace) -> int:
     """Emit the curated-registry inventory (spec 003 US8 / FR-008).
 
@@ -1150,6 +1191,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write one file per format to <PREFIX>.bib/.ris/.json (else stdout).",
     )
     ct.set_defaults(func=_cmd_cite)
+
+    # pdf (spec 034) — polished, citation-lossless evidence brief behind /cv:pdf
+    pf = sub.add_parser(
+        "pdf",
+        help=(
+            "Render the composed answer as a polished, citation-lossless PDF "
+            "evidence brief (HTML → headless Chrome → reportlab, gracefully "
+            "degrading). Refuses to emit anything it cannot preserve losslessly."
+        ),
+    )
+    pf.add_argument("question")
+    pf.add_argument(
+        "--out",
+        help="Output path prefix → <PREFIX>.html (+ <PREFIX>.pdf). "
+             "Default: cannavec-<slug> in the current directory.",
+    )
+    pf.add_argument(
+        "--html-only", action="store_true",
+        help="Emit only the self-contained HTML (skip PDF rendering).",
+    )
+    pf.set_defaults(func=_cmd_pdf)
 
     # registries (spec 003 US8 / FR-008)
     rg = sub.add_parser(
