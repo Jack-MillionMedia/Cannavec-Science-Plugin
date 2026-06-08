@@ -46,6 +46,7 @@ __all__ = [
     "answer_with_fallback",
     "is_thin",
     "default_runners",
+    "ALL_LANE_RUNNERS",
 ]
 
 _log = get_logger("live")
@@ -111,20 +112,94 @@ def _run_efo(query: str, since: Optional[str], n: int):
     return EFOSearcher().search(query, max_results=n)
 
 
+def _run_pubchem(query: str, since: Optional[str], n: int):
+    from cannavec_science.pubchem_discover import PubChemSearcher
+    return PubChemSearcher().search(query, max_results=n)
+
+
+def _run_pharmgkb(query: str, since: Optional[str], n: int):
+    from cannavec_science.pharmgkb_discover import PharmGKBSearcher
+    return PharmGKBSearcher().search(query, max_results=n)
+
+
+def _run_rcsb(query: str, since: Optional[str], n: int):
+    from cannavec_science.rcsb_discover import RCSBSearcher
+    return RCSBSearcher().search(query, max_results=n)
+
+
+def _run_opentargets(query: str, since: Optional[str], n: int):
+    from cannavec_science.opentargets_discover import OpenTargetsSearcher
+    return OpenTargetsSearcher().search(query, max_results=n)
+
+
+def _run_gwas(query: str, since: Optional[str], n: int):
+    from cannavec_science.gwas_discover import GWASSearcher
+    return GWASSearcher().search(query, max_results=n)
+
+
+def _run_bindingdb(query: str, since: Optional[str], n: int):
+    from cannavec_science.bindingdb_discover import BindingDBSearcher
+    return BindingDBSearcher().search(query, max_results=n)
+
+
+def _run_biorxiv(query: str, since: Optional[str], n: int):
+    from cannavec_science.biorxiv_discover import BioRxivSearcher
+    return BioRxivSearcher().search(query, since=since, max_results=n)
+
+
+def _run_medrxiv(query: str, since: Optional[str], n: int):
+    from cannavec_science.medrxiv_discover import MedRxivSearcher
+    return MedRxivSearcher().search(query, since=since, max_results=n)
+
+
+def _run_openalex(query: str, since: Optional[str], n: int):
+    from cannavec_science.openalex_discover import OpenAlexSearcher
+    return OpenAlexSearcher().search(query, since=since, max_results=n)
+
+
+# The ONE canonical source → runner map (one tested searcher per lane), shared by
+# BOTH the web-API blended path (via :func:`default_runners`) and the ``discover``
+# CLI (via an args-adapter in ``__main__``). Previously these two surfaces kept
+# parallel copies of ~25 near-identical wrappers that drifted; this is the single
+# source of truth. Per-lane ``since`` handling is encoded here (preprint /
+# Europe PMC / OpenAlex / PubMed pass it; the rest ignore it), so the args-adapter
+# in ``__main__`` is uniform.
+ALL_LANE_RUNNERS: dict[str, Runner] = {
+    "pubmed": _run_pubmed,
+    "chembl": _run_chembl,
+    "ctgov": _run_ctgov,
+    "pubchem": _run_pubchem,
+    "pharmgkb": _run_pharmgkb,
+    "rcsb": _run_rcsb,
+    "opentargets": _run_opentargets,
+    "gwas": _run_gwas,
+    "bindingdb": _run_bindingdb,
+    # Spec 002 US1 — preprint lanes (Level D cap per FR-202).
+    "biorxiv": _run_biorxiv,
+    "medrxiv": _run_medrxiv,
+    # Spec 005/006 — Europe PMC + OpenAlex primary-source lanes.
+    "europepmc": _run_europepmc,
+    "openalex": _run_openalex,
+    # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
+    "chebi": _run_chebi,
+    "quickgo": _run_quickgo,
+    # Spec 030 — pathway + disease-ontology lanes.
+    "reactome": _run_reactome,
+    "efo": _run_efo,
+}
+
+
 def default_runners() -> dict[str, Runner]:
-    """The production source → runner map (one tested searcher per lane)."""
-    return {
-        "pubmed": _run_pubmed,
-        "ctgov": _run_ctgov,
-        "chembl": _run_chembl,
-        "europepmc": _run_europepmc,
-        # Spec 029 — EBI chemical-ontology + functional-annotation lanes.
-        "chebi": _run_chebi,
-        "quickgo": _run_quickgo,
-        # Spec 030 — pathway + disease-ontology lanes.
-        "reactome": _run_reactome,
-        "efo": _run_efo,
-    }
+    """The blended-answer source → runner map — a deliberately curated SUBSET of
+    :data:`ALL_LANE_RUNNERS` (``SUPPORTED_SOURCES``).
+
+    The web-API / blended-answer path advertises a leaner lane set than the full
+    ``discover`` CLI (latency + NCBI rate-limit pressure, and only lanes whose
+    rows weave cleanly as a blended brief). The subset is ``SUPPORTED_SOURCES``;
+    the invariant ``SUPPORTED_SOURCES == default_runners().keys()`` is enforced by
+    ``tests/test_lane_registry_invariants.py``.
+    """
+    return {src: ALL_LANE_RUNNERS[src] for src in SUPPORTED_SOURCES}
 
 
 def _clean_sources(sources: Optional[Sequence[str]]) -> tuple[str, ...]:
