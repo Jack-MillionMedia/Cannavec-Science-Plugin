@@ -2631,6 +2631,48 @@ _SPECIFIC_INDICATION_SUBTAGS: "frozenset[str]" = frozenset(
 )
 
 
+def _indications_are_wrong(
+    subject_indications: "frozenset[str]",
+    prompt_indications: "frozenset[str]",
+) -> bool:
+    """Core indication-mismatch decision shared by the curated and live gates.
+
+    Given a condition-SPECIFIC subject (a recovered claim or a live row whose
+    own ``indication_terms`` are already known non-empty) and the prompt's
+    condition tags, decide whether the subject is the WRONG indication. The
+    caller is responsible for the two pre-guards that say "we cannot prove a
+    mismatch" (a non-efficacy/condition-agnostic subject, or a subject naming no
+    condition at all) — this helper assumes ``subject_indications`` is non-empty
+    and encodes only the three mismatch rules, so the curated tier and the live
+    tier agree byte-for-byte:
+
+    1. **Condition-less prompt** — the prompt names NO condition, but the
+       subject is condition-specific efficacy: the retrieval/live layer is
+       binding a specific clinical-efficacy row to a question the user did not
+       ask. Drop (``True``).
+    2. **Sibling sub-tag precision (c04)** — Dravet / Lennox-Gastaut / TSC all
+       carry the ``epilepsy`` family tag, so a plain family-tag intersection
+       cannot tell "CBD for TSC" apart from the Dravet row. When BOTH the prompt
+       and the subject name a *specific* sub-condition and those sub-conditions
+       differ, it is the wrong indication even though the family tag overlaps.
+       (Inert when only one side names a sub-tag — then the family-level
+       intersection governs, preserving broad-query recall.)
+    3. **Family-tag disjointness** — otherwise, wrong iff the tag sets do not
+       overlap at all.
+    """
+    if not prompt_indications:
+        return True
+    prompt_specific = prompt_indications & _SPECIFIC_INDICATION_SUBTAGS
+    subject_specific = subject_indications & _SPECIFIC_INDICATION_SUBTAGS
+    if (
+        prompt_specific
+        and subject_specific
+        and not (prompt_specific & subject_specific)
+    ):
+        return True
+    return not (prompt_indications & subject_indications)
+
+
 def live_row_is_wrong_indication(
     title: str,
     prompt_indications: "frozenset[str]",
@@ -2645,28 +2687,21 @@ def live_row_is_wrong_indication(
     Dravet seizure trial for a Tourette query. Presenting that as a citable
     finding answers a *different question*.
 
-    Returns ``True`` iff ALL of:
-
-    - the row's title names a recognised condition
-      (``indication_terms(title)`` is non-empty), AND
-    - the prompt names a recognised condition
-      (``prompt_indications`` is non-empty), AND
-    - the two condition-tag sets do NOT overlap.
-
-    Conservative by construction (mirroring the curated predicate): an empty
-    prompt-indication set or an empty row-indication set means we cannot *prove*
-    a mismatch, so the row is kept — a mechanistic / PK / context row whose
-    title names no indication is never gated. Reuses ``intent.indication_terms``;
-    no indication regex is duplicated here.
+    Mirrors :func:`_recovered_claim_is_wrong_indication` exactly by delegating
+    the mismatch decision to the shared :func:`_indications_are_wrong` — so the
+    live tier inherits the SAME ``_SPECIFIC_INDICATION_SUBTAGS`` sibling
+    precision (Dravet vs TSC vs LGS share the ``epilepsy`` family tag) and the
+    SAME condition-less-prompt drop. The only pre-guard here is "the row's title
+    names no recognised condition" (then we cannot prove a mismatch — a
+    mechanistic / PK / context row is kept). Reuses ``intent.indication_terms``;
+    no indication regex or sub-tag logic is duplicated.
     """
     from cannavec_science.intent import indication_terms
 
-    if not prompt_indications:
-        return False
     row_indications = indication_terms(title or "")
     if not row_indications:
         return False
-    return not (row_indications & prompt_indications)
+    return _indications_are_wrong(row_indications, prompt_indications)
 
 
 def _recovered_claim_is_wrong_indication(
@@ -2711,27 +2746,12 @@ def _recovered_claim_is_wrong_indication(
     # condition is *known and different*).
     if not claim_indications:
         return False
-    # The claim IS about a specific condition. If the prompt names NO condition
-    # at all, a condition-specific clinical-efficacy claim surfaced by BM25 is
-    # answering a question the user did not ask — e.g. a generic "muscle spasm"
-    # / assay-timing query ("...200 ms after stimulation") recovering the
-    # MS-spasticity nabiximols claim (Level B). The retrieval layer exists for
-    # condition-AGNOSTIC recoveries (driving / CYP / PK), not for binding a
-    # specific clinical-efficacy claim to a condition-less query — so drop it.
-    if not prompt_indications:
-        return True
-    # Sub-tag precision (c04): siblings in one condition family share the family
-    # tag (Dravet / LGS / TSC all carry 'epilepsy'), so a plain intersection
-    # cannot tell "CBD for TSC" apart from the Dravet row. When the prompt names
-    # a *specific* sub-condition and the claim is about a *different* specific
-    # sub-condition, it is the wrong indication even though the family tag
-    # overlaps. (When the prompt names no specific sub-tag, this is inert and the
-    # original family-level intersection governs — broad-query recall preserved.)
-    prompt_specific = prompt_indications & _SPECIFIC_INDICATION_SUBTAGS
-    claim_specific = claim_indications & _SPECIFIC_INDICATION_SUBTAGS
-    if prompt_specific and claim_specific and not (prompt_specific & claim_specific):
-        return True
-    return not (prompt_indications & claim_indications)
+    # The claim IS condition-specific. The mismatch decision (condition-less
+    # prompt drop, c04 sibling sub-tag precision, family-tag disjointness) is the
+    # SAME logic the live tier needs, so it lives in one shared helper — see
+    # :func:`_indications_are_wrong`. This keeps the two gates byte-for-byte
+    # aligned (a Dravet row is the wrong indication for a TSC query on BOTH).
+    return _indications_are_wrong(claim_indications, prompt_indications)
 
 
 def _drop_wrong_sibling_indication_claims(a: Answer, prompt: str) -> int:

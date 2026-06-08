@@ -172,5 +172,58 @@ class OnTopicFilterMetadataExposed(unittest.TestCase):
         self.assertGreaterEqual(d.get("live_findings_dropped_off_topic", 0), 1)
 
 
+class SiblingIndicationLiveRowIsDropped(unittest.TestCase):
+    def test_sibling_indication_efficacy_live_row_is_dropped(self) -> None:
+        # c04 on the LIVE tier: Dravet / Lennox-Gastaut / TSC all share the
+        # ``epilepsy`` FAMILY tag, so a plain family-tag intersection keeps a
+        # Dravet efficacy row for a tuberous-sclerosis query — the exact
+        # sibling-indication leak the curated predicate already closes. The live
+        # gate must mirror that sub-tag precision: a Dravet efficacy row is the
+        # WRONG indication for a TSC query and must be dropped (or off_topic).
+        q = "What is the efficacy of CBD for tuberous sclerosis complex seizures?"
+        a = compose_answer(q)
+        live.augment_answer(
+            a, sources=["pubmed"], runners={"pubmed": _pubmed_runner([_DRAVET_ROW])}
+        )
+        if _DRAVET_PMID_IDENT in _idents(a):
+            dravet = next(
+                f for f in a.live_findings
+                if f.get("identifier") == _DRAVET_PMID_IDENT
+            )
+            self.assertTrue(
+                dravet.get("off_topic") is True,
+                "a Dravet efficacy row was surfaced UNFLAGGED for a tuberous-"
+                "sclerosis query — the live gate omitted the sibling sub-tag "
+                "precision the curated predicate has (Dravet vs TSC share the "
+                "'epilepsy' family tag); it must be dropped or off_topic-flagged",
+            )
+
+
+class ConditionlessQueryDropsConditionSpecificLiveRow(unittest.TestCase):
+    def test_condition_specific_efficacy_dropped_for_conditionless_query(self) -> None:
+        # Mirrors the curated predicate's condition-less rule: a condition-
+        # SPECIFIC efficacy row (Dravet) surfaced for a query that names NO
+        # condition (a pure pharmacokinetics question) is the retrieval/live
+        # layer overreaching — it answers a question the user did not ask, so it
+        # must be dropped (or off_topic), not led with as a citable finding.
+        q = "What is the plasma half-life and oral bioavailability of cannabidiol?"
+        a = compose_answer(q)
+        live.augment_answer(
+            a, sources=["pubmed"], runners={"pubmed": _pubmed_runner([_DRAVET_ROW])}
+        )
+        if _DRAVET_PMID_IDENT in _idents(a):
+            dravet = next(
+                f for f in a.live_findings
+                if f.get("identifier") == _DRAVET_PMID_IDENT
+            )
+            self.assertTrue(
+                dravet.get("off_topic") is True,
+                "a condition-specific Dravet efficacy row was surfaced UNFLAGGED "
+                "for a condition-less PK query — the live gate must drop a "
+                "condition-specific efficacy row when the prompt names no "
+                "condition, mirroring the curated predicate",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
