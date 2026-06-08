@@ -1234,15 +1234,15 @@ def _set_short_answer(a: Answer) -> None:
     uncovered_label = _uncovered_efficacy_indication_label(
         a, getattr(a, "prompt", "") or ""
     )
-    # Fire the honest override only when the named indication is uncurated AND
-    # no curated efficacy claim survives for ANY part of the query. A mixed
-    # "Dravet and autism" query keeps its real Level B Dravet BLUF (the
-    # uncurated-indication note still flags the uncovered half); only an
+    # Fire the honest override only when the named indication is uncurated AND no
+    # surviving efficacy claim actually COVERS the query. "Covers" is on-topic,
+    # not merely-present: a chronic-pain SR recovered for a breast-cancer question
+    # does not count (see _query_efficacy_is_covered). A mixed "Dravet and autism"
+    # query keeps its real Level B Dravet BLUF (Dravet covers); only an
     # all-uncurated query gets the "no curated efficacy evidence" bottom line.
-    has_curated_efficacy = any(
-        c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims
-    )
-    if uncovered_label and not has_curated_efficacy:
+    if uncovered_label and not _query_efficacy_is_covered(
+        a, getattr(a, "prompt", "") or ""
+    ):
         pretty = uncovered_label
         a.short_answer = (
             f"**No curated efficacy evidence for {pretty}.** The Cannavec "
@@ -2858,6 +2858,48 @@ def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None"
     return _structural_efficacy_indication(prompt)
 
 
+def _claim_text_names_indication(claim: Claim, indication: str) -> bool:
+    """Does ``claim`` actually name ``indication`` (an OFF-vocabulary structural
+    indication the tag lexicon does not recognise)? Discrete whole-phrase match
+    over the claim's population + text. A ``cancer`` indication excludes the
+    negated "non-cancer", so a chronic-NON-cancer-pain SR does not "cover" a
+    breast-cancer question."""
+    hay = f"{claim.population or ''} {claim.text}".lower()
+    needle = re.escape(indication.lower().strip())
+    if re.search(r"\bcancer\b", indication.lower()):
+        return re.search(rf"(?<!non.)\b{needle}\b", hay) is not None
+    return re.search(rf"\b{needle}\b", hay) is not None
+
+
+def _query_efficacy_is_covered(a: Answer, prompt: str) -> bool:
+    """Is the prompt's efficacy question actually COVERED by a surviving
+    clinical-efficacy claim — as opposed to merely having *some* efficacy claim?
+
+    The distinction is the §I/M2 fix for the off-vocabulary long tail. A BM25
+    recovery can attach a clinical-efficacy claim about a DIFFERENT condition
+    (a chronic-pain SR for a "cannabis for breast cancer" question); its mere
+    presence must not count as "the KB has efficacy evidence for breast cancer".
+
+    - No clinical-efficacy claim at all → not covered.
+    - The prompt names an IN-vocabulary indication → covered when any efficacy
+      claim survives (the wrong-indication claims for these are already removed
+      upstream by the indication-tag drops; preserved behaviour, no new coupling).
+    - The prompt is an OFF-vocabulary structural "<cannabinoid> for <indication>"
+      frame (no tag exists) → covered ONLY when a surviving efficacy claim's text
+      actually names that indication (so the Suraev sleep SR covers "sleep" but a
+      chronic-pain SR does not cover "breast cancer")."""
+    eff = [c for c in a.claims if c.claim_type == ClaimType.CLINICAL_EFFICACY]
+    if not eff:
+        return False
+    from cannavec_science.intent import indication_terms
+    if indication_terms(prompt):
+        return True
+    structural = _structural_efficacy_indication(prompt)
+    if not structural:
+        return True
+    return any(_claim_text_names_indication(c, structural) for c in eff)
+
+
 def _clear_claims_for_uncovered_efficacy_indication(
     a: Answer, prompt: str
 ) -> int:
@@ -2881,7 +2923,7 @@ def _clear_claims_for_uncovered_efficacy_indication(
     as ``binding.uncovered_indication_cleared`` (fail-loud, never silent)."""
     if a.is_refusal:
         return 0
-    if any(c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims):
+    if _query_efficacy_is_covered(a, prompt):
         return 0
     if not _uncovered_efficacy_indication_label(a, prompt):
         return 0
