@@ -272,6 +272,14 @@ class Answer:
     # it does not re-grade it). Empty by default so an un-woven brief's pinned
     # JSON / Markdown is unchanged.
     verified_findings: list[dict] = field(default_factory=list)
+    # Phase-2 on-topic gate (spec 036): set True once live findings have been
+    # passed through the wrong-indication + relevance gate at the live merge
+    # point, with a count of rows DROPPED as wrong-indication efficacy. Default
+    # False/0 so a non-augmented ``compose_answer`` is unchanged — only a live
+    # augment flips the flag. Demoted (off-topic) rows are kept and tagged
+    # ``off_topic`` on the finding itself, not counted here.
+    on_topic_filter_applied: bool = False
+    live_findings_dropped_off_topic: int = 0
 
     def add_claim(self, claim: Claim) -> None:
         if (
@@ -347,6 +355,7 @@ class Answer:
         provisional_grade: str = "provisional (live, unverified)",
         year: "str | int | None" = None,
         retraction_status: str = "clean",
+        off_topic: bool = False,
     ) -> None:
         """Attach one unverified live-discovery hit (Constitution §IX).
 
@@ -358,13 +367,19 @@ class Answer:
         identifier matches the retraction registry is kept (so the researcher
         is warned the paper exists) but badged ⚠ and pinned last by the ranker
         — never silently surfaced as citable evidence.
+
+        ``off_topic`` is the Phase-2 on-topic gate's DEMOTE verdict (spec 036):
+        a low-relevance / context row is kept (breadth is never silently lost)
+        but flagged so the surface can sort it after the on-topic rows and never
+        let it lead. The key is emitted only when True, so a normal finding's
+        pinned dict shape is unchanged.
         """
         if not (label or identifier):
             return
         for existing in self.live_findings:
             if identifier and existing.get("identifier") == identifier:
                 return
-        self.live_findings.append({
+        finding = {
             "label": label,
             "identifier": identifier,
             "source_tag": source_tag,
@@ -372,7 +387,10 @@ class Answer:
             "provisional_grade": provisional_grade,
             "year": str(year) if year not in (None, "") else "",
             "retraction_status": retraction_status or "clean",
-        })
+        }
+        if off_topic:
+            finding["off_topic"] = True
+        self.live_findings.append(finding)
 
     def add_verified_finding(
         self,
@@ -814,6 +832,11 @@ class Answer:
                 else {}
             ),
             "live_findings": list(self.live_findings),
+            # Phase-2 on-topic gate verdict (spec 036) — always emitted so a JSON
+            # consumer can be honest about what live breadth was filtered.
+            # Default False/0 for a curated-only brief.
+            "on_topic_filter_applied": self.on_topic_filter_applied,
+            "live_findings_dropped_off_topic": self.live_findings_dropped_off_topic,
             # Emitted only when a live fan-out was woven in, so the pinned
             # offline-answer JSON shape stays unchanged for curated-only briefs.
             **(
@@ -2606,6 +2629,44 @@ _RETRIEVAL_FALLBACK_K = 6
 _SPECIFIC_INDICATION_SUBTAGS: "frozenset[str]" = frozenset(
     {"dravet", "lennox-gastaut", "tsc"}
 )
+
+
+def live_row_is_wrong_indication(
+    title: str,
+    prompt_indications: "frozenset[str]",
+) -> bool:
+    """Is this live primary-source row about a DIFFERENT indication than the
+    query — the live analog of :func:`_recovered_claim_is_wrong_indication`?
+
+    Phase-2 widens coverage by weaving live rows onto a curated answer; this is
+    the hard wrong-indication gate at that merge point. A live efficacy row can
+    match a prompt on the compound + a generic head noun ("cannabidiol" +
+    "syndrome") while being about a completely different condition — surfacing a
+    Dravet seizure trial for a Tourette query. Presenting that as a citable
+    finding answers a *different question*.
+
+    Returns ``True`` iff ALL of:
+
+    - the row's title names a recognised condition
+      (``indication_terms(title)`` is non-empty), AND
+    - the prompt names a recognised condition
+      (``prompt_indications`` is non-empty), AND
+    - the two condition-tag sets do NOT overlap.
+
+    Conservative by construction (mirroring the curated predicate): an empty
+    prompt-indication set or an empty row-indication set means we cannot *prove*
+    a mismatch, so the row is kept — a mechanistic / PK / context row whose
+    title names no indication is never gated. Reuses ``intent.indication_terms``;
+    no indication regex is duplicated here.
+    """
+    from cannavec_science.intent import indication_terms
+
+    if not prompt_indications:
+        return False
+    row_indications = indication_terms(title or "")
+    if not row_indications:
+        return False
+    return not (row_indications & prompt_indications)
 
 
 def _recovered_claim_is_wrong_indication(
