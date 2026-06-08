@@ -20,6 +20,44 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 _ROOT = Path(__file__).resolve().parents[1]
 _README = (_ROOT / "README.md").read_text(encoding="utf-8")
+_PLUGIN_JSON = (_ROOT / ".claude-plugin" / "plugin.json").read_text(
+    encoding="utf-8"
+)
+
+
+class TestPluginJsonTestCountClaim(unittest.TestCase):
+    """The marketplace-facing plugin.json description must state the unit-test
+    count as a true LOWER BOUND too — it was stale (a precise '1,887') and
+    unguarded while the README floor was enforced, so the two surfaces disagreed
+    and plugin.json understated reality."""
+
+    def test_plugin_json_states_count_as_lower_bound(self) -> None:
+        self.assertRegex(
+            _PLUGIN_JSON, r"\b[\d,]+\+\s+unit tests\b",
+            "plugin.json must state the unit-test count as a lower bound "
+            "('N+ unit tests'), not a precise rotting number.",
+        )
+
+    def test_plugin_json_count_meets_suite_and_matches_readme_floor(self) -> None:
+        pj = re.search(r"\b([\d,]+)\+\s+unit tests\b", _PLUGIN_JSON)
+        rm = re.search(r"\b([\d,]+)\+\s+unit tests\b", _README)
+        self.assertIsNotNone(pj, "no 'N+ unit tests' claim found in plugin.json")
+        self.assertIsNotNone(rm, "no 'N+ unit tests' claim found in README")
+        pj_floor = int(pj.group(1).replace(",", ""))
+        rm_floor = int(rm.group(1).replace(",", ""))
+        self.assertEqual(
+            pj_floor, rm_floor,
+            f"plugin.json floor ({pj_floor}) must match the README floor "
+            f"({rm_floor}) so the two surfaces never disagree.",
+        )
+        actual = unittest.defaultTestLoader.discover(
+            str(_ROOT / "tests")
+        ).countTestCases()
+        self.assertGreaterEqual(
+            actual, pj_floor,
+            f"plugin.json claims {pj_floor}+ unit tests but the suite only has "
+            f"{actual}.",
+        )
 
 
 class TestReadmeTestCountClaim(unittest.TestCase):
