@@ -283,6 +283,11 @@ class Answer:
     # ``off_topic`` on the finding itself, not counted here.
     on_topic_filter_applied: bool = False
     live_findings_dropped_off_topic: int = 0
+    # Spec 036 Step 4 — search-provenance counts for the Live-section header line
+    # ("Searched N live sources · M found · K on-topic"). Set by
+    # ``weave_live_findings``; 0 for a curated-only brief, so the line is omitted.
+    live_sources_searched: int = 0
+    live_findings_found: int = 0
 
     def add_claim(self, claim: Claim) -> None:
         if (
@@ -363,6 +368,8 @@ class Answer:
         certainty: "str | None" = None,
         grade_rationale: "str | None" = None,
         provisional: bool = False,
+        abstract_snippet: "str | None" = None,
+        direction: "str | None" = None,
     ) -> None:
         """Attach one unverified live-discovery hit (Constitution §IX).
 
@@ -387,6 +394,12 @@ class Answer:
         with its rationale and a visible ``live · provisional`` qualifier. They are
         emitted only when a grade was assigned, so an ungraded/context finding's
         pinned dict shape is unchanged.
+
+        ``abstract_snippet`` is a verified literal substring of the row's abstract
+        (spec 036, Step 4 — never a paraphrase, §I / M5); ``direction`` is the
+        supports/refutes/neutral verdict from the EXISTING synthesis attributor.
+        Both are emitted only when present, so a finding without abstract text (or
+        without a synthesis-attributed direction) keeps its pinned dict shape.
         """
         if not (label or identifier):
             return
@@ -404,6 +417,12 @@ class Answer:
         }
         if off_topic:
             finding["off_topic"] = True
+        # Spec 036 Step 4 — informative context, omitted when absent so a finding
+        # without abstract text / synthesis direction keeps its pinned shape.
+        if abstract_snippet:
+            finding["abstract_snippet"] = abstract_snippet
+        if direction:
+            finding["direction"] = direction
         if grade is not None:
             finding["grade"] = grade
             if certainty is not None:
@@ -670,6 +689,19 @@ class Answer:
                 "knowledge base — confirm each source before citing._"
             )
             lines.append("")
+            # Spec 036 Step 4 — search-provenance line. Deterministic counts from
+            # the weave (sources queried · rows found · rows kept on-topic). No
+            # fabricated date: the Answer's own ``generated_at`` is the search
+            # date when present, omitted otherwise.
+            if self.live_sources_searched:
+                on_topic = len(self.live_findings)
+                when = f"on {self.generated_at} " if self.generated_at else ""
+                lines.append(
+                    f"_Searched {self.live_sources_searched} live source"
+                    f"{'s' if self.live_sources_searched != 1 else ''} {when}· "
+                    f"{self.live_findings_found} found · {on_topic} on-topic._"
+                )
+                lines.append("")
             if self.live_synthesis:
                 conv = self.live_synthesis.get("convergence", "NONE")
                 counts = self.live_synthesis.get("per_source_counts", {}) or {}
@@ -711,10 +743,18 @@ class Answer:
                     )
                 else:
                     grade_text = f["provisional_grade"]
+                # Spec 036 Step 4 — inline synthesis direction tag (where present).
+                dir_tag = (
+                    f" → {f['direction']}" if f.get("direction") else ""
+                )
                 lines.append(
                     f"- [{f['source_tag']}]{badge} `{f['identifier']}`{yr}{label} "
-                    f"— provisional grade: {grade_text}{url}".rstrip()
+                    f"— provisional grade: {grade_text}{dir_tag}{url}".rstrip()
                 )
+                # Spec 036 Step 4 — verified abstract snippet (a true substring),
+                # rendered as a blockquote under the finding. Context, not a grade.
+                if f.get("abstract_snippet"):
+                    lines.append(f"  > “{f['abstract_snippet']}”")
             lines.append("")
 
         if self.cautions:
@@ -1551,6 +1591,17 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
         "year": str(year) if year else "",
         "retraction_status": retraction_status,
     }
+    # Spec 036 Step 4 — informative snippet. When the lane returned an abstract
+    # (preprint lanes do; PubMed/EuropePMC esummary do not), attach the best-
+    # overlap abstract sentence VERIFIED as a literal substring (no paraphrase,
+    # §I / M5). No abstract or no verifiable sentence ⇒ omit the field. This is
+    # context, not a grade, so a flagged/ungraded row may also carry it.
+    abstract = str(row.get("abstract") or "")
+    if abstract:
+        from cannavec_science.live_snippet import supporting_snippet
+        snippet = supporting_snippet(str(title), abstract)
+        if snippet:
+            finding["abstract_snippet"] = snippet
     if retraction_status in _LIVE_FLAGGED_STATUSES:
         finding["provisional_grade"] = (
             f"{_LIVE_FLAG_LABEL[retraction_status]} ({retraction_status})"

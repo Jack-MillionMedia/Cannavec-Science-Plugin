@@ -300,8 +300,18 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
         candidates_from_discovery,
         rank_candidates,
     )
+    from cannavec_science.synthesis import _row_direction
 
     sources = result.get("sources", {}) or {}
+
+    # Spec 036 Step 4 — search-provenance counts for the Live-section header.
+    # N sources QUERIED (a lane that returned a list, reachable or not) and the
+    # total rows FOUND before any on-topic gating. Both deterministic, from the
+    # result the caller already has — never fabricated.
+    sources_searched = sum(1 for rows in sources.values() if isinstance(rows, list))
+    findings_found = sum(
+        len(rows) for rows in sources.values() if isinstance(rows, list)
+    )
 
     # Map each row's headline identifier -> (source, row); first occurrence
     # wins, mirroring the ranker's de-dup so order and attachment agree.
@@ -319,6 +329,8 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
 
     if not row_by_id:
         answer.live_synthesis = result.get("synthesis")
+        answer.live_sources_searched = sources_searched
+        answer.live_findings_found = findings_found
         return 0
 
     bm25_by_id: dict[str, float] = {}
@@ -386,6 +398,14 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
         # DEMOTE (keep) a low-relevance / context row so it never leads.
         if bm25_by_id.get(ident, 0.0) < bm25_floor:
             finding["off_topic"] = True
+        # Spec 036 Step 4 — direction from the EXISTING synthesis attributor
+        # (``_row_direction``: PubMed/preprint abstract sentiment, CTgov results,
+        # else neutral). No new sentiment model — only attached where synthesis
+        # already determines a non-neutral verdict, so a row with no direction
+        # signal keeps its pinned shape.
+        direction = _row_direction(src, row)
+        if direction and direction != "neutral":
+            finding["direction"] = direction
         findings.append(finding)
         kept_rows.setdefault(src, []).append(row)
 
@@ -411,6 +431,8 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
 
     answer.on_topic_filter_applied = True
     answer.live_findings_dropped_off_topic = dropped_off_topic
+    answer.live_sources_searched = sources_searched
+    answer.live_findings_found = findings_found
 
     attached = 0
     for finding in findings:

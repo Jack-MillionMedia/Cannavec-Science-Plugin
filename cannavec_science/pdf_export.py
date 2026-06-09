@@ -432,6 +432,22 @@ def _findings(answer: "Answer") -> str:
         )
     if answer.live_findings or answer.live_synthesis:
         head = []
+        # Spec 036 Step 4 — search-provenance line (deterministic counts; the
+        # Answer's own generated_at as the search date when present, never
+        # fabricated).
+        if getattr(answer, "live_sources_searched", 0):
+            n_src = answer.live_sources_searched
+            on_topic = len(answer.live_findings)
+            when = (
+                f"on {html.escape(str(answer.generated_at))} "
+                if answer.generated_at
+                else ""
+            )
+            head.append(
+                f"<p class='note'>Searched {n_src} live source"
+                f"{'s' if n_src != 1 else ''} {when}&middot; "
+                f"{answer.live_findings_found} found &middot; {on_topic} on-topic.</p>"
+            )
         if answer.live_synthesis:
             conv = answer.live_synthesis.get("convergence", "NONE")
             counts = answer.live_synthesis.get("per_source_counts", {}) or {}
@@ -465,10 +481,23 @@ def _findings(answer: "Answer") -> str:
                 grade_html = (
                     f"— provisional grade: {_inline(f['provisional_grade'])}"
                 )
+            # Spec 036 Step 4 — inline synthesis direction tag + verified abstract
+            # snippet (a true substring, escaped). The snippet is prose context
+            # near the id, NOT a grade.
+            dir_html = (
+                f' <span class="dir">&rarr; {html.escape(str(f["direction"]))}</span>'
+                if f.get("direction")
+                else ""
+            )
+            snippet_html = (
+                f"<blockquote>&ldquo;{_inline(f['abstract_snippet'])}&rdquo;</blockquote>"
+                if f.get("abstract_snippet")
+                else ""
+            )
             row = (
                 f'<li><span class="tag">{html.escape(f["source_tag"])}</span>{badge} '
                 f'<code>{html.escape(f["identifier"])}</code>{yr} {_inline(f.get("label",""))} '
-                f"{grade_html}{url}</li>"
+                f"{grade_html}{dir_html}{url}{snippet_html}</li>"
             )
             (graded_rows if grade else plain_rows).append(row)
         # Graded rows enter the §XI surface (_ev); ungraded rows stay outside it.
