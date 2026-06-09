@@ -76,6 +76,35 @@ SUPPORTED_SOURCES: tuple[str, ...] = (
 # UNCHANGED (registry invariants depend on them).
 BRIEF_SOURCES: tuple[str, ...] = ("pubmed", "europepmc", "ctgov", "chembl")
 
+# Reliability backfill (M1): NCBI E-utilities is the flakiest upstream — a
+# shared-IP, key-less rate limit returns transient 500s and body-read timeouts
+# (now retried in _http.retry_fetch), but a wholly-down NCBI still leaves a
+# PubMed query empty. Europe PMC indexes the same MEDLINE from a different host,
+# so it backfills a failed/empty PubMed lane. Cross-source de-dup
+# (synthesis._citation_key, PMID-first) collapses any overlap, so a paper
+# surfaced by both never manufactures false convergence. Fires ONLY when PubMed
+# produced nothing — zero happy-path latency.
+PUBMED_FALLBACK_SOURCE = "europepmc"
+
+
+def needs_pubmed_fallback(sources_payload: Mapping) -> bool:
+    """True iff a PubMed lane was attempted but yielded no rows (error or
+    empty) and Europe PMC has not already contributed rows.
+
+    Centralises the *policy*; each fan-out path supplies the *mechanism* (how to
+    invoke the Europe PMC runner in its own calling convention), so the two
+    discovery paths — :func:`run_discovery` and the CLI ``_cmd_discover`` — stay
+    consistent without duplicating the decision.
+    """
+    pubmed = sources_payload.get("pubmed")
+    if pubmed is None:
+        return False  # PubMed was not requested — nothing to back up.
+    pubmed_empty = (not pubmed) if isinstance(pubmed, list) else True
+    epmc = sources_payload.get(PUBMED_FALLBACK_SOURCE)
+    epmc_has_rows = isinstance(epmc, list) and len(epmc) > 0
+    return pubmed_empty and not epmc_has_rows
+
+
 _MAX_RESULTS_CEILING = 25
 
 # Phase-2 on-topic gate (spec 036) — DEMOTE floor: a live row scoring below
@@ -277,10 +306,40 @@ def run_discovery(
             _log.warning("live discover lane %s failed: %s", src, exc)
             out["sources"][src] = {"error": str(exc)}
 
+    # Reliability backfill: a failed/empty PubMed lane is backed up by Europe
+    # PMC from a different host (see PUBMED_FALLBACK_SOURCE). Fires only when
+    # PubMed produced nothing, so the happy path pays no extra call.
+    if needs_pubmed_fallback(out["sources"]):
+        fallback = runners.get(PUBMED_FALLBACK_SOURCE)
+        if fallback is not None:
+            try:
+                rows = list(fallback(query, since, n))
+                if rows:
+                    out["sources"][PUBMED_FALLBACK_SOURCE] = [
+                        r.to_dict() for r in rows[:n]
+                    ]
+                    out["pubmed_fallback"] = PUBMED_FALLBACK_SOURCE
+            except DiscoverRefused:
+                raise
+            except Exception as exc:  # noqa: BLE001 — degrade; never abort
+                _log.warning(
+                    "pubmed fallback lane %s failed: %s",
+                    PUBMED_FALLBACK_SOURCE, exc,
+                )
+
     synth_rows = {
         s: v for s, v in out["sources"].items() if isinstance(v, list)
     }
     out["synthesis"] = synthesize(query, synth_rows).to_dict()
+
+    # Write-through to the verified-source flywheel (M2): cache every verified,
+    # non-retracted live row so the offline KB grows with each query. Degrades
+    # silently (read-only fs, locked db) — a cache write never breaks discovery.
+    try:
+        from cannavec_science import live_cache
+        live_cache.record_discovery(query, out["sources"])
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 

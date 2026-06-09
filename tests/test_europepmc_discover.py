@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import unittest
+import urllib.parse
 
 from cannavec_science.discover_guard import Provenance
+from cannavec_science.intent import distill_query
 from cannavec_science.europepmc_discover import (
     EuropePMCSearcher,
     LiveEuropePMCHit,
@@ -133,7 +135,41 @@ class UrlBuildingTests(unittest.TestCase):
         fetcher = _stub_fetcher(payload)
         s = EuropePMCSearcher(fetcher=fetcher)
         s.search("CBD", max_results=7)
-        self.assertIn("pageSize=7", fetcher.calls[0])
+        # Over-fetch (3×, capped at the ceiling) so dropping conference
+        # abstracts still fills the requested rows: 7 → 21.
+        self.assertIn("pageSize=21", fetcher.calls[0])
+
+    def test_distills_interrogative_query(self):
+        # A natural-language question must reach Europe PMC as distilled content
+        # terms, not the raw interrogative — filler words ("how/does/when")
+        # dilute relevance and pull in broad reviews + conference dumps.
+        fetcher = _stub_fetcher(_make_payload([]))
+        s = EuropePMCSearcher(fetcher=fetcher)
+        q = "How does THC impair motor coordination and balance?"
+        distilled = distill_query(q)
+        self.assertNotEqual(distilled, q, "precondition: distillation changes it")
+        s.search(q, max_results=5)
+        url = fetcher.calls[0]
+        self.assertIn(urllib.parse.quote(distilled), url)
+
+    def test_conference_abstracts_filtered(self):
+        # Europe PMC pubType "Abstract" = poster/meeting dump, not citable
+        # primary research. Drop it; over-fetch backfills the slot.
+        payload = _make_payload([
+            _make_record("11111111", title="Real PK study",
+                         pubtypes=["research-article", "Journal Article"]),
+            _make_record("22222222", title="ACNP Annual Meeting: Poster Abstracts",
+                         pubtypes=["Abstract"]),
+            _make_record("33333333", title="Meeting dump",
+                         pubtypes=["abstract", "Journal Article"]),
+            _make_record("44444444", title="Real review",
+                         pubtypes=["review-article", "Review", "Journal Article"]),
+        ])
+        s = EuropePMCSearcher(fetcher=_stub_fetcher(payload))
+        hits = s.search("thc motor coordination", max_results=8)
+        ids = [h.europe_pmc_id for h in hits]
+        self.assertEqual(ids, ["11111111", "44444444"],
+                         "only real research/review records survive")
 
     def test_since_date_appended(self):
         payload = _make_payload([])

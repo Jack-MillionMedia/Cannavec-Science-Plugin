@@ -57,7 +57,7 @@ from cannavec_science._http import (
     TIMEOUT_SLOW,
     append_ncbi_auth,
     crossref_contact,
-    retry_urlopen,
+    retry_fetch,
     user_agent,
 )
 
@@ -128,19 +128,20 @@ def default_pubmed_fetcher(url: str) -> str:
     """Production fetcher for PubMed E-utilities.
 
     Sends a polite User-Agent and tool param so NCBI traffic shows the
-    plugin's identity. Routes through :func:`retry_urlopen` so transient
-    NCBI 429 / 503 responses are retried with exponential backoff before
-    surfacing as :class:`urllib.error.URLError` or
+    plugin's identity. Routes through :func:`retry_fetch` so transient
+    NCBI 429 / 500 / 503 responses *and body-read timeouts* are retried
+    with exponential backoff before surfacing as
+    :class:`urllib.error.URLError` or
     :class:`cannavec_science._http.RetryableHTTPError`.
     """
     req = urllib.request.Request(
         append_ncbi_auth(url),
         headers={"User-Agent": user_agent("pubmed-verify")},
     )
-    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
-        return _decode_response_strict(
-            resp.read(), resp.headers.get_content_charset(),
-        )
+    # retry_fetch (not retry_urlopen) so a body-read timeout — NCBI's most
+    # common failure on a shared-IP, key-less rate limit — is retried.
+    body, charset = retry_fetch(req, timeout=TIMEOUT_SLOW)
+    return _decode_response_strict(body, charset)
 
 
 def default_crossref_fetcher(url: str) -> str:
@@ -160,10 +161,8 @@ def default_crossref_fetcher(url: str) -> str:
             "Accept": "application/json",
         },
     )
-    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
-        return _decode_response_strict(
-            resp.read(), resp.headers.get_content_charset(),
-        )
+    body, charset = retry_fetch(req, timeout=TIMEOUT_SLOW)
+    return _decode_response_strict(body, charset)
 
 
 # ── PubMed record ─────────────────────────────────────────────────────

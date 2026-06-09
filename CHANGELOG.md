@@ -1,5 +1,37 @@
 # Changelog
 
+## Live-retrieval reliability + the grounding-layer flywheel (2026-06)
+
+The live primary-source tier becomes reliable, offline-resilient, and self-growing —
+without lowering the evidence floor. Three milestones, all test-first.
+
+- **Reliability hardening.** The key-less PubMed lane failed ~2/3 of runs (transient
+  HTTP 500 + body-read timeout). `_http` now retries 500 (a 5xx *server* error,
+  mislabeled with the 4xx client errors) and adds `retry_fetch`, which retries the
+  body `read()` so a `socket.timeout` — NCBI's most common key-less failure — is
+  retried instead of escaping `retry_urlopen`'s scope. When PubMed is wholly down,
+  **Europe PMC backfills** the same MEDLINE from a different host (fires only on
+  failure; cross-source de-dup prevents convergence inflation). A key-less empty
+  PubMed emits a one-line `NCBI_API_KEY` operator hint on stderr.
+- **Verified-source cache (the flywheel).** A new stdlib-`sqlite3` store
+  (`live_cache.py`) caches §I-verified, non-retracted **live** sources keyed by
+  citation identifier. Write-through grows an offline KB from every discovery;
+  read-fallback serves a query's cached sources when every upstream is down.
+  Retraction is **re-checked on every read** (§VIII); cached rows stay live /
+  provisional — never promoted to the curated registry (§IX), never fed to the
+  static generator (M5-safe). This is **not** the archived §IX curation flywheel
+  (that grew the static answer substrate); it accelerates the *grounding* layer.
+- **Mechanism-question retrieval eval + Europe PMC quality fixes.**
+  `evals/eval_live_retrieval.py` drives the real `discover` command over eight
+  cannabis-mechanism questions and scores coverage / relevance / top-1. It surfaced
+  two gaps, both fixed: the Europe PMC lane sent the *raw* interrogative question to
+  the API (only PubMed distilled) — now distills to content terms; conference /
+  meeting abstracts (pubType `Abstract`) polluted results — now dropped, with a 3×
+  over-fetch so coverage holds. Measured: mean relevance 29% → 37.5%, top-1 on-topic
+  37.5% → 50%, coverage 100%. Lifting the *specific* mechanism paper to #1 reliably
+  is the semantic-retrieval frontier (next milestone), and the eval gates on that
+  honest floor.
+
 ## Phase 2 — live comprehensiveness (spec 036, 2026-06)
 
 The live primary-source tier graduates from a bare "provisional, unverified" list

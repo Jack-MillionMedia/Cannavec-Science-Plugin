@@ -52,6 +52,7 @@ from typing import Callable, Optional
 
 from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
+from cannavec_science.intent import distill_query
 
 
 __all__ = [
@@ -245,17 +246,23 @@ class EuropePMCSearcher:
             raise SearchRefused(reason=exc.reason, detail=exc.detail) from exc
 
         capped = min(max(1, int(max_results)), _MAX_RESULTS_CEILING)
+        # Over-fetch so that dropping conference abstracts (see _record_to_hit)
+        # still fills the requested number of rows — quality filtering should
+        # not shrink coverage.
+        fetch_size = min(capped * 3, _MAX_RESULTS_CEILING)
         url = self._build_search_url(
-            query, since, capped, open_access_only,
+            query, since, fetch_size, open_access_only,
         )
         body = self._fetcher(url)
         records = self._parse_search_payload(body)
 
         hits: list[LiveEuropePMCHit] = []
-        for rec in records[:capped]:
+        for rec in records:
             hit = self._record_to_hit(rec)
             if hit is not None:
                 hits.append(hit)
+                if len(hits) >= capped:
+                    break
 
         return tuple(hits)
 
@@ -282,7 +289,12 @@ class EuropePMCSearcher:
         # research-lead surface; a date floor is still available via ``since``
         # (``FIRST_PDATE:[since TO *]`` is QUERY syntax, not sort syntax, and is
         # accepted). See tests/test_europepmc_discover.py::test_url_omits_sort_*.
-        terms: list[str] = [query.strip()]
+        # Distil interrogative scaffolding to content terms (the PubMed lane
+        # already does this): a raw question "How does THC impair … ?" reaches
+        # Europe PMC's relevance ranker with filler words that dilute the match
+        # and surface broad reviews instead of the specific mechanism paper.
+        distilled = distill_query(query).strip() or query.strip()
+        terms: list[str] = [distilled]
         if since is not None:
             # Europe PMC accepts FIRST_PDATE:[2023-01-01 TO *]
             # for "first publication date on or after".
@@ -339,6 +351,12 @@ class EuropePMCSearcher:
         pubtypes = tuple(
             p for p in pubtypes_raw if isinstance(p, str)
         )
+        # Source-quality gate: Europe PMC pubType "Abstract" is a conference /
+        # meeting poster dump (titles like "ACNP Annual Meeting: Poster
+        # Abstracts P30-…"), not citable primary research. Drop it so it never
+        # pollutes the ranked candidate pool.
+        if any(p.lower() == "abstract" for p in pubtypes):
+            return None
         is_open_access = (rec.get("isOpenAccess") or "").upper() == "Y"
         return LiveEuropePMCHit(
             europe_pmc_id=ident,
