@@ -61,6 +61,7 @@ __all__ = [
     "LivePubMedHit",
     "PubMedSearcher",
     "SearchRefused",
+    "distill_query",
     "render_markdown",
     "render_json",
     "suggested_grade_for_pubtypes",
@@ -81,6 +82,63 @@ _PUBMED_ESUMMARY_URL_BULK = (
 
 _MAX_RESULTS_CEILING = 50
 _SINCE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+# ── Natural-language query distillation ───────────────────────────────
+#
+# PubMed's automatic term mapping mis-parses conversational phrasing: a typed
+# question like "What is the molecular difference between THC and CBD?" is
+# mapped to `the, is[Author] AND ("molecular"...) AND (...)` — it reads the
+# short word "is" as an [Author] field, AND-joins every content term, and
+# returns ZERO hits even though thousands of relevant papers exist. Stripping
+# the interrogative scaffolding leaves the content terms esearch CAN map.
+#
+# Conservative by design — ONLY closed-class function / interrogative words,
+# never domain terms. The same query distilled by hand ("THC CBD molecular
+# structure") passes through unchanged.
+_QUERY_STOPWORDS: frozenset[str] = frozenset({
+    "a", "an", "the",
+    "is", "are", "am", "was", "were", "be", "been", "being",
+    "do", "does", "did", "done", "doing",
+    "what", "which", "who", "whom", "whose", "how", "why", "when",
+    "where", "whether",
+    "of", "between", "and", "or", "to", "in", "on", "for", "with",
+    "by", "as", "at", "from", "into", "about", "over", "under", "than",
+    "that", "this", "these", "those", "it", "its",
+})
+
+_QUERY_STRIP_PUNCT = ".,;:?!()[]{}\"'"
+
+
+def distill_query(query: str) -> str:
+    """Strip natural-language scaffolding so a question becomes esearch-mappable.
+
+    Removes a conservative, closed-class set of function / interrogative words
+    (:data:`_QUERY_STOPWORDS`) and surrounding punctuation (notably a trailing
+    ``?``). Never touches domain terms.
+
+    Safe + idempotent:
+
+    - A query that is already keywords ("THC CBD molecular structure") is
+      returned unchanged.
+    - Each surviving token keeps its ORIGINAL spelling — domain forms such as
+      ``Δ9-THC`` or ``LC-MS/MS`` are never mangled (only leading/trailing
+      punctuation is trimmed for the stopword comparison).
+    - A single uppercase letter is preserved even when its lowercase form is a
+      stopword ("vitamin A" survives).
+    - If every token is a stopword, the ORIGINAL query is returned rather than
+      an empty search.
+    """
+    kept: list[str] = []
+    for raw in query.split():
+        core = raw.strip(_QUERY_STRIP_PUNCT).strip()
+        if not core:
+            continue
+        is_single_upper = len(core) == 1 and core.isupper()
+        if core.lower() in _QUERY_STOPWORDS and not is_single_upper:
+            continue
+        kept.append(core)
+    return " ".join(kept).strip() or query.strip()
 
 
 # ── Exception ─────────────────────────────────────────────────────────
@@ -265,9 +323,12 @@ class PubMedSearcher:
     def _build_esearch_url(
         self, query: str, since: Optional[str], retmax: int
     ) -> str:
+        # Distill conversational phrasing to content terms — a raw NL question
+        # reaches esearch as `is[Author] AND (...)` and returns 0 hits.
+        term = distill_query(query)
         parts = [
             _PUBMED_ESEARCH_URL,
-            f"&term={urllib.parse.quote(query)}",
+            f"&term={urllib.parse.quote(term)}",
             f"&retmax={retmax}",
             "&sort=date",
         ]
