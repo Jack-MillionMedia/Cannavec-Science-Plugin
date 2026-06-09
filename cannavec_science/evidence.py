@@ -21,9 +21,11 @@ This module is import-safe in any Python ≥3.8 environment.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Iterable
 
 
@@ -79,6 +81,27 @@ class EvidenceLevel(str, Enum):
             EvidenceLevel.E: ("unverified report", "case report only"),
             EvidenceLevel.UNSUPPORTED: ("no admissible primary evidence",),
         }[self]
+
+    @property
+    def certainty(self) -> str:
+        """GRADE certainty word for this level (the recognized clinical
+        vocabulary experts read). The letter is retained separately for audit."""
+        return {
+            EvidenceLevel.A: "High",
+            EvidenceLevel.B: "Moderate",
+            EvidenceLevel.C: "Low",
+            EvidenceLevel.D: "Very low",
+            EvidenceLevel.E: "Very low",
+            EvidenceLevel.UNSUPPORTED: "Insufficient",
+        }[self]
+
+    def display(self, letter: bool = True) -> str:
+        """Human label: '<Certainty> certainty (Level X)'. UNSUPPORTED has no
+        letter ('Insufficient evidence')."""
+        if self is EvidenceLevel.UNSUPPORTED:
+            return "Insufficient evidence"
+        word = f"{self.certainty} certainty"
+        return f"{word} ({self.value})" if letter else word
 
 
 class SourceTier(int, Enum):
@@ -239,6 +262,140 @@ def _is_canonical_sr(source: "Source") -> bool:
     if getattr(source, "tier", None) != SourceTier.SR_FLAGSHIP:
         return False
     return bool(_CANONICAL_SR_RE.search(getattr(source, "title", "") or ""))
+
+
+# ── Live-tier metadata→tier inference (spec 036, Step 2) ──────────────────
+#
+# These helpers infer a Source-Authority tier for a LIVE-discovery hit from the
+# metadata the lane already returned (PubMed/EuropePMC carry pubtypes + journal;
+# preprints carry the server name). They are deliberately CONSERVATIVE — when the
+# metadata is absent or ambiguous they prefer the LOWER (weaker) tier — because a
+# live hit's grade is a provisional signal, never a verdict, and is clamped to
+# <= Level C (journal) / Level D (preprint) downstream regardless. No network is
+# touched: these read only already-present row fields.
+
+# pubtype token (case-folded substring) → tier. Order matters only for the
+# "prefer the lower tier" rule below: we score EVERY matching design and keep the
+# WEAKEST. A bare/unknown pubtype set is the conservative floor (PREPRINT_OR_SMALL),
+# i.e. an admissible-but-undesigned journal article, not "no evidence".
+_PUBTYPE_DESIGN_TIERS: tuple[tuple[tuple[str, ...], SourceTier], ...] = (
+    # Strongest first (purely for readability) — the function picks the weakest
+    # match, so listing order does not change the result.
+    (("systematic review", "meta-analysis", "meta analysis"), SourceTier.JOURNAL_RCT),
+    (("randomized controlled trial", "randomised controlled trial"), SourceTier.JOURNAL_RCT),
+    (("observational study", "cohort", "case-control", "case control"),
+     SourceTier.SINGLE_ARM_OR_MECH),
+    (("clinical trial",), SourceTier.SINGLE_ARM_OR_MECH),
+    (("case reports", "case report", "comment", "editorial", "letter"),
+     SourceTier.PREPRINT_OR_SMALL),
+)
+
+
+def infer_tier_from_pubtypes(pubtypes: tuple[str, ...]) -> SourceTier:
+    """Infer a Source-Authority tier from NCBI/Europe-PMC ``pubtype`` tokens.
+
+    Case-insensitive. When several design tokens match (e.g. an RCT also tagged
+    as a Case Report), the WEAKEST matching tier wins — honesty over optimism.
+    An empty or wholly-unrecognised pubtype set returns the conservative floor
+    (:attr:`SourceTier.PREPRINT_OR_SMALL`): the row is an admissible journal
+    article whose design we could not establish, not a stronger design.
+    """
+    lowered = {(p or "").lower() for p in pubtypes}
+    matched: list[SourceTier] = []
+    for needles, tier in _PUBTYPE_DESIGN_TIERS:
+        if any(any(n in t for n in needles) for t in lowered):
+            matched.append(tier)
+    if not matched:
+        return SourceTier.PREPRINT_OR_SMALL
+    # SourceTier is an IntEnum where LOWER value == STRONGER. "Weakest" is the
+    # MAX int value. Prefer-lower means we keep the weakest matching design.
+    return max(matched, key=lambda t: int(t))
+
+
+_JOURNAL_TIERS_PATH = Path(__file__).resolve().parent / "data" / "journal_tiers.json"
+
+
+def _load_journal_tiers(path: Path) -> dict[str, SourceTier]:
+    """Build the journal→tier map from the bundled JSON data file.
+
+    A missing/corrupt file is a packaging error and surfaces loudly at import
+    time (mirrors :mod:`cannavec_science.retraction`). Keys are lower-cased so
+    lookups are case-insensitive; only ``SR_FLAGSHIP`` and ``JOURNAL_RCT`` are
+    accepted values (a journal is never, on its own, a *canonical* SR floor).
+    """
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, SourceTier] = {}
+    for name, tier_name in (raw.get("tiers") or {}).items():
+        out[name.strip().lower()] = SourceTier[tier_name]
+    return out
+
+
+_JOURNAL_TIERS: dict[str, SourceTier] = _load_journal_tiers(_JOURNAL_TIERS_PATH)
+
+
+def journal_tier_from_name(journal: str) -> SourceTier:
+    """Map a journal name (full title or NLM abbreviation) to a tier.
+
+    Backed by the checked-in, reviewable ``data/journal_tiers.json``. A known
+    flagship general-medicine / top-science venue resolves to
+    :attr:`SourceTier.SR_FLAGSHIP`; a strong specialist journal to
+    :attr:`SourceTier.JOURNAL_RCT`. An unknown or empty journal name returns the
+    conservative default :attr:`SourceTier.SINGLE_ARM_OR_MECH` — a real journal
+    article we cannot rank, never an inflated one.
+    """
+    key = (journal or "").strip().lower()
+    if not key:
+        return SourceTier.SINGLE_ARM_OR_MECH
+    return _JOURNAL_TIERS.get(key, SourceTier.SINGLE_ARM_OR_MECH)
+
+
+# Trial-registry id patterns — presence in an abstract is a pre-registration
+# signal (the registry id is the only metadata-only proxy we trust without a
+# network fetch). Conservative: absence is NOT pre-registered.
+_REGISTRY_ID_RE = re.compile(
+    r"\b(?:"
+    r"NCT\d{8}"                       # ClinicalTrials.gov
+    r"|ISRCTN\d{8}"                   # ISRCTN
+    r"|EudraCT[\s:]*\d{4}-\d{6}-\d{2}"  # EU Clinical Trials Register
+    r"|ACTRN\d{14}"                   # ANZCTR
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Sample-size signal — an explicit N at or above the adequately-powered floor.
+# Conservative: a missing or sub-floor N is NOT adequately powered.
+_ADEQUATE_POWER_FLOOR = 100
+_SAMPLE_SIZE_RE = re.compile(
+    r"\b(?:n\s*=\s*|enroll?ed\s+|enrol?ment\s+of\s+|sample\s+of\s+"
+    r"|randomi[sz]ed\s+)(\d{2,6})\b",
+    re.IGNORECASE,
+)
+
+
+def study_design_signal_from_abstract(
+    title: str, abstract: str
+) -> tuple[bool, bool]:
+    """Derive ``(pre_registered, adequately_powered)`` from text metadata only.
+
+    - ``pre_registered`` is True when a trial-registry id (NCT/ISRCTN/EudraCT/
+      ACTRN) appears in the title or abstract.
+    - ``adequately_powered`` is True when an explicit sample-size signal at or
+      above :data:`_ADEQUATE_POWER_FLOOR` participants appears.
+
+    Both default to ``False`` (conservative) — these only ever ADD confidence,
+    and even then the downstream clamp caps the live grade at Level C.
+    """
+    text = f"{title or ''}\n{abstract or ''}"
+    pre_registered = bool(_REGISTRY_ID_RE.search(text))
+    adequately_powered = False
+    for m in _SAMPLE_SIZE_RE.finditer(text):
+        try:
+            if int(m.group(1)) >= _ADEQUATE_POWER_FLOOR:
+                adequately_powered = True
+                break
+        except (TypeError, ValueError):
+            continue
+    return pre_registered, adequately_powered
 
 
 def _downgrade(level: EvidenceLevel, steps: int) -> EvidenceLevel:
@@ -517,3 +674,51 @@ class Claim:
             population=population,
             jurisdiction=jurisdiction,
         )
+
+
+@dataclass(frozen=True)
+class GradeRationale:
+    """Why a claim earned its grade — the determinants made transparent.
+
+    Expository only: it never alters the grade value.
+    """
+
+    design_basis: str
+    notes: tuple[str, ...] = ()
+
+    def summary(self) -> str:
+        return "; ".join(p for p in (self.design_basis, *self.notes) if p)
+
+
+def grade_rationale(claim: Claim) -> GradeRationale:
+    """Expository rationale for ``claim``, built from the SAME determinants
+    :meth:`Claim.best_supportable_grade` uses — so the 'why' can never drift
+    from the grade. Reports the design basis (canonical-SR / confirmatory-RCT
+    counts, single study, observational) plus a missing-disclosure note.
+    Un-assessable GRADE factors (indirectness, publication bias) are omitted,
+    never fabricated.
+    """
+    live = [s for s in claim.sources if s.retraction_status != "retracted"]
+    srs = [s for s in live if _is_canonical_sr(s)]
+    rcts = [
+        s for s in live
+        if s.tier in (SourceTier.SR_FLAGSHIP, SourceTier.JOURNAL_RCT)
+        and s.pre_registered and s.adequately_powered
+    ]
+    if srs:
+        basis = f"{len(srs)} systematic review/meta-analysis" + ("s" if len(srs) > 1 else "")
+        if rcts:
+            basis += f" + {len(rcts)} aligned RCT" + ("s" if len(rcts) > 1 else "")
+    elif len(rcts) >= 2:
+        basis = f"{len(rcts)} aligned adequately-powered RCTs"
+    elif rcts:
+        basis = "single adequately-powered RCT"
+    elif live:
+        basis = "single observational / small trial"
+    else:
+        basis = "no admissible primary source"
+    notes: list[str] = []
+    n_missing = len(missing_disclosures(claim.claim_type, claim.disclosures_present))
+    if n_missing:
+        notes.append(f"{n_missing} required disclosure(s) missing (downgraded)")
+    return GradeRationale(design_basis=basis, notes=tuple(notes))

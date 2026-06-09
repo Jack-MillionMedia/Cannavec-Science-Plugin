@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -942,6 +943,104 @@ def _cmd_cite(args: argparse.Namespace) -> int:
     return 0
 
 
+def _pdf_slug(question: str) -> str:
+    """A safe, short filename stem from a question (for the default --out)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", question.lower()).strip("-")
+    return ("cannavec-" + (slug[:48].rstrip("-") or "brief"))
+
+
+def _cmd_pdf(args: argparse.Namespace) -> int:
+    """Render the composed answer as a polished, citation-lossless evidence brief
+    (the surface behind /cv:pdf).
+
+    Composes the offline curated Answer and renders it to a self-contained HTML
+    evidence brief (clinical-journal style), then to PDF via the best available
+    backend (headless Chrome → reportlab → HTML-only). Every primary-source
+    identifier and GRADE label is preserved and none is inflated — the §XI gate is
+    enforced in ``pdf_export`` and the command refuses (non-zero) rather than emit
+    a lossy or inflated transform. Refusal and uncurated-indication answers render
+    an honest brief (no evidence fabricated); only a gate failure or write error
+    is non-zero.
+    """
+    from cannavec_science.answer import compose_answer
+    from cannavec_science import pdf_export
+
+    answer = compose_answer(args.question)
+
+    # /cv:pdf packs the brief with on-topic, conservatively-graded live evidence
+    # by DEFAULT (spec 036 Task 7) — the curated core, widened with the live
+    # primary-source frontier via the ``BRIEF_SOURCES`` literature-breadth set,
+    # gated on-topic and clamped to provisional grades (≤ Low, never curated).
+    # ``--no-live`` opts out entirely (offline / curated-only).
+    #
+    # CRITICAL: the live tier must NEVER crash OR refuse the PDF. Two guards:
+    #   1. a network failure / unreachable lane degrades silently inside
+    #      ``augment_answer``; we also wrap it so no exception can propagate.
+    #   2. the §XI render gate (enforced in ``export_pdf``) is a HARD guarantee
+    #      for the curated surface and must not be weakened — but a provisional
+    #      live finding must never be able to make the whole brief refuse. So we
+    #      pre-check the augmented render: if weaving the live tier would trip the
+    #      faithfulness gate, we fall back to the curated-only answer (which always
+    #      renders) rather than refuse. The curated brief always stands.
+    if not getattr(args, "no_live", False) and not answer.is_refusal:
+        from cannavec_science import live as _live
+        try:
+            augmented = compose_answer(args.question)
+            _live.augment_answer(augmented, sources=_live.BRIEF_SOURCES)
+            if augmented.live_findings:
+                pdf_export.assert_render_faithful(
+                    augmented, pdf_export.render_html(augmented)
+                )
+                answer = augmented
+            elif augmented.live_sources_searched:
+                # Lanes WERE reachable but nothing on-topic survived the gate —
+                # say so in the brief (transparency), not just on stderr.
+                answer.live_retrieval_note = (
+                    "Live retrieval found no additional on-topic primary "
+                    "sources for this question."
+                )
+            else:
+                # No lane was reachable (offline / firewall): ``augment_answer``
+                # degrades silently rather than raising, so distinguish "offline"
+                # from "nothing on-topic" by whether any lane returned at all.
+                answer.live_retrieval_note = (
+                    "Live literature retrieval was unavailable — showing curated "
+                    "evidence only. Re-run on an open network to include the live "
+                    "primary-source frontier."
+                )
+        except pdf_export.FaithfulnessError as exc:
+            print(f"[pdf] live tier dropped (curated-only): render gate — {exc}",
+                  file=sys.stderr)
+            answer.live_retrieval_note = (
+                "Live evidence was retrieved but could not be safely "
+                "rendered; showing curated evidence only."
+            )
+        except Exception as exc:  # noqa: BLE001 — PDF never crashes on live
+            print(f"[pdf] live augmentation skipped (curated-only): {exc}",
+                  file=sys.stderr)
+            answer.live_retrieval_note = (
+                "Live literature retrieval was unavailable — showing curated "
+                "evidence only. Re-run on an open network to include the live "
+                "primary-source frontier."
+            )
+
+    out_prefix = args.out or _pdf_slug(args.question)
+    try:
+        result = pdf_export.export_pdf(
+            answer, out_prefix, html_only=getattr(args, "html_only", False)
+        )
+    except pdf_export.FaithfulnessError as exc:
+        print(f"[pdf] refused — render not citation-lossless: {exc}",
+              file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(f"[pdf] write error: {exc}", file=sys.stderr)
+        return 2
+    print(f"[pdf] {result.summary()}", file=sys.stderr)
+    print(result.pdf_path or result.html_path)
+    return 0
+
+
 def _cmd_registries(args: argparse.Namespace) -> int:
     """Emit the curated-registry inventory (spec 003 US8 / FR-008).
 
@@ -1150,6 +1249,33 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write one file per format to <PREFIX>.bib/.ris/.json (else stdout).",
     )
     ct.set_defaults(func=_cmd_cite)
+
+    # pdf (spec 034) — polished, citation-lossless evidence brief behind /cv:pdf
+    pf = sub.add_parser(
+        "pdf",
+        help=(
+            "Render the composed answer as a polished, citation-lossless PDF "
+            "evidence brief (HTML → headless Chrome → reportlab, gracefully "
+            "degrading). Refuses to emit anything it cannot preserve losslessly."
+        ),
+    )
+    pf.add_argument("question")
+    pf.add_argument(
+        "--out",
+        help="Output path prefix → <PREFIX>.html (+ <PREFIX>.pdf). "
+             "Default: cannavec-<slug> in the current directory.",
+    )
+    pf.add_argument(
+        "--html-only", action="store_true",
+        help="Emit only the self-contained HTML (skip PDF rendering).",
+    )
+    pf.add_argument(
+        "--no-live", action="store_true",
+        help=("Skip live primary-source augmentation; render the curated-only "
+              "brief (offline / deterministic). Default: pack the brief with "
+              "on-topic, conservatively-graded live evidence."),
+    )
+    pf.set_defaults(func=_cmd_pdf)
 
     # registries (spec 003 US8 / FR-008)
     rg = sub.add_parser(

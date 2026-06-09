@@ -30,11 +30,14 @@ SURVIVING claims that cite it (so a dropped claim never orphans a grade — see
 
 from __future__ import annotations
 
+import html
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from cannavec_science.answer import _lookup_citation_grade
+from cannavec_science.evidence import EvidenceLevel
 
 if TYPE_CHECKING:
     from cannavec_science.answer import Answer
@@ -46,8 +49,153 @@ __all__ = [
     "export_provenance",
     "assert_citation_lossless",
     "grade_adjacency_failures",
+    "grade_inflation_failures",
     "render_citation_export",
 ]
+
+
+# The discrete GRADE labels a render may carry, strongest first. "Unsupported"
+# is excluded: it is never assigned to a citation (an ungraded atom is ``None``),
+# and naming it beside a citation softens rather than inflates — the softening
+# direction is already owned by :func:`grade_adjacency_failures`.
+_GRADE_LABELS: "tuple[str, ...]" = tuple(
+    lvl.value for lvl in EvidenceLevel if lvl is not EvidenceLevel.UNSUPPORTED
+)
+
+
+def _grade_present(label: str, text: str) -> bool:
+    """Is GRADE ``label`` present in ``text`` as a DISCRETE token?
+
+    A bare substring ``in`` check let a dropped grade be masked by an unrelated
+    word that merely starts the same way — "Level Below threshold" satisfied
+    "Level B". The boundary lookarounds make the floor honest: the label may not
+    be glued to an adjacent letter on either side."""
+    return (
+        re.search(rf"(?<![A-Za-z]){re.escape(label)}(?![A-Za-z])", text) is not None
+    )
+
+
+def _grade_rank(label: "str | None") -> int:
+    """Strength rank of a GRADE label (``"Level A"`` → 5 … ``"Level E"`` → 1),
+    0 for ``None`` or any non-grade string. The single ordering the inflation
+    gate compares against — reuses :class:`EvidenceLevel` so the two cannot drift."""
+    if not label:
+        return 0
+    try:
+        return EvidenceLevel(label).rank
+    except ValueError:
+        return 0
+
+
+# Rank assigned to a grade whose LETTER is a non-ASCII homoglyph that normalisation
+# did not fold: higher than any real grade, so it ALWAYS reads as inflation against
+# any citation. A render must not slip a fake grade past the scan with a confusable.
+_HOMOGLYPH_GRADE_RANK = 99
+
+# Latin-look-alike Cyrillic / Greek letters (the cases NFKD does NOT fold, since
+# they are distinct scripts, not compatibility variants) folded to ASCII so a GRADE
+# label — or the anchor word "Level" / "Grade" itself — spelled with a confusable
+# cannot evade the scan. Covers both the grade-letter slot and the anchor letters.
+# NFKD already handles every compatibility look-alike (fullwidth, math, circled,
+# Roman-numeral, ligature); this map is only the script-confusable remainder.
+_GRADE_CONFUSABLES = {
+    0x0410: "A", 0x0391: "A",                  # cyrillic / greek capital A
+    0x0412: "B", 0x0392: "B",
+    0x0421: "C", 0x03F9: "C",
+    0x0415: "E", 0x0395: "E",
+    0x0435: "e", 0x03B5: "e", 0x0454: "e",     # lowercase anchor letters
+    0x03BD: "v", 0x0475: "v",
+    0x04CF: "l", 0x0142: "l", 0x029F: "l",     # palochka / l-stroke / small-cap L
+    0x04C0: "L", 0x0141: "L",
+}
+
+# Enclosed-alphanumeric letterforms (parenthesized / squared / negative-squared /
+# negative-circled / circled A-Z) folded to their base letter BEFORE NFKD, because
+# several (the negative forms 🅰/🅐) are Unicode Symbols that survive NFKD and would
+# otherwise read as a grade letter the scan misses. Computed, covers all 26 letters.
+_ENCLOSED_FOLD: "dict[int, str]" = {}
+for _i in range(26):
+    for _base in (0x1F110, 0x1F130, 0x1F150, 0x1F170):
+        _ENCLOSED_FOLD[_base + _i] = chr(0x41 + _i)
+    _ENCLOSED_FOLD[0x24B6 + _i] = chr(0x41 + _i)
+    _ENCLOSED_FOLD[0x24D0 + _i] = chr(0x61 + _i)
+del _i, _base
+
+# Grade-label anchor: the word "Level"/"Grade" (ASCII after normalisation), then
+# whitespace, then the grade slot. The slot is recognised DENY-BY-DEFAULT, not by a
+# letter allowlist: a boundary-scoped ASCII A-E (our vocabulary), OR a single-digit
+# / Roman-numeral tier (CEBM "Level 1"/"Level I" — a stronger-reading scheme that
+# reuses our anchor), OR any non-ASCII glyph (homoglyph slot). "Level Below" / "Level
+# of" / "Levels" cannot match (the A-E boundary fails and "B"/"o"/"s" is ASCII, not a
+# tier digit, Roman numeral, or non-ASCII glyph).
+_GRADE_LABEL_RE = re.compile(
+    "(?<![A-Za-z])(?:Level|Grade)[  \t]+"
+    "(?:([A-E])(?![A-Za-z])|([1-9])(?![0-9])|([IVX]+)(?![A-Za-z])|([^\\x00-\\x7F]))"
+)
+# GRADE-certainty wording the render carries alongside the letter ("High certainty
+# (Level B)", "(PMID …, Moderate certainty)"). The gate must learn these words so a
+# forged "High certainty" beside a Moderate citation is caught like a forged "Level A".
+# "Very low" is rank 1 deliberately: D and E both display "Very low", so ranking at the
+# LOWER of the two avoids false-positives on a Level-E citation; the secondary "(Level
+# D/E)" letter disambiguates where present and still satisfies the lossless floor.
+_CERTAINTY_RANK = {"high": 5, "moderate": 4, "low": 3, "very low": 1, "insufficient": 0}
+# "Very low" FIRST in the alternation so it is consumed WHOLE (and is non-overlapping
+# under finditer) — the embedded "low" must never also emit a spurious rank-3 "Low" hit.
+_CERTAINTY_RE = re.compile(
+    r"(?<![A-Za-z])(Very[  \t]+low|High|Moderate|Low|Insufficient)[  \t]+certainty\b",
+    re.IGNORECASE,
+)
+_TAG_OR_COMMENT_RE = re.compile(r"<!--.*?-->|<[^>]+>", re.S)
+
+
+def _fold_grade_confusables(text: str) -> str:
+    """Fold the script-confusable letters to ASCII (1:1 codepoint map)."""
+    return text.translate(_GRADE_CONFUSABLES)
+
+
+def _normalize_visible(text: str) -> str:
+    """Approximate the text a human READS, so a grade claim cannot hide in the raw
+    HTML source: decode HTML entities (``&nbsp;`` -> space, ``&#65;`` -> ``A``),
+    strip tags and comments, fold enclosed letterforms, NFKD-fold every compatibility
+    look-alike (fullwidth / math / circled / Roman-numeral / ligature), drop combining
+    marks, then fold the remaining script confusables. This defeats the "scan source,
+    not render" bypass class (``Level&nbsp;A``, ``Level <b>A</b>``, fullwidth /
+    homoglyph / enclosed grades). Positions shift versus the source, but the inflation
+    scan computes identifier AND label positions on this SAME normalised text, so
+    binding stays consistent."""
+    t = html.unescape(text or "")
+    t = _TAG_OR_COMMENT_RE.sub(" ", t)
+    t = t.translate(_ENCLOSED_FOLD)
+    t = unicodedata.normalize("NFKD", t)
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return _fold_grade_confusables(t)
+
+
+def _grade_label_positions(
+    normalized: str, strict: bool = False
+) -> "list[tuple[int, int]]":
+    """``(position, rank)`` of every GRADE label in already-:func:`_normalize_visible`
+    text. A boundary-scoped ASCII "Level A".."Level E" / "Grade A".."Grade E" carries
+    its rank; a "Level "/"Grade " followed by a non-ASCII *letter* (a homoglyph the
+    fold missed) carries :data:`_HOMOGLYPH_GRADE_RANK`. When ``strict`` (a region that
+    holds ONLY our A-E vocabulary, e.g. a PDF evidence surface), a single-digit /
+    Roman-numeral tier slot is ALSO max-rank — "Level 1"/"Level I" is not our grade
+    and reads as a strong tier, so beside a citation it is an overclaim. ``strict`` is
+    off for whole-document / Markdown use, where a tier scheme may be legitimate
+    background."""
+    hits: "list[tuple[int, int]]" = []
+    for m in _GRADE_LABEL_RE.finditer(normalized):
+        letter, digit, roman, homoglyph = m.group(1), m.group(2), m.group(3), m.group(4)
+        if letter:
+            hits.append((m.start(), _grade_rank("Level " + letter)))
+        elif homoglyph and unicodedata.category(homoglyph).startswith("L"):
+            hits.append((m.start(), _HOMOGLYPH_GRADE_RANK))
+        elif (digit or roman) and strict:
+            hits.append((m.start(), _HOMOGLYPH_GRADE_RANK))
+    for m in _CERTAINTY_RE.finditer(normalized):
+        word = re.sub(r"\s+", " ", m.group(1).strip().lower())
+        hits.append((m.start(), _CERTAINTY_RANK.get(word, 0)))
+    return hits
 
 
 @dataclass(frozen=True)
@@ -142,6 +290,47 @@ def export_provenance(answer: "Answer") -> "tuple[CitationAtom, ...]":
     return tuple(atoms)
 
 
+def _live_finding_atoms(answer: "Answer") -> "tuple[CitationAtom, ...]":
+    """Inflation BASELINES for GRADED live findings (spec 036, Step 3).
+
+    A graded live finding sits OUTSIDE ``answer.citations`` (it never enters the
+    curated provenance), so the inflation gate would otherwise have no assigned
+    grade for it — and would read its own legitimate, clamped grade as ungraded.
+    This gives the gate the finding's OWN clamped grade as the baseline: rendering
+    that grade beside the live id is NOT inflation; rendering a stronger one IS.
+
+    Only findings that actually carry a ``grade`` are returned (an ungraded /
+    context row carries no grade and is covered solely by the identifier floor).
+    The bare id is parsed from the live finding's display identifier (``"PMID
+    39000001"`` → ``39000001``; ``"doi:10.x"`` → ``10.x``; an ``NCT…`` / registry
+    id / bare URL is used as-is), wrapped in a ``LIVE:`` atom so ``raw_id`` is the
+    discrete token the gate binds grade labels to.
+    """
+    atoms: list[CitationAtom] = []
+    seen: set[str] = set()
+    for f in getattr(answer, "live_findings", ()) or ():
+        grade = f.get("grade")
+        ident = (f.get("identifier") or "").strip()
+        if not grade or not ident:
+            continue
+        if ident.startswith("PMID "):
+            bare = ident.split(" ", 1)[1].strip()
+        elif ident.lower().startswith("doi:"):
+            bare = ident.split(":", 1)[1].strip()
+        else:
+            bare = ident
+        if not bare or bare in seen:
+            continue
+        # Only a real GRADE label (e.g. "Level C"/"Level D") is a usable baseline;
+        # a non-grade string (a flagged-status qualifier) leaves rank 0, which would
+        # flag ANY grade beside it — so skip it and let the floor cover the row.
+        if _grade_rank(grade) == 0:
+            continue
+        seen.add(bare)
+        atoms.append(CitationAtom(identifier=f"LIVE:{bare}", grade=grade))
+    return tuple(atoms)
+
+
 def assert_citation_lossless(answer: "Answer", rendered: str) -> LosslessReport:
     """Check a rendered transform of ``answer`` preserved every identifier and
     every GRADE label (§XI).
@@ -157,7 +346,9 @@ def assert_citation_lossless(answer: "Answer", rendered: str) -> LosslessReport:
     atoms = export_provenance(answer)
     missing_ids = tuple(a.identifier for a in atoms if not _id_present(a.raw_id, text))
     required_grades = {a.grade for a in atoms if a.grade}
-    missing_grades = tuple(sorted(g for g in required_grades if g not in text))
+    missing_grades = tuple(
+        sorted(g for g in required_grades if not _grade_present(g, text))
+    )
     return LosslessReport(
         ok=not missing_ids and not missing_grades,
         missing_identifiers=missing_ids,
@@ -229,4 +420,84 @@ def grade_adjacency_failures(
                 break
         if not anchored:
             failures.append(atom)
+    return tuple(failures)
+
+
+def grade_inflation_failures(
+    answer: "Answer",
+    rendered: str,
+    window: int = 200,
+    *,
+    flag_ungraded: bool = False,
+) -> "tuple[CitationAtom, ...]":
+    """Atoms a render presents at a STRONGER grade than the backbone assigned —
+    the mirror of :func:`grade_adjacency_failures` (which catches softening).
+
+    Together they enforce per-citation grade EQUALITY for any inline format: a
+    skill cannot quietly upgrade a Level-C source to "Level A" to make the
+    evidence look more certain than it is (M5 / §VII / §XI). ``assert_citation_
+    lossless`` cannot catch this — its GRADE check is a presence floor, so an
+    upgraded label sails through as long as the true label survives elsewhere.
+
+    Binding is by PROXIMITY, not document order: every GRADE-label occurrence is
+    bound to the NEAREST identifier occurrence within ``window`` characters, and
+    the binding fails when the label outranks the GRADE the backbone assigned that
+    identifier. Nearest-binding keeps a legitimate "Level A" beside its own
+    Level-A citation from being blamed on an adjacent weaker sibling. A label with
+    no identifier inside ``window`` (a glossary / GRADE legend) is bound to nothing
+    and is not inflation. GRADE-letter HOMOGLYPHS are folded to ASCII (and a
+    "Level " followed by any other non-ASCII letter is treated as a max-rank
+    grade), so a fake grade spelled with a confusable cannot evade the scan.
+
+    ``flag_ungraded`` is the difference between the two legitimate scopes:
+
+    - **False (default)** — a label bound to an UNGRADED citation is ignored. An
+      ungraded, reference-context citation legitimately sits inside a
+      curated-background section that prints that source's OWN row grade; flagging
+      it would mis-read honest background as inflation and would flag the canonical
+      Markdown brief itself. Use this whole-document, where background grades exist.
+    - **True** — a label bound to an UNGRADED citation IS a failure (an ungraded
+      citation must carry no grade). Use this over a region that holds ONLY the
+      answer's evidence (e.g. /cv:pdf's evidence surface), where any grade beside
+      an ungraded citation is an overclaim, not background.
+
+    Empty tuple == no citation is rendered above its verified grade.
+    """
+    text = _normalize_visible(rendered or "")
+    # Curated citation baselines PLUS graded-live-finding baselines (spec 036,
+    # Step 3): a graded live finding's own clamped grade is its anti-inflation
+    # baseline, so rendering that grade beside its live id is accepted while a
+    # stronger grade is refused — exactly like a curated citation.
+    atoms = export_provenance(answer) + _live_finding_atoms(answer)
+    if not atoms:
+        return ()
+    id_spans: "list[tuple[int, int, CitationAtom]]" = []
+    for atom in atoms:
+        for m in re.finditer(
+            rf"(?<![0-9A-Za-z.]){re.escape(atom.raw_id)}(?![0-9A-Za-z])", text
+        ):
+            id_spans.append((m.start(), m.end(), atom))
+    if not id_spans:
+        return ()
+    failures: list[CitationAtom] = []
+    flagged: set[str] = set()
+    for pos, label_rank in _grade_label_positions(text, strict=flag_ungraded):
+        nearest: "CitationAtom | None" = None
+        best = window + 1
+        for s, e, atom in id_spans:
+            dist = 0 if s <= pos <= e else min(abs(pos - s), abs(pos - e))
+            if dist < best:
+                best = dist
+                nearest = atom
+        if nearest is None or best > window:
+            continue
+        if nearest.grade:
+            overclaim = label_rank > _grade_rank(nearest.grade)
+        else:
+            # No surviving claim grades this citation; in strict scope ANY grade
+            # beside it is an overclaim, in lenient scope it is background.
+            overclaim = flag_ungraded
+        if overclaim and nearest.identifier not in flagged:
+            failures.append(nearest)
+            flagged.add(nearest.identifier)
     return tuple(failures)

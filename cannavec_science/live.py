@@ -39,6 +39,7 @@ from cannavec_science.synthesis import synthesize
 __all__ = [
     "DEFAULT_SOURCES",
     "SUPPORTED_SOURCES",
+    "BRIEF_SOURCES",
     "DiscoverRefused",
     "run_discovery",
     "augment_answer",
@@ -63,7 +64,27 @@ SUPPORTED_SOURCES: tuple[str, ...] = (
     "reactome", "efo",
 )
 
+# Spec 036 Step 5 — the literature-breadth lane set for the brief / PDF / CLI
+# augment path (Task 7 opts into this). Broader than the lean serverless
+# ``DEFAULT_SOURCES`` (which stays the web-API default): it adds the second
+# literature lane (Europe PMC) and the bioactivity lane (ChEMBL) for mechanistic
+# context, so the brief is "packed with all relevant evidence" without changing
+# the lean web-API default. STRICT INVARIANT (pinned by tests):
+# ``DEFAULT_SOURCES ⊆ BRIEF_SOURCES ⊆ default_runners().keys()`` — every BRIEF
+# lane is a real, wired lane; this is an additional named SUBSET, never a new
+# lane. ``DEFAULT_SOURCES`` / ``SUPPORTED_SOURCES`` / ``default_runners`` are
+# UNCHANGED (registry invariants depend on them).
+BRIEF_SOURCES: tuple[str, ...] = ("pubmed", "europepmc", "ctgov", "chembl")
+
 _MAX_RESULTS_CEILING = 25
+
+# Phase-2 on-topic gate (spec 036) — DEMOTE floor: a live row scoring below
+# this fraction of the strongest live row's BM25 is kept but tagged off_topic
+# (sorted after the on-topic rows, never dropped). Relative because BM25 here
+# is corpus-relative over the small live set; loose (0.20) so only genuinely
+# weak-lexical context rows are demoted, mirroring the ranker's own
+# ``relevance_floor_frac`` (0.25). The hard wrong-indication DROP is separate.
+_DEMOTE_BM25_FRAC = 0.20
 
 
 # ── Production runners (thin wrappers over the tested searchers) ────────
@@ -284,15 +305,26 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
     from cannavec_science.answer import (
         _LIVE_FLAGGED_STATUSES,
         live_finding_from_row,
+        live_row_is_wrong_indication,
     )
+    from cannavec_science.intent import indication_terms
     from cannavec_science.ranker import (
         Candidate,
         candidates_from_discovery,
         rank_candidates,
     )
+    from cannavec_science.synthesis import _row_direction
 
-    answer.live_synthesis = result.get("synthesis")
     sources = result.get("sources", {}) or {}
+
+    # Spec 036 Step 4 — search-provenance counts for the Live-section header.
+    # N sources QUERIED (a lane that returned a list, reachable or not) and the
+    # total rows FOUND before any on-topic gating. Both deterministic, from the
+    # result the caller already has — never fabricated.
+    sources_searched = sum(1 for rows in sources.values() if isinstance(rows, list))
+    findings_found = sum(
+        len(rows) for rows in sources.values() if isinstance(rows, list)
+    )
 
     # Map each row's headline identifier -> (source, row); first occurrence
     # wins, mirroring the ranker's de-dup so order and attachment agree.
@@ -309,8 +341,12 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
                 row_by_id[ident] = (src, row)
 
     if not row_by_id:
+        answer.live_synthesis = result.get("synthesis")
+        answer.live_sources_searched = sources_searched
+        answer.live_findings_found = findings_found
         return 0
 
+    bm25_by_id: dict[str, float] = {}
     try:
         ranked = rank_candidates(
             query,
@@ -318,6 +354,10 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
             top_k=max(1, len(row_by_id)),
         ).ranked
         ordered_ids = [rc.candidate.identifier for rc in ranked]
+        for rc in ranked:
+            bm25_by_id[rc.candidate.identifier] = float(
+                rc.signals.get("bm25", 0.0)
+            )
     except Exception:  # noqa: BLE001 — ranking is a best-effort reorder
         ordered_ids = list(row_by_id)
     # Any id the ranker dropped (shouldn't happen) is still attached, after the
@@ -326,24 +366,86 @@ def weave_live_findings(answer, result: Mapping, *, query: str) -> int:
         if ident not in ordered_ids:
             ordered_ids.append(ident)
 
+    # ── Phase-2 on-topic gate (spec 036) ──────────────────────────────────
+    # The single live merge point is also the single place breadth is made
+    # honest. Two verdicts, applied here (never in ``evidence_summary``):
+    #
+    #   DROP   — a wrong-indication clinical-efficacy row (its title names a
+    #            condition different from the query's) is removed: surfacing a
+    #            Dravet seizure trial for a Tourette query answers a *different
+    #            question* (mirrors the curated off-KB gate). Counted.
+    #   DEMOTE — a low lexical-relevance / context row is KEPT (breadth is
+    #            never silently lost) but tagged ``off_topic`` and sorted after
+    #            the on-topic rows, so it never leads. A mechanistic/context row
+    #            whose title names no indication is on-topic by default.
+    #
+    # The relevance floor is RELATIVE (a fraction of the strongest live row's
+    # BM25), mirroring the ranker's own ``relevance_floor_frac`` — BM25 here is
+    # corpus-relative over the live set, so an absolute floor is meaningless.
+    prompt_inds = indication_terms(query)
+    surviving_bm25 = [
+        bm25_by_id.get(i, 0.0)
+        for i in ordered_ids
+        if not live_row_is_wrong_indication(
+            row_by_id[i][1].get("title") or "", prompt_inds
+        )
+    ]
+    max_bm25 = max(surviving_bm25, default=0.0)
+    bm25_floor = _DEMOTE_BM25_FRAC * max_bm25
+
     findings: list[dict] = []
+    dropped_off_topic = 0
+    kept_rows: dict = {}  # source -> [on-topic rows] for honest synthesis
     for ident in ordered_ids:
         sr = row_by_id.get(ident)
         if sr is None:
             continue
         src, row = sr
+        title = row.get("title") or ""
+        if live_row_is_wrong_indication(title, prompt_inds):
+            dropped_off_topic += 1
+            continue  # hard DROP — never attached, never synthesized
         finding = live_finding_from_row(src, row)
-        if finding:
-            findings.append(finding)
+        if not finding:
+            continue
+        # DEMOTE (keep) a low-relevance / context row so it never leads.
+        if bm25_by_id.get(ident, 0.0) < bm25_floor:
+            finding["off_topic"] = True
+        # Spec 036 Step 4 — direction from the EXISTING synthesis attributor
+        # (``_row_direction``: PubMed/preprint abstract sentiment, CTgov results,
+        # else neutral). No new sentiment model — only attached where synthesis
+        # already determines a non-neutral verdict, so a row with no direction
+        # signal keeps its pinned shape.
+        direction = _row_direction(src, row)
+        if direction and direction != "neutral":
+            finding["direction"] = direction
+        findings.append(finding)
+        kept_rows.setdefault(src, []).append(row)
 
-    # §VIII hard guard: a retracted / EOC / under-correction live row must
-    # never lead the breadth, however query-relevant it is. Pin flagged
-    # findings last, preserving the relevance rank *within* each group (stable
-    # sort). A plain correction (paper stands) is not flagged, so it is not
-    # demoted. This does not depend on the ranker having seen the status.
+    # Convergence must be computed over ON-TOPIC rows only — a dropped wrong-
+    # indication row must not manufacture a cross-source agreement signal.
+    if dropped_off_topic:
+        answer.live_synthesis = synthesize(query, kept_rows).to_dict()
+    else:
+        answer.live_synthesis = result.get("synthesis")
+
+    # §VIII hard guard is the PRIMARY pin: a retracted / EOC / under-correction
+    # live row must sink last of all, however query-relevant it is — it must
+    # outrank even the on-topic/off-topic split (a flagged row never leads, an
+    # off-topic clean row may still lead a flagged one). Off_topic demotion is
+    # the secondary key. Stable sort preserves the relevance rank *within* each
+    # group. A plain correction (paper stands) is not flagged, so not demoted.
     findings.sort(
-        key=lambda f: f.get("retraction_status", "clean") in _LIVE_FLAGGED_STATUSES
+        key=lambda f: (
+            f.get("retraction_status", "clean") in _LIVE_FLAGGED_STATUSES,
+            bool(f.get("off_topic")),
+        )
     )
+
+    answer.on_topic_filter_applied = True
+    answer.live_findings_dropped_off_topic = dropped_off_topic
+    answer.live_sources_searched = sources_searched
+    answer.live_findings_found = findings_found
 
     attached = 0
     for finding in findings:

@@ -48,7 +48,11 @@ from cannavec_science.evidence import (
     EvidenceLevel,
     Source,
     SourceTier,
+    grade_rationale,
+    infer_tier_from_pubtypes,
+    journal_tier_from_name,
     missing_disclosures,
+    study_design_signal_from_abstract,
 )
 from cannavec_science.intent import Intent, classify_intent
 from cannavec_science.safety import SafetyAction, SafetyVerdict
@@ -142,7 +146,7 @@ class Citation:
     def inline(self) -> str:
         """Inline citation suitable for prose, e.g. ``(PMID 28538134, Level A)``."""
         if self.grade is not None:
-            grade_tag = f", {self.grade.value}"
+            grade_tag = f", {self.grade.certainty} certainty"
         else:
             grade_tag = ""
         if self.pmid:
@@ -271,6 +275,28 @@ class Answer:
     # it does not re-grade it). Empty by default so an un-woven brief's pinned
     # JSON / Markdown is unchanged.
     verified_findings: list[dict] = field(default_factory=list)
+    # Phase-2 on-topic gate (spec 036): set True once live findings have been
+    # passed through the wrong-indication + relevance gate at the live merge
+    # point, with a count of rows DROPPED as wrong-indication efficacy. Default
+    # False/0 so a non-augmented ``compose_answer`` is unchanged — only a live
+    # augment flips the flag. Demoted (off-topic) rows are kept and tagged
+    # ``off_topic`` on the finding itself, not counted here.
+    on_topic_filter_applied: bool = False
+    live_findings_dropped_off_topic: int = 0
+    # Spec 036 Step 4 — search-provenance counts for the Live-section header line
+    # ("Searched N live sources · M found · K on-topic"). Set by
+    # ``weave_live_findings``; 0 for a curated-only brief, so the line is omitted.
+    live_sources_searched: int = 0
+    live_findings_found: int = 0
+    # Render-only transparency note for the live-evidence area: a short, factual
+    # line explaining WHY no live frontier is woven (unavailable / un-renderable /
+    # nothing on-topic). It is UX text, NOT evidence and NOT a grade — it carries
+    # no grade label or certainty word (so the §XI gate never reads it) and no
+    # internal framing. Default empty → renders nothing → a non-augmented answer
+    # and every existing pinned render are unchanged. Set by the ``/cv:pdf`` CLI
+    # path on its three degrade branches; an answer that actually wove live
+    # findings sets NO note (the live section speaks for itself).
+    live_retrieval_note: str = ""
 
     def add_claim(self, claim: Claim) -> None:
         if (
@@ -346,6 +372,13 @@ class Answer:
         provisional_grade: str = "provisional (live, unverified)",
         year: "str | int | None" = None,
         retraction_status: str = "clean",
+        off_topic: bool = False,
+        grade: "str | None" = None,
+        certainty: "str | None" = None,
+        grade_rationale: "str | None" = None,
+        provisional: bool = False,
+        abstract_snippet: "str | None" = None,
+        direction: "str | None" = None,
     ) -> None:
         """Attach one unverified live-discovery hit (Constitution §IX).
 
@@ -357,13 +390,32 @@ class Answer:
         identifier matches the retraction registry is kept (so the researcher
         is warned the paper exists) but badged ⚠ and pinned last by the ranker
         — never silently surfaced as citable evidence.
+
+        ``off_topic`` is the Phase-2 on-topic gate's DEMOTE verdict (spec 036):
+        a low-relevance / context row is kept (breadth is never silently lost)
+        but flagged so the surface can sort it after the on-topic rows and never
+        let it lead. The key is emitted only when True, so a normal finding's
+        pinned dict shape is unchanged.
+
+        ``grade`` / ``certainty`` / ``grade_rationale`` / ``provisional`` are the
+        Phase-2 honest metadata-only GRADE (spec 036, Step 2): a real, conservative
+        single-source grade clamped to <= Level C (journal) / Level D (preprint),
+        with its rationale and a visible ``live · provisional`` qualifier. They are
+        emitted only when a grade was assigned, so an ungraded/context finding's
+        pinned dict shape is unchanged.
+
+        ``abstract_snippet`` is a verified literal substring of the row's abstract
+        (spec 036, Step 4 — never a paraphrase, §I / M5); ``direction`` is the
+        supports/refutes/neutral verdict from the EXISTING synthesis attributor.
+        Both are emitted only when present, so a finding without abstract text (or
+        without a synthesis-attributed direction) keeps its pinned dict shape.
         """
         if not (label or identifier):
             return
         for existing in self.live_findings:
             if identifier and existing.get("identifier") == identifier:
                 return
-        self.live_findings.append({
+        finding = {
             "label": label,
             "identifier": identifier,
             "source_tag": source_tag,
@@ -371,7 +423,26 @@ class Answer:
             "provisional_grade": provisional_grade,
             "year": str(year) if year not in (None, "") else "",
             "retraction_status": retraction_status or "clean",
-        })
+        }
+        if off_topic:
+            finding["off_topic"] = True
+        # Spec 036 Step 4 — informative context, omitted when absent so a finding
+        # without abstract text / synthesis direction keeps its pinned shape.
+        if abstract_snippet:
+            finding["abstract_snippet"] = abstract_snippet
+        if direction:
+            finding["direction"] = direction
+        if grade is not None:
+            finding["grade"] = grade
+            if certainty is not None:
+                finding["certainty"] = certainty
+            if grade_rationale is not None:
+                finding["grade_rationale"] = grade_rationale
+            # A live finding is ALWAYS provisional (§IX): it is breadth, never
+            # curated. The flag is unconditionally True — the ``provisional``
+            # parameter is retained only for call-site symmetry with the grader.
+            finding["provisional"] = True
+        self.live_findings.append(finding)
 
     def add_verified_finding(
         self,
@@ -520,7 +591,7 @@ class Answer:
             lines.append("")
             lines.append(
                 f"- Highest evidence grade across claims: "
-                f"**{es.highest_grade.value}**"
+                f"**{es.highest_grade.display()}**"
             )
             lines.append(f"- Claims: {es.n_claims}")
             lines.append(
@@ -549,7 +620,7 @@ class Answer:
                     Citation.from_source(s, grade=grade).inline
                     for s in claim.sources
                 )
-                lines.append(f"- **[{grade.value}]** {claim.text} {cites}".rstrip())
+                lines.append(f"- **[{grade.display()}]** {claim.text} {cites}".rstrip())
                 # WP-RETRIEVAL #5 — surface the cited trial's effect size,
                 # 95% CI, and P at the citation site, and guard a curated NNT
                 # derived from a non-significant endpoint with an explicit
@@ -578,11 +649,9 @@ class Answer:
 
         if self.sections:
             lines.append(
-                "> **Curated reference (offline).** The sections below are "
-                "graded background from the curated registries — scaffolding "
-                "to reason over, **not** a live-verified answer and not the "
-                "intelligence itself. Verify each identifier before citing "
-                "(Constitution §I / M5)."
+                "> **Background.** Compound pharmacology and related-indication "
+                "context from the curated registries — not specific efficacy "
+                "evidence for this question. Confirm each source before citing."
             )
             lines.append("")
         for heading, body in self.sections:
@@ -595,13 +664,12 @@ class Answer:
             lines.append("## Verified breadth — gate-passed, human-approved")
             lines.append("")
             lines.append(
-                "_Primary sources that cleared the SAME admission gate as a "
-                "curated claim (identifier audit · not-retracted · claim-support "
-                "with a verbatim quote · phytochemistry rigor) AND were promoted "
-                "by a named curator (Constitution §IX flywheel). Each carries a "
-                "conservative single-source GRADE — the middle tier between the "
-                "curated core above and the provisional live frontier below, and "
-                "it never re-grades the core._"
+                "_Primary sources that cleared the full admission gate "
+                "(identifier audit · not-retracted · claim-support with a "
+                "verbatim quote · phytochemistry rigor) and a named-curator "
+                "review. Each carries a conservative single-source GRADE — the "
+                "middle tier between the curated core above and the provisional "
+                "live frontier below, and it never re-grades the core._"
             )
             lines.append("")
             for f in self.verified_findings:
@@ -624,13 +692,25 @@ class Answer:
             lines.append("")
             lines.append(
                 "_Live-source breadth woven onto the verified curated core "
-                "above (Constitution §IX). Each hit is provenance-tagged "
-                "(`live_<source>`), reranked, and citation-checked against the "
-                "retraction registry, but carries NO curated grade and never "
-                "auto-promotes into the knowledge base — verify each identifier "
-                "before citing._"
+                "above. Each hit is provenance-tagged (`live_<source>`), "
+                "reranked, and checked against the retraction registry, but "
+                "carries no curated grade and never auto-promotes into the "
+                "knowledge base — confirm each source before citing._"
             )
             lines.append("")
+            # Spec 036 Step 4 — search-provenance line. Deterministic counts from
+            # the weave (sources queried · rows found · rows kept on-topic). No
+            # fabricated date: the Answer's own ``generated_at`` is the search
+            # date when present, omitted otherwise.
+            if self.live_sources_searched:
+                on_topic = len(self.live_findings)
+                when = f"on {self.generated_at} " if self.generated_at else ""
+                lines.append(
+                    f"_Searched {self.live_sources_searched} live source"
+                    f"{'s' if self.live_sources_searched != 1 else ''} {when}· "
+                    f"{self.live_findings_found} found · {on_topic} on-topic._"
+                )
+                lines.append("")
             if self.live_synthesis:
                 conv = self.live_synthesis.get("convergence", "NONE")
                 counts = self.live_synthesis.get("per_source_counts", {}) or {}
@@ -641,6 +721,12 @@ class Answer:
                     f"**Cross-source synthesis: {conv}** — convergence across "
                     f"the live primary-source tier ({present})."
                 )
+                # Spec 036 Step 5 — the honest one-line summary, built from the
+                # counts/verdict only (never asserts efficacy; wording matches
+                # the verdict). Rendered when present.
+                prose = self.live_synthesis.get("prose")
+                if prose:
+                    lines.append(f"- {prose}")
                 dis = self.live_synthesis.get("disagreement")
                 if dis:
                     lines.append(f"- Disagreement flagged: {dis}")
@@ -661,10 +747,41 @@ class Answer:
                     if status in _LIVE_FLAGGED_STATUSES
                     else ""
                 )
-                lines.append(
-                    f"- [{f['source_tag']}]{badge} `{f['identifier']}`{yr}{label} "
-                    f"— provisional grade: {f['provisional_grade']}{url}".rstrip()
+                # A graded finding renders its clamped certainty + "Level C/D"
+                # letter, kept together and marked `· live · provisional` so it can
+                # never be read as a curated grade. Ungraded/context rows render the
+                # bare provisional qualifier (no letter), unchanged.
+                grade = f.get("grade")
+                if grade:
+                    grade_text = (
+                        f"{EvidenceLevel(grade).display()} · live · provisional"
+                    )
+                else:
+                    grade_text = f["provisional_grade"]
+                # Spec 036 Step 4 — inline synthesis direction tag (where present).
+                dir_tag = (
+                    f" → {f['direction']}" if f.get("direction") else ""
                 )
+                # The grade renders IMMEDIATELY after the id (before the label),
+                # so the §XI inflation gate's nearest-id binding attaches each grade
+                # to its OWN finding's identifier and never cross-binds to a sibling
+                # when two graded findings render in sequence (mirrors pdf_export).
+                lines.append(
+                    f"- [{f['source_tag']}]{badge} `{f['identifier']}`{yr} "
+                    f"— provisional grade: {grade_text}{label}{dir_tag}{url}".rstrip()
+                )
+                # Spec 036 Step 4 — verified abstract snippet (a true substring),
+                # rendered as a blockquote under the finding. Context, not a grade.
+                if f.get("abstract_snippet"):
+                    lines.append(f"  > “{f['abstract_snippet']}”")
+            lines.append("")
+
+        # Render-only transparency note for the live-evidence area: a small, muted
+        # line set when no live frontier was woven (unavailable / un-renderable /
+        # nothing on-topic). Not evidence, not a grade — just why the live section
+        # is absent. Renders nothing when empty (the default).
+        if self.live_retrieval_note:
+            lines.append(f"> _{self.live_retrieval_note}_")
             lines.append("")
 
         if self.cautions:
@@ -693,7 +810,7 @@ class Answer:
             _cite_grades = self._citation_grade_map()
             for c in self.citations:
                 _g = _lookup_citation_grade(_cite_grades, c)
-                grade_tag = f" — {_g}" if _g else ""
+                grade_tag = f" — {EvidenceLevel(_g).display()}" if _g else ""
                 year = f" ({c.year})" if c.year else ""
                 # Spec 002 US1 preprint badge.
                 badge = ""
@@ -744,11 +861,18 @@ class Answer:
             "generated_at": self.generated_at,
             "short_answer": self.short_answer,
             "refusal_reason": self.refusal_reason,
+            # First-class refusal flag (§V / §XI) — a refusal still serializes its
+            # reference citations, so a /cv output skill must be able to detect the
+            # refusal state directly rather than infer it from citations being
+            # present. Mirrors the ``is_refusal`` property.
+            "is_refusal": self.is_refusal,
             "claims": [
                 {
                     "text": c.text,
                     "claim_type": c.claim_type.value,
                     "grade": c.best_supportable_grade().value,
+                    "certainty": c.best_supportable_grade().certainty,
+                    "grade_rationale": grade_rationale(c).summary(),
                     "sources": [
                         {
                             "title": s.title,
@@ -810,6 +934,11 @@ class Answer:
                 else {}
             ),
             "live_findings": list(self.live_findings),
+            # Phase-2 on-topic gate verdict (spec 036) — always emitted so a JSON
+            # consumer can be honest about what live breadth was filtered.
+            # Default False/0 for a curated-only brief.
+            "on_topic_filter_applied": self.on_topic_filter_applied,
+            "live_findings_dropped_off_topic": self.live_findings_dropped_off_topic,
             # Emitted only when a live fan-out was woven in, so the pinned
             # offline-answer JSON shape stays unchanged for curated-only briefs.
             **(
@@ -1009,17 +1138,17 @@ def _monograph_sections_for(prompt: str) -> "frozenset[str] | None":
 # already grade-validated claim cannot over-claim (Constitution §VII).
 _GRADE_FRAME: "dict[EvidenceLevel, str]" = {
     EvidenceLevel.A: (
-        "High-certainty evidence (Level A — systematic review / "
+        "High certainty (Level A — systematic review / "
         "meta-analysis or ≥ 2 aligned RCTs)"
     ),
     EvidenceLevel.B: (
-        "Moderate-certainty evidence (Level B — single adequately-powered RCT)"
+        "Moderate certainty (Level B — single adequately-powered RCT)"
     ),
     EvidenceLevel.C: (
-        "Low-certainty evidence (Level C — observational / single small trial)"
+        "Low certainty (Level C — observational / single small trial)"
     ),
-    EvidenceLevel.D: "Preclinical evidence only (Level D)",
-    EvidenceLevel.E: "Traditional-use evidence only (Level E)",
+    EvidenceLevel.D: "Very low certainty (Level D — preclinical evidence only)",
+    EvidenceLevel.E: "Very low certainty (Level E — traditional-use evidence only)",
     EvidenceLevel.UNSUPPORTED: "No admissible primary evidence",
 }
 
@@ -1229,15 +1358,15 @@ def _set_short_answer(a: Answer) -> None:
     uncovered_label = _uncovered_efficacy_indication_label(
         a, getattr(a, "prompt", "") or ""
     )
-    # Fire the honest override only when the named indication is uncurated AND
-    # no curated efficacy claim survives for ANY part of the query. A mixed
-    # "Dravet and autism" query keeps its real Level B Dravet BLUF (the
-    # uncurated-indication note still flags the uncovered half); only an
+    # Fire the honest override only when the named indication is uncurated AND no
+    # surviving efficacy claim actually COVERS the query. "Covers" is on-topic,
+    # not merely-present: a chronic-pain SR recovered for a breast-cancer question
+    # does not count (see _query_efficacy_is_covered). A mixed "Dravet and autism"
+    # query keeps its real Level B Dravet BLUF (Dravet covers); only an
     # all-uncurated query gets the "no curated efficacy evidence" bottom line.
-    has_curated_efficacy = any(
-        c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims
-    )
-    if uncovered_label and not has_curated_efficacy:
+    if uncovered_label and not _query_efficacy_is_covered(
+        a, getattr(a, "prompt", "") or ""
+    ):
         pretty = uncovered_label
         a.short_answer = (
             f"**No curated efficacy evidence for {pretty}.** The Cannavec "
@@ -1290,6 +1419,143 @@ _LIVE_FLAG_LABEL = {
 }
 
 
+# The HONEST ceiling for a live hit's grade (spec 036, Step 2): a live JOURNAL
+# hit is NEVER more certain than curated evidence (clamp to Level C / Low), and a
+# live PREPRINT caps one notch lower (Level D / Very low). The clamp is applied
+# AFTER the real GRADE engine runs, so the engine's single-study caps still bite
+# (an off-design row may land below the ceiling) — the clamp only ever LOWERS.
+_LIVE_JOURNAL_GRADE_CEILING = EvidenceLevel.C
+_LIVE_PREPRINT_GRADE_CEILING = EvidenceLevel.D
+
+
+def _clamp_grade(grade: EvidenceLevel, ceiling: EvidenceLevel) -> EvidenceLevel:
+    """Return ``grade`` capped at ``ceiling`` by rank (never raises it)."""
+    return grade if grade.rank <= ceiling.rank else ceiling
+
+
+def live_source_from_row(source_key: str, row: dict) -> "Source | None":
+    """Build a :class:`Source` for a live-discovery row from metadata the lane
+    ALREADY returned — no network fetch (Constitution §X, spec 036).
+
+    The tier is the stronger-but-still-honest of two metadata signals: the study
+    design inferred from ``pubtypes`` and the journal's tier from
+    ``data/journal_tiers.json``. ``pre_registered`` / ``adequately_powered`` come
+    from a trial-registry id / sample-size signal in the title+abstract. Preprint
+    lanes are pinned to the preprint tier regardless of any journal field.
+
+    Returns ``None`` when the row carries no primary identifier (nothing to
+    grade per §I) — the caller then keeps the existing provisional string.
+    """
+    pmid = str(row.get("pmid")) if row.get("pmid") else None
+    doi = str(row.get("doi")) if row.get("doi") else None
+    url = str(row.get("url") or row.get("link") or "") or None
+    if not (pmid or doi or url):
+        return None
+
+    title = str(
+        row.get("title") or row.get("brief_title") or row.get("compound") or ""
+    )
+    abstract = str(row.get("abstract") or "")
+    year_raw = row.get("year") or row.get("start_year")
+    try:
+        year = int(year_raw) if year_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        year = None
+    retraction_status = str(row.get("retraction_status") or "clean")
+    # The live retraction vocab uses "clean"/"retracted"/… ; CTgov uses "ok".
+    if retraction_status == "ok":
+        retraction_status = "clean"
+    pre_registered, adequately_powered = study_design_signal_from_abstract(
+        title, abstract
+    )
+
+    if source_key in _PREPRINT_LIVE_SOURCES:
+        # A preprint has no peer-reviewed journal tier; pin it to the preprint
+        # design tier. Its grade is clamped to Level D downstream regardless.
+        tier = SourceTier.PREPRINT_OR_SMALL
+    else:
+        pubtypes = tuple(
+            p for p in (row.get("pubtypes") or ()) if isinstance(p, str)
+        )
+        design_tier = infer_tier_from_pubtypes(pubtypes)
+        journal_tier = journal_tier_from_name(str(row.get("journal") or ""))
+        # Combine the two honest signals, but only let the journal STRENGTHEN the
+        # row when it is a *recognised* high-impact venue. An unknown/empty
+        # journal name carries no positive signal — it must never lift an
+        # undesigned row off its conservative floor (prefer-lower when ambiguous,
+        # spec 036 honesty contract). A flagship journal lifts an undesigned
+        # article; a strong design lifts a no-name journal; but neither can
+        # exceed the downstream clamp.
+        journal_recognised = journal_tier in (
+            SourceTier.SR_FLAGSHIP,
+            SourceTier.JOURNAL_RCT,
+        )
+        tier = (
+            min(design_tier, journal_tier, key=lambda t: int(t))
+            if journal_recognised
+            else design_tier
+        )
+
+    try:
+        return Source(
+            title=title or (pmid or doi or url or "live source"),
+            tier=tier,
+            pmid=pmid,
+            doi=doi,
+            url=url,
+            year=year,
+            pre_registered=pre_registered,
+            adequately_powered=adequately_powered,
+            retraction_status=retraction_status,
+        )
+    except ValueError:
+        return None
+
+
+def _live_grade_for_row(source_key: str, row: dict) -> "tuple[EvidenceLevel, str] | None":
+    """Compute the clamped live grade + rationale for a row, or ``None`` when the
+    row carries no gradeable metadata (degrade to the provisional string).
+
+    Routes through the SAME engine the curated tier uses
+    (:meth:`Claim.best_supportable_grade` + :func:`grade_rationale`), then clamps
+    to the live ceiling — so the 'why' can never drift from the grade and a live
+    hit can never out-certain a curated claim.
+    """
+    source = live_source_from_row(source_key, row)
+    if source is None:
+        return None
+    # Grade on STUDY DESIGN alone. A live hit carries no effect-size / CI /
+    # comparator metadata, so routing it through ``CLINICAL_EFFICACY`` (8
+    # required disclosures) would crush every row to UNSUPPORTED via the
+    # missing-disclosure penalty — dishonest in the *opposite* direction (it
+    # would hide a real recent RCT). ``EDUCATIONAL`` carries no required
+    # disclosures, so the single-source design caps govern, and the downstream
+    # clamp to <= Level C / Level D guarantees a live hit never out-certains a
+    # curated claim.
+    claim = Claim(
+        text=str(row.get("title") or ""),
+        claim_type=ClaimType.EDUCATIONAL,
+        sources=(source,),
+    )
+    computed = claim.best_supportable_grade()
+    if computed is EvidenceLevel.UNSUPPORTED:
+        return None
+    ceiling = (
+        _LIVE_PREPRINT_GRADE_CEILING
+        if source_key in _PREPRINT_LIVE_SOURCES
+        else _LIVE_JOURNAL_GRADE_CEILING
+    )
+    clamped = _clamp_grade(computed, ceiling)
+    rationale = grade_rationale(claim).summary()
+    note = (
+        "live preprint, not peer-reviewed (unverified)"
+        if source_key in _PREPRINT_LIVE_SOURCES
+        else "live, unverified"
+    )
+    rationale = f"{rationale} — {note}" if rationale else note
+    return clamped, rationale
+
+
 def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
     """Map a live-discovery row (a lane's ``.to_dict()``) to a provisional
     live-finding dict for :meth:`Answer.add_live_finding`.
@@ -1338,9 +1604,12 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
     if rec is None and row.get("doi"):
         rec = is_retracted(doi=str(row.get("doi")))
     retraction_status = rec.status.value if rec is not None else "clean"
-    if retraction_status in _LIVE_FLAGGED_STATUSES:
-        grade = f"{_LIVE_FLAG_LABEL[retraction_status]} ({retraction_status})"
-    return {
+
+    # Phase-2 honest metadata-only GRADE (spec 036, Step 2). A flagged row keeps
+    # its §VIII badge as the provisional string and is NOT given a certainty
+    # grade (a retracted/EOC paper must never read as graded evidence). A clean
+    # row is graded through the curated engine and clamped to the live ceiling.
+    finding: dict = {
         "label": title,
         "identifier": ident_label,
         "source_tag": f"live_{source_key}",
@@ -1349,6 +1618,63 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
         "year": str(year) if year else "",
         "retraction_status": retraction_status,
     }
+    # Spec 036 Step 4 — informative snippet. When the lane returned an abstract
+    # (preprint lanes do; PubMed/EuropePMC esummary do not), attach the best-
+    # overlap abstract sentence VERIFIED as a literal substring (no paraphrase,
+    # §I / M5). No abstract or no verifiable sentence ⇒ omit the field. This is
+    # context, not a grade, so a flagged/ungraded row may also carry it.
+    abstract = str(row.get("abstract") or "")
+    if abstract:
+        from cannavec_science.live_snippet import supporting_snippet
+        snippet = supporting_snippet(str(title), abstract)
+        if snippet:
+            finding["abstract_snippet"] = snippet
+    if retraction_status in _LIVE_FLAGGED_STATUSES:
+        finding["provisional_grade"] = (
+            f"{_LIVE_FLAG_LABEL[retraction_status]} ({retraction_status})"
+        )
+        return finding
+
+    graded = _live_grade_for_row(source_key, row)
+    if graded is not None:
+        level, rationale = graded
+        # Structured grade fields — the canonical grade lives HERE. The render
+        # (Task 4 / spec 036 Step 3) reads these into the §XI-checked surface;
+        # until then the human ``provisional_grade`` string carries only a
+        # certainty-word qualifier (NOT the "Level X" letter), so the gate-level
+        # grade cannot leak into the render outside the §XI surface.
+        finding["grade"] = level.value          # e.g. "Level C"
+        finding["certainty"] = level.certainty  # e.g. "Low"
+        finding["grade_rationale"] = rationale
+        finding["provisional"] = True
+        # The visible qualifier distinct from a curated grade.
+        finding["provisional_grade"] = (
+            f"{level.certainty} certainty · live · provisional"
+        )
+    return finding
+
+
+def weave_verified_findings(answer, *, prompt: str, store_dir=None) -> int:
+    """Weave the expert-gated verified-breadth tier onto ``answer`` (§IX).
+
+    The curation flywheel that produces this tier is post-MVP machinery archived
+    under ``archive/`` (mission realignment v3.0.0), so ``cannavec_science.flywheel``
+    is intentionally not importable in the shipped engine. When it is absent this
+    is a **clean no-op** — the verified tier stays empty and nothing is raised —
+    rather than a raised-and-swallowed ``ImportError`` that masks real errors. If a
+    future build re-homes the flywheel into the engine, this transparently
+    delegates to it.
+
+    Returns the number of verified findings woven (always ``0`` when the flywheel
+    is archived). Never touches ``evidence_summary``.
+    """
+    try:
+        from cannavec_science.flywheel import (  # type: ignore[import-not-found]
+            weave_verified_findings as _weave,
+        )
+    except ModuleNotFoundError:
+        return 0  # flywheel archived — verified tier stays empty, cleanly
+    return _weave(answer, prompt=prompt, store_dir=store_dir)
 
 
 def compose_answer(
@@ -2025,11 +2351,7 @@ def compose_answer(
     # network), so the default brief is unchanged. Never touches
     # ``evidence_summary`` — breadth augments the core, it does not re-grade it.
     if verified and not a.is_refusal:
-        try:
-            from cannavec_science.flywheel import weave_verified_findings
-            weave_verified_findings(a, prompt=prompt, store_dir=verified_store_dir)
-        except Exception:  # noqa: BLE001 — best-effort; the curated core stands
-            pass
+        weave_verified_findings(a, prompt=prompt, store_dir=verified_store_dir)
 
     # ── Blend: weave citation-checked live breadth onto the curated core ──
     # Constitution §IX (live-discovery contract) + §IV (research-grade breadth
@@ -2222,16 +2544,16 @@ def _classify_zero_claims(
         a.notes = a.notes + (
             "0 curated claims: this question targets a non-researcher "
             "audience (cultivation / lab-QC / retail / hemp-derived) — "
-            "see the parent Cannavec plugin for those surfaces. The v0.x "
-            "Cannavec Science MVP is researcher-only per Constitution §IV.",
+            "see the parent Cannavec plugin for those surfaces. Cannavec "
+            "Science is researcher-grade.",
         )
         return
     if _ZERO_CLAIM_DEFERRED_RE.search(prompt):
         a.notes = a.notes + (
-            "0 curated claims: this question is in §IV (research-grade) "
-            "but sits in the v0.4 analytical-chemistry / cultivation-"
-            "science horizon — see spec 003 US11 / US12. Use the "
-            "`discover` subcommand for a live PubMed / ChEMBL search.",
+            "0 curated claims: this is a research-grade question but sits "
+            "in the v0.4 analytical-chemistry / cultivation-science "
+            "horizon. Use the `discover` subcommand for a live "
+            "PubMed / ChEMBL search.",
         )
         return
     if cannabinoid_set.all_names:
@@ -2604,6 +2926,79 @@ _SPECIFIC_INDICATION_SUBTAGS: "frozenset[str]" = frozenset(
 )
 
 
+def _indications_are_wrong(
+    subject_indications: "frozenset[str]",
+    prompt_indications: "frozenset[str]",
+) -> bool:
+    """Core indication-mismatch decision shared by the curated and live gates.
+
+    Given a condition-SPECIFIC subject (a recovered claim or a live row whose
+    own ``indication_terms`` are already known non-empty) and the prompt's
+    condition tags, decide whether the subject is the WRONG indication. The
+    caller is responsible for the two pre-guards that say "we cannot prove a
+    mismatch" (a non-efficacy/condition-agnostic subject, or a subject naming no
+    condition at all) — this helper assumes ``subject_indications`` is non-empty
+    and encodes only the three mismatch rules, so the curated tier and the live
+    tier agree byte-for-byte:
+
+    1. **Condition-less prompt** — the prompt names NO condition, but the
+       subject is condition-specific efficacy: the retrieval/live layer is
+       binding a specific clinical-efficacy row to a question the user did not
+       ask. Drop (``True``).
+    2. **Sibling sub-tag precision (c04)** — Dravet / Lennox-Gastaut / TSC all
+       carry the ``epilepsy`` family tag, so a plain family-tag intersection
+       cannot tell "CBD for TSC" apart from the Dravet row. When BOTH the prompt
+       and the subject name a *specific* sub-condition and those sub-conditions
+       differ, it is the wrong indication even though the family tag overlaps.
+       (Inert when only one side names a sub-tag — then the family-level
+       intersection governs, preserving broad-query recall.)
+    3. **Family-tag disjointness** — otherwise, wrong iff the tag sets do not
+       overlap at all.
+    """
+    if not prompt_indications:
+        return True
+    prompt_specific = prompt_indications & _SPECIFIC_INDICATION_SUBTAGS
+    subject_specific = subject_indications & _SPECIFIC_INDICATION_SUBTAGS
+    if (
+        prompt_specific
+        and subject_specific
+        and not (prompt_specific & subject_specific)
+    ):
+        return True
+    return not (prompt_indications & subject_indications)
+
+
+def live_row_is_wrong_indication(
+    title: str,
+    prompt_indications: "frozenset[str]",
+) -> bool:
+    """Is this live primary-source row about a DIFFERENT indication than the
+    query — the live analog of :func:`_recovered_claim_is_wrong_indication`?
+
+    Phase-2 widens coverage by weaving live rows onto a curated answer; this is
+    the hard wrong-indication gate at that merge point. A live efficacy row can
+    match a prompt on the compound + a generic head noun ("cannabidiol" +
+    "syndrome") while being about a completely different condition — surfacing a
+    Dravet seizure trial for a Tourette query. Presenting that as a citable
+    finding answers a *different question*.
+
+    Mirrors :func:`_recovered_claim_is_wrong_indication` exactly by delegating
+    the mismatch decision to the shared :func:`_indications_are_wrong` — so the
+    live tier inherits the SAME ``_SPECIFIC_INDICATION_SUBTAGS`` sibling
+    precision (Dravet vs TSC vs LGS share the ``epilepsy`` family tag) and the
+    SAME condition-less-prompt drop. The only pre-guard here is "the row's title
+    names no recognised condition" (then we cannot prove a mismatch — a
+    mechanistic / PK / context row is kept). Reuses ``intent.indication_terms``;
+    no indication regex or sub-tag logic is duplicated.
+    """
+    from cannavec_science.intent import indication_terms
+
+    row_indications = indication_terms(title or "")
+    if not row_indications:
+        return False
+    return _indications_are_wrong(row_indications, prompt_indications)
+
+
 def _recovered_claim_is_wrong_indication(
     claim: Claim,
     prompt_indications: "frozenset[str]",
@@ -2646,27 +3041,12 @@ def _recovered_claim_is_wrong_indication(
     # condition is *known and different*).
     if not claim_indications:
         return False
-    # The claim IS about a specific condition. If the prompt names NO condition
-    # at all, a condition-specific clinical-efficacy claim surfaced by BM25 is
-    # answering a question the user did not ask — e.g. a generic "muscle spasm"
-    # / assay-timing query ("...200 ms after stimulation") recovering the
-    # MS-spasticity nabiximols claim (Level B). The retrieval layer exists for
-    # condition-AGNOSTIC recoveries (driving / CYP / PK), not for binding a
-    # specific clinical-efficacy claim to a condition-less query — so drop it.
-    if not prompt_indications:
-        return True
-    # Sub-tag precision (c04): siblings in one condition family share the family
-    # tag (Dravet / LGS / TSC all carry 'epilepsy'), so a plain intersection
-    # cannot tell "CBD for TSC" apart from the Dravet row. When the prompt names
-    # a *specific* sub-condition and the claim is about a *different* specific
-    # sub-condition, it is the wrong indication even though the family tag
-    # overlaps. (When the prompt names no specific sub-tag, this is inert and the
-    # original family-level intersection governs — broad-query recall preserved.)
-    prompt_specific = prompt_indications & _SPECIFIC_INDICATION_SUBTAGS
-    claim_specific = claim_indications & _SPECIFIC_INDICATION_SUBTAGS
-    if prompt_specific and claim_specific and not (prompt_specific & claim_specific):
-        return True
-    return not (prompt_indications & claim_indications)
+    # The claim IS condition-specific. The mismatch decision (condition-less
+    # prompt drop, c04 sibling sub-tag precision, family-tag disjointness) is the
+    # SAME logic the live tier needs, so it lives in one shared helper — see
+    # :func:`_indications_are_wrong`. This keeps the two gates byte-for-byte
+    # aligned (a Dravet row is the wrong indication for a TSC query on BOTH).
+    return _indications_are_wrong(claim_indications, prompt_indications)
 
 
 def _drop_wrong_sibling_indication_claims(a: Answer, prompt: str) -> int:
@@ -2853,6 +3233,48 @@ def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None"
     return _structural_efficacy_indication(prompt)
 
 
+def _claim_text_names_indication(claim: Claim, indication: str) -> bool:
+    """Does ``claim`` actually name ``indication`` (an OFF-vocabulary structural
+    indication the tag lexicon does not recognise)? Discrete whole-phrase match
+    over the claim's population + text. A ``cancer`` indication excludes the
+    negated "non-cancer", so a chronic-NON-cancer-pain SR does not "cover" a
+    breast-cancer question."""
+    hay = f"{claim.population or ''} {claim.text}".lower()
+    needle = re.escape(indication.lower().strip())
+    if re.search(r"\bcancer\b", indication.lower()):
+        return re.search(rf"(?<!non.)\b{needle}\b", hay) is not None
+    return re.search(rf"\b{needle}\b", hay) is not None
+
+
+def _query_efficacy_is_covered(a: Answer, prompt: str) -> bool:
+    """Is the prompt's efficacy question actually COVERED by a surviving
+    clinical-efficacy claim — as opposed to merely having *some* efficacy claim?
+
+    The distinction is the §I/M2 fix for the off-vocabulary long tail. A BM25
+    recovery can attach a clinical-efficacy claim about a DIFFERENT condition
+    (a chronic-pain SR for a "cannabis for breast cancer" question); its mere
+    presence must not count as "the KB has efficacy evidence for breast cancer".
+
+    - No clinical-efficacy claim at all → not covered.
+    - The prompt names an IN-vocabulary indication → covered when any efficacy
+      claim survives (the wrong-indication claims for these are already removed
+      upstream by the indication-tag drops; preserved behaviour, no new coupling).
+    - The prompt is an OFF-vocabulary structural "<cannabinoid> for <indication>"
+      frame (no tag exists) → covered ONLY when a surviving efficacy claim's text
+      actually names that indication (so the Suraev sleep SR covers "sleep" but a
+      chronic-pain SR does not cover "breast cancer")."""
+    eff = [c for c in a.claims if c.claim_type == ClaimType.CLINICAL_EFFICACY]
+    if not eff:
+        return False
+    from cannavec_science.intent import indication_terms
+    if indication_terms(prompt):
+        return True
+    structural = _structural_efficacy_indication(prompt)
+    if not structural:
+        return True
+    return any(_claim_text_names_indication(c, structural) for c in eff)
+
+
 def _clear_claims_for_uncovered_efficacy_indication(
     a: Answer, prompt: str
 ) -> int:
@@ -2876,7 +3298,7 @@ def _clear_claims_for_uncovered_efficacy_indication(
     as ``binding.uncovered_indication_cleared`` (fail-loud, never silent)."""
     if a.is_refusal:
         return 0
-    if any(c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims):
+    if _query_efficacy_is_covered(a, prompt):
         return 0
     if not _uncovered_efficacy_indication_label(a, prompt):
         return 0
