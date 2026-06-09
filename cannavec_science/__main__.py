@@ -252,14 +252,42 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
 
+    # Write-through to the verified-source flywheel (M2): cache every verified,
+    # non-retracted live row before any cache-fallback injection, so the offline
+    # KB grows from real fetches only. Degrades silently.
+    from cannavec_science import live_cache as _live_cache
+
+    try:
+        _live_cache.record_discovery(args.query, out_payload["sources"])
+    except Exception:  # noqa: BLE001 — a cache write never breaks discovery
+        pass
+
     # Build synthesis block keyed by the synthesis _SOURCE_KEYS — the
     # same short keys the CLI uses, so cross-source clustering picks up
-    # every live row that came back.
+    # every LIVE row that came back (cache-fallback rows are added after and
+    # deliberately excluded from the fresh-convergence verdict).
     synth_rows: dict = {}
     for src, val in out_payload["sources"].items():
         if isinstance(val, list):
             synth_rows[src] = val
     block = synthesize(args.query, synth_rows)
+
+    # Read-fallback (offline resilience): when the entire live fan-out came back
+    # empty — every upstream down — serve previously-verified sources from the
+    # offline cache, retraction RE-CHECKED on read (§VIII). Kept under a
+    # distinct ``live_cache`` key + flag so the reader knows these are not a
+    # fresh fetch, and they never manufacture a fresh-convergence verdict.
+    live_total = sum(len(v) for v in synth_rows.values())
+    if live_total == 0:
+        try:
+            cached_rows = _live_cache.fetch_for_query(
+                args.query, max_results=args.max
+            )
+        except Exception:  # noqa: BLE001
+            cached_rows = []
+        if cached_rows:
+            out_payload["sources"]["live_cache"] = cached_rows
+            out_payload["served_from_cache"] = True
 
     rank_result = _maybe_rank(args, out_payload)
 
@@ -321,6 +349,13 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         print(
             f"\n_PubMed was unavailable; Europe PMC backfilled the same MEDLINE "
             f"literature from a different host._"
+        )
+    if out_payload.get("served_from_cache"):
+        n_cached = len(out_payload["sources"].get("live_cache", []))
+        print(
+            f"\n_All live upstreams were unavailable. Served {n_cached} "
+            f"previously-verified source(s) from the offline cache "
+            f"(retraction re-checked; not a fresh fetch)._"
         )
     print("\n## Cross-source synthesis")
     print("")

@@ -54,7 +54,24 @@ def _failing_runner(source: str, exc: Exception):
     return _run
 
 
-class DiscoverSequentialTests(unittest.TestCase):
+class _CacheIsolatedTest(unittest.TestCase):
+    """Per-test isolated ``CANNAVEC_CACHE_DIR``.
+
+    Discover write-through (M2) grows a SQLite cache. Without per-test
+    isolation a prior test's verified rows could satisfy a later test's offline
+    read-fallback (the shared default query "cbd epilepsy" makes the keys
+    collide), so every discover test runs against its own throwaway store.
+    """
+
+    def setUp(self):
+        import tempfile
+        cache = tempfile.mkdtemp(prefix="cvtest-cache-")
+        patcher = patch.dict(os.environ, {"CANNAVEC_CACHE_DIR": cache})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class DiscoverSequentialTests(_CacheIsolatedTest):
     def _args(self, **kwargs) -> argparse.Namespace:
         defaults = dict(
             query="cbd epilepsy",
@@ -172,6 +189,39 @@ class DiscoverSequentialTests(unittest.TestCase):
                     _cmd_discover(args)
         self.assertNotIn("NCBI_API_KEY", err.getvalue())
 
+    def test_offline_cache_serves_after_live_goes_down(self):
+        # The flywheel: a healthy run writes verified rows through to the cache;
+        # when every upstream later fails, the same query is served from the
+        # offline store (retraction re-checked). Isolated to its own cache dir.
+        import tempfile
+        cache = tempfile.mkdtemp(prefix="cvcli-cache-")
+        q = "cbd cb1 working memory"
+        with patch.dict(os.environ, {"CANNAVEC_CACHE_DIR": cache}, clear=False):
+            reg_ok = {"pubmed": _runner("pubmed", n=1)}
+            with patch.dict(
+                "cannavec_science.__main__._DISCOVERER_REGISTRY",
+                reg_ok, clear=True,
+            ):
+                b1 = io.StringIO()
+                with redirect_stdout(b1), redirect_stderr(io.StringIO()):
+                    _cmd_discover(self._args(sources="pubmed", query=q))
+                p1 = json.loads(b1.getvalue())
+            # Healthy run: live rows present, nothing served from cache.
+            self.assertNotIn("served_from_cache", p1)
+
+            reg_down = {"pubmed": _failing_runner("pubmed", RuntimeError("down"))}
+            with patch.dict(
+                "cannavec_science.__main__._DISCOVERER_REGISTRY",
+                reg_down, clear=True,
+            ):
+                b2 = io.StringIO()
+                with redirect_stdout(b2), redirect_stderr(io.StringIO()):
+                    _cmd_discover(self._args(sources="pubmed", query=q))
+                p2 = json.loads(b2.getvalue())
+        self.assertTrue(p2.get("served_from_cache"))
+        self.assertEqual(len(p2["sources"]["live_cache"]), 1)
+        self.assertTrue(p2["sources"]["live_cache"][0].get("from_cache"))
+
     def test_lane_exception_surfaces_as_error_dict(self):
         registry = {
             "pubmed": _runner("pubmed"),
@@ -191,7 +241,7 @@ class DiscoverSequentialTests(unittest.TestCase):
         self.assertEqual(len(payload["sources"]["pubmed"]), 2)
 
 
-class DiscoverParallelTests(unittest.TestCase):
+class DiscoverParallelTests(_CacheIsolatedTest):
     def _args(self, parallel: int) -> argparse.Namespace:
         return argparse.Namespace(
             query="cbd epilepsy",
@@ -284,7 +334,7 @@ class _RaisingReranker:
         raise RuntimeError("no ANTHROPIC_API_KEY")
 
 
-class DiscoverRankingTests(unittest.TestCase):
+class DiscoverRankingTests(_CacheIsolatedTest):
     """The ranker integration: deterministic by default, opt-in LLM lift."""
 
     def _args(self, **kwargs) -> argparse.Namespace:

@@ -23,3 +23,10 @@ htmlcov/
 # Local demo artifacts
 /tmp/cannavec_science_*
 demo_output/
+
+# Live-retrieval verified-source cache (the M2 flywheel — grows at runtime,
+# an operator's KB, never committed as source).
+cannavec_science/data/live_cache/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

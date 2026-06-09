@@ -331,6 +331,15 @@ def run_discovery(
         s: v for s, v in out["sources"].items() if isinstance(v, list)
     }
     out["synthesis"] = synthesize(query, synth_rows).to_dict()
+
+    # Write-through to the verified-source flywheel (M2): cache every verified,
+    # non-retracted live row so the offline KB grows with each query. Degrades
+    # silently (read-only fs, locked db) — a cache write never breaks discovery.
+    try:
+        from cannavec_science import live_cache
+        live_cache.record_discovery(query, out["sources"])
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 
