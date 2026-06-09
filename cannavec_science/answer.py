@@ -753,9 +753,13 @@ class Answer:
                 dir_tag = (
                     f" → {f['direction']}" if f.get("direction") else ""
                 )
+                # The grade renders IMMEDIATELY after the id (before the label),
+                # so the §XI inflation gate's nearest-id binding attaches each grade
+                # to its OWN finding's identifier and never cross-binds to a sibling
+                # when two graded findings render in sequence (mirrors pdf_export).
                 lines.append(
-                    f"- [{f['source_tag']}]{badge} `{f['identifier']}`{yr}{label} "
-                    f"— provisional grade: {grade_text}{dir_tag}{url}".rstrip()
+                    f"- [{f['source_tag']}]{badge} `{f['identifier']}`{yr} "
+                    f"— provisional grade: {grade_text}{label}{dir_tag}{url}".rstrip()
                 )
                 # Spec 036 Step 4 — verified abstract snippet (a true substring),
                 # rendered as a blockquote under the finding. Context, not a grade.

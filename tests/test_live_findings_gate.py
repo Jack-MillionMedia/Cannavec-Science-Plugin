@@ -148,5 +148,131 @@ class ForgedInflatedLiveGradeIsRefused(unittest.TestCase):
             assert_render_faithful(a, forged)
 
 
+# --------------------------------------------------------------------------- #
+# A "packed" brief: TWO on-topic graded live findings with DIFFERENT grades.   #
+# The inflation gate binds each GRADE label to the NEAREST identifier; when a   #
+# finding's own grade renders FAR from its own id (past the title) and a        #
+# sibling's id sits NEARER, the stronger finding's grade cross-binds to the     #
+# weaker finding's id and the whole render is FALSELY refused. Both findings    #
+# are legitimately graded (C and D) — this is a false inflation, not a real     #
+# one, and the live tier must render packed, not degrade to curated-only.       #
+# --------------------------------------------------------------------------- #
+
+_PACKED_Q = "What is the evidence for cannabis in chronic pain?"
+
+
+def _pubmed_graded_runner(query, since, n):
+    return [
+        _FakeHit(
+            pmid="39000011",
+            title="Cannabidiol for chronic pain: a randomized controlled trial",
+            year="2023",
+            retraction_status="clean",
+            journal="PAIN",
+            pubtypes=("Randomized Controlled Trial",),
+            abstract="",
+        )
+    ][:n]
+
+
+def _biorxiv_graded_runner(query, since, n):
+    return [
+        _FakeHit(
+            doi="10.1101/2024.01.01.000001",
+            title="Cannabidiol for chronic pain: a preprint",
+            first_author="Doe",
+            year="2024",
+            server="biorxiv",
+            retraction_status="clean",
+            abstract="",
+        )
+    ][:n]
+
+
+def _augment_two_graded_live(answer):
+    """Weave two on-topic live findings (a graded PMID + a graded preprint DOI)
+    through the offline injected-runner seam, returning the two finding dicts."""
+    live.augment_answer(
+        answer,
+        sources=["pubmed", "biorxiv"],
+        runners={
+            "pubmed": _pubmed_graded_runner,
+            "biorxiv": _biorxiv_graded_runner,
+        },
+    )
+    pmid = next(
+        (f for f in answer.live_findings if f.get("identifier") == "PMID 39000011"),
+        None,
+    )
+    doi = next(
+        (
+            f
+            for f in answer.live_findings
+            if "10.1101/2024.01.01.000001" in (f.get("identifier") or "")
+        ),
+        None,
+    )
+    assert pmid is not None, "graded PMID live row was not woven"
+    assert doi is not None, "graded preprint DOI live row was not woven"
+    return pmid, doi
+
+
+class TwoGradedLiveFindingsRenderPacked(unittest.TestCase):
+    """Regression for the false-inflation refusal of a packed multi-finding brief.
+
+    Two on-topic graded live findings with DIFFERENT clamped grades (C and D)
+    must render with BOTH identifiers AND BOTH grades present, and the §XI gate
+    must NOT raise — the live tier renders packed, it does not degrade to
+    curated-only because one grade's nearest id is a sibling's."""
+
+    def test_two_graded_live_findings_render_packed_without_false_inflation(
+        self,
+    ) -> None:
+        a = compose_answer(_PACKED_Q)
+        pmid, doi = _augment_two_graded_live(a)
+
+        # Each finding carries its OWN clamped grade; they differ (the precondition
+        # that triggers the cross-binding bug).
+        self.assertEqual(pmid.get("grade"), "Level C")
+        self.assertEqual(doi.get("grade"), "Level D")
+
+        rendered = render_html(a)
+
+        # Both identifiers survive the render (the §I floor).
+        self.assertIn("39000011", rendered)
+        self.assertIn("10.1101/2024.01.01.000001", rendered)
+        # Both grades survive — the live tier is packed, not degraded.
+        self.assertIn("Level C", rendered)
+        self.assertIn("Level D", rendered)
+        # The honest qualifier is still visible on the live tier.
+        self.assertIn("live", rendered)
+        self.assertIn("provisional", rendered)
+
+        # The §XI gate must NOT raise: both findings are legitimately graded; the
+        # cross-bound "Level C" was a FALSE inflation, not a real one.
+        assert_render_faithful(a, rendered)
+
+
+class ForgedInflationOnOneOfTwoLiveFindingsIsRefused(unittest.TestCase):
+    """The fix must not blind the gate: forging ONE of the two findings' grades
+    upward (the Level-D preprint -> Level A) must still be REFUSED — a real live
+    inflation is still caught."""
+
+    def test_forged_inflation_on_live_preprint_is_refused(self) -> None:
+        a = compose_answer(_PACKED_Q)
+        _augment_two_graded_live(a)
+
+        rendered = render_html(a)
+        # The honest render must contain the preprint's TRUE grade so the forge is
+        # a genuine upward tamper (Level D -> Level A), not a no-op.
+        self.assertIn("Level D", rendered)
+
+        forged = rendered.replace("Level D", "Level A")
+        self.assertNotEqual(forged, rendered, "forge did not change the HTML")
+
+        with self.assertRaises(FaithfulnessError):
+            assert_render_faithful(a, forged)
+
+
 if __name__ == "__main__":
     unittest.main()

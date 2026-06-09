@@ -499,10 +499,17 @@ def _findings(answer: "Answer") -> str:
                 if f.get("abstract_snippet")
                 else ""
             )
+            # The grade renders IMMEDIATELY after the id (before the title/label),
+            # so the inflation gate's nearest-id binding attaches each grade to its
+            # OWN finding's identifier — never a sibling's. With the title between a
+            # finding's id and its grade, a stronger finding's grade could sit
+            # closer to the NEXT finding's id and read as a false inflation; placing
+            # the grade adjacent to the id makes its own id unambiguously nearest.
             row = (
                 f'<li><span class="tag">{html.escape(f["source_tag"])}</span>{badge} '
-                f'<code>{html.escape(f["identifier"])}</code>{yr} {_inline(f.get("label",""))} '
-                f"{grade_html}{dir_html}{url}{snippet_html}</li>"
+                f'<code>{html.escape(f["identifier"])}</code>{yr} '
+                f"{grade_html} {_inline(f.get('label',''))}"
+                f"{dir_html}{url}{snippet_html}</li>"
             )
             (graded_rows if grade else plain_rows).append(row)
         # Graded rows enter the §XI surface (_ev); ungraded rows stay outside it.
