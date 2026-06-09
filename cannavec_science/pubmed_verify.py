@@ -250,6 +250,30 @@ def surname_normalise(s: str) -> str:
     return _NON_LETTER_RE.sub("", stripped).lower()
 
 
+def _looks_like_initials(token: str) -> bool:
+    """True if ``token`` is a PubMed initials block (1–4 uppercase letters,
+    e.g. "O", "JA", "JPM")."""
+    return 1 <= len(token) <= 4 and token.isalpha() and token.isupper()
+
+
+def _surname_from_pubmed_name(name: str) -> str:
+    """First-author surname from a PubMed esummary author ``name``.
+
+    esummary formats names as "Surname Initials" — "Devinsky O", "de Macedo AS",
+    "van der Berg JPM". The trailing token is the initials; the surname is
+    everything before it, so compound / particle surnames ("de Macedo",
+    "van der Berg") survive intact. A name with no trailing initials token
+    (a single token, or a collective / organisation name) is returned whole —
+    never the first token alone (the bug this replaces: "de Macedo AS" → "de").
+    """
+    tokens = name.split()
+    if not tokens:
+        return ""
+    if len(tokens) > 1 and _looks_like_initials(tokens[-1]):
+        return " ".join(tokens[:-1])
+    return " ".join(tokens)
+
+
 # ── PubMed esummary ───────────────────────────────────────────────────
 
 _PUBMED_ESUMMARY_URL = (
@@ -298,15 +322,14 @@ def _parse_pubmed_response(pmid: str, body: str) -> Optional[PubMedRecord]:
     raw_authors = inner.get("authors") or []
     author_strs: list[str] = []
     for a in raw_authors:
-        # Author entries are dicts with a "name" key like "Devinsky O"
-        # or "Smith JA". The first whitespace-separated token is the
-        # surname.
+        # Author entries are dicts with a "name" key like "Devinsky O",
+        # "Smith JA", or "de Macedo AS" (surname + trailing initials).
         nm = a.get("name") if isinstance(a, dict) else None
         if nm:
             author_strs.append(nm.strip())
     first_surname = ""
     if author_strs:
-        first_surname = author_strs[0].split()[0]
+        first_surname = _surname_from_pubmed_name(author_strs[0])
     pubtypes_field = inner.get("pubtype") or []
     pubtypes = tuple(p for p in pubtypes_field if isinstance(p, str))
     return PubMedRecord(

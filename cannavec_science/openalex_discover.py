@@ -54,6 +54,7 @@ from cannavec_science._http import (
     user_agent,
 )
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
+from cannavec_science.intent import distill_query
 
 
 __all__ = [
@@ -211,7 +212,9 @@ class OpenAlexSearcher:
         open_access_only: bool,
     ) -> str:
         params = {
-            "search": query.strip(),
+            # Distill conversational phrasing — OpenAlex's keyword `search`
+            # returns nothing for a raw interrogative question, same as PubMed.
+            "search": distill_query(query),
             "per_page": str(per_page),
             "sort": "publication_date:desc",
         }

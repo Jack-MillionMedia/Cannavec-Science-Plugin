@@ -50,10 +50,15 @@ from dataclasses import dataclass, asdict, field
 from typing import Callable, Optional
 
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
+# Re-exported (kept in __all__) so `pubmed_search.distill_query` and the esearch
+# URL builder keep working — the canonical home is now intent (it is shared with
+# the OpenAlex lane and the synthesis subject picker).
+from cannavec_science.intent import distill_query
 from cannavec_science.pubmed_verify import (
     Fetcher,
     default_pubmed_fetcher,
     _parse_pubmed_year,
+    _surname_from_pubmed_name,
 )
 
 
@@ -82,63 +87,6 @@ _PUBMED_ESUMMARY_URL_BULK = (
 
 _MAX_RESULTS_CEILING = 50
 _SINCE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-
-# ── Natural-language query distillation ───────────────────────────────
-#
-# PubMed's automatic term mapping mis-parses conversational phrasing: a typed
-# question like "What is the molecular difference between THC and CBD?" is
-# mapped to `the, is[Author] AND ("molecular"...) AND (...)` — it reads the
-# short word "is" as an [Author] field, AND-joins every content term, and
-# returns ZERO hits even though thousands of relevant papers exist. Stripping
-# the interrogative scaffolding leaves the content terms esearch CAN map.
-#
-# Conservative by design — ONLY closed-class function / interrogative words,
-# never domain terms. The same query distilled by hand ("THC CBD molecular
-# structure") passes through unchanged.
-_QUERY_STOPWORDS: frozenset[str] = frozenset({
-    "a", "an", "the",
-    "is", "are", "am", "was", "were", "be", "been", "being",
-    "do", "does", "did", "done", "doing",
-    "what", "which", "who", "whom", "whose", "how", "why", "when",
-    "where", "whether",
-    "of", "between", "and", "or", "to", "in", "on", "for", "with",
-    "by", "as", "at", "from", "into", "about", "over", "under", "than",
-    "that", "this", "these", "those", "it", "its",
-})
-
-_QUERY_STRIP_PUNCT = ".,;:?!()[]{}\"'"
-
-
-def distill_query(query: str) -> str:
-    """Strip natural-language scaffolding so a question becomes esearch-mappable.
-
-    Removes a conservative, closed-class set of function / interrogative words
-    (:data:`_QUERY_STOPWORDS`) and surrounding punctuation (notably a trailing
-    ``?``). Never touches domain terms.
-
-    Safe + idempotent:
-
-    - A query that is already keywords ("THC CBD molecular structure") is
-      returned unchanged.
-    - Each surviving token keeps its ORIGINAL spelling — domain forms such as
-      ``Δ9-THC`` or ``LC-MS/MS`` are never mangled (only leading/trailing
-      punctuation is trimmed for the stopword comparison).
-    - A single uppercase letter is preserved even when its lowercase form is a
-      stopword ("vitamin A" survives).
-    - If every token is a stopword, the ORIGINAL query is returned rather than
-      an empty search.
-    """
-    kept: list[str] = []
-    for raw in query.split():
-        core = raw.strip(_QUERY_STRIP_PUNCT).strip()
-        if not core:
-            continue
-        is_single_upper = len(core) == 1 and core.isupper()
-        if core.lower() in _QUERY_STOPWORDS and not is_single_upper:
-            continue
-        kept.append(core)
-    return " ".join(kept).strip() or query.strip()
 
 
 # ── Exception ─────────────────────────────────────────────────────────
@@ -382,7 +330,7 @@ class PubMedSearcher:
         if authors and isinstance(authors[0], dict):
             name = authors[0].get("name") or ""
             if name:
-                first_surname = name.strip().split()[0]
+                first_surname = _surname_from_pubmed_name(name.strip())
         pubtypes_field = rec.get("pubtype") or []
         pubtypes = tuple(
             p for p in pubtypes_field if isinstance(p, str)
