@@ -288,6 +288,15 @@ class Answer:
     # ``weave_live_findings``; 0 for a curated-only brief, so the line is omitted.
     live_sources_searched: int = 0
     live_findings_found: int = 0
+    # Render-only transparency note for the live-evidence area: a short, factual
+    # line explaining WHY no live frontier is woven (unavailable / un-renderable /
+    # nothing on-topic). It is UX text, NOT evidence and NOT a grade — it carries
+    # no grade label or certainty word (so the §XI gate never reads it) and no
+    # internal framing. Default empty → renders nothing → a non-augmented answer
+    # and every existing pinned render are unchanged. Set by the ``/cv:pdf`` CLI
+    # path on its three degrade branches; an answer that actually wove live
+    # findings sets NO note (the live section speaks for itself).
+    live_retrieval_note: str = ""
 
     def add_claim(self, claim: Claim) -> None:
         if (
@@ -765,6 +774,14 @@ class Answer:
                 # rendered as a blockquote under the finding. Context, not a grade.
                 if f.get("abstract_snippet"):
                     lines.append(f"  > “{f['abstract_snippet']}”")
+            lines.append("")
+
+        # Render-only transparency note for the live-evidence area: a small, muted
+        # line set when no live frontier was woven (unavailable / un-renderable /
+        # nothing on-topic). Not evidence, not a grade — just why the live section
+        # is absent. Renders nothing when empty (the default).
+        if self.live_retrieval_note:
+            lines.append(f"> _{self.live_retrieval_note}_")
             lines.append("")
 
         if self.cautions:

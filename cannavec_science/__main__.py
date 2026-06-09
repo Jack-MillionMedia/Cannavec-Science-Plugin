@@ -992,12 +992,37 @@ def _cmd_pdf(args: argparse.Namespace) -> int:
                     augmented, pdf_export.render_html(augmented)
                 )
                 answer = augmented
+            elif augmented.live_sources_searched:
+                # Lanes WERE reachable but nothing on-topic survived the gate —
+                # say so in the brief (transparency), not just on stderr.
+                answer.live_retrieval_note = (
+                    "Live retrieval found no additional on-topic primary "
+                    "sources for this question."
+                )
+            else:
+                # No lane was reachable (offline / firewall): ``augment_answer``
+                # degrades silently rather than raising, so distinguish "offline"
+                # from "nothing on-topic" by whether any lane returned at all.
+                answer.live_retrieval_note = (
+                    "Live literature retrieval was unavailable — showing curated "
+                    "evidence only. Re-run on an open network to include the live "
+                    "primary-source frontier."
+                )
         except pdf_export.FaithfulnessError as exc:
             print(f"[pdf] live tier dropped (curated-only): render gate — {exc}",
                   file=sys.stderr)
+            answer.live_retrieval_note = (
+                "Live evidence was retrieved but could not be safely "
+                "rendered; showing curated evidence only."
+            )
         except Exception as exc:  # noqa: BLE001 — PDF never crashes on live
             print(f"[pdf] live augmentation skipped (curated-only): {exc}",
                   file=sys.stderr)
+            answer.live_retrieval_note = (
+                "Live literature retrieval was unavailable — showing curated "
+                "evidence only. Re-run on an open network to include the live "
+                "primary-source frontier."
+            )
 
     out_prefix = args.out or _pdf_slug(args.question)
     try:

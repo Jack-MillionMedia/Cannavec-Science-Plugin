@@ -526,6 +526,22 @@ def _findings(answer: "Answer") -> str:
     return "".join(out)
 
 
+def _live_note(answer: "Answer") -> str:
+    """Render the live-area transparency note (``answer.live_retrieval_note``) as a
+    small, muted, escaped line — set when no live frontier was woven (unavailable /
+    un-renderable / nothing on-topic). It is UX text, NOT evidence and NOT a grade,
+    so it stays OUTSIDE the ``_ev()`` evidence-surface markers (it carries no grade
+    label, by contract). Renders nothing when the note is empty (the default)."""
+    note = getattr(answer, "live_retrieval_note", "")
+    if not note:
+        return ""
+    return (
+        '<section class="live-note">'
+        f"<p class='note'>{html.escape(note)}</p>"
+        "</section>"
+    )
+
+
 def _cautions(answer: "Answer") -> str:
     blocks: list[str] = []
     if answer.cautions:
@@ -596,13 +612,14 @@ def render_html(answer: "Answer") -> str:
             "<code>/cv:research</code>.</div></section>"
         )
         state_body = (
-            banner + _sections(answer) + _findings(answer)
+            banner + _sections(answer) + _findings(answer) + _live_note(answer)
             + _cautions(answer) + _references(answer)
         )
     else:
         state_body = (
             _bluf(answer) + _summary(answer) + _claims(answer) + _sections(answer)
-            + _findings(answer) + _cautions(answer) + _references(answer)
+            + _findings(answer) + _live_note(answer)
+            + _cautions(answer) + _references(answer)
         )
 
     return (
