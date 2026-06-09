@@ -5,6 +5,10 @@ fully offline (no Chrome subprocess): a curated question writes a citation-lossl
 HTML brief and exits 0; a refusal and an uncurated indication each render an honest
 artifact (exit 0, no fabricated evidence); the documented subcommand surface stays
 in lockstep with argparse.
+
+These cases pin the CURATED render contract, so they pass ``--no-live`` to keep the
+brief offline + deterministic (``/cv:pdf`` augments the live frontier by default;
+the live-by-default + graceful-degrade path is covered in tests/test_phase2_e2e.py).
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ class TestPdfCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             prefix = str(Path(d) / "brief")
             rc = _run(["pdf", "CBD evidence in Dravet syndrome",
-                       "--out", prefix, "--html-only"])
+                       "--out", prefix, "--html-only", "--no-live"])
             self.assertEqual(rc, 0)
             html_path = Path(prefix + ".html")
             self.assertTrue(html_path.exists())
@@ -49,7 +53,7 @@ class TestPdfCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             prefix = str(Path(d) / "refusal")
             rc = _run(["pdf", "How much CBD should I take for my anxiety every day?",
-                       "--out", prefix, "--html-only"])
+                       "--out", prefix, "--html-only", "--no-live"])
             self.assertEqual(rc, 0)
             doc = Path(prefix + ".html").read_text("utf-8")
             self.assertIn("Refusal", doc)
@@ -58,7 +62,8 @@ class TestPdfCli(unittest.TestCase):
     def test_uncurated_indication_is_honest_exit_zero(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             prefix = str(Path(d) / "diabetes")
-            rc = _run(["pdf", "CBD for diabetes", "--out", prefix, "--html-only"])
+            rc = _run(["pdf", "CBD for diabetes", "--out", prefix, "--html-only",
+                       "--no-live"])
             self.assertEqual(rc, 0)
             doc = Path(prefix + ".html").read_text("utf-8")
             self.assertIn("No curated efficacy evidence", doc)

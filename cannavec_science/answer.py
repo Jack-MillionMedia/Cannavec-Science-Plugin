@@ -1633,6 +1633,29 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
     return finding
 
 
+def weave_verified_findings(answer, *, prompt: str, store_dir=None) -> int:
+    """Weave the expert-gated verified-breadth tier onto ``answer`` (§IX).
+
+    The curation flywheel that produces this tier is post-MVP machinery archived
+    under ``archive/`` (mission realignment v3.0.0), so ``cannavec_science.flywheel``
+    is intentionally not importable in the shipped engine. When it is absent this
+    is a **clean no-op** — the verified tier stays empty and nothing is raised —
+    rather than a raised-and-swallowed ``ImportError`` that masks real errors. If a
+    future build re-homes the flywheel into the engine, this transparently
+    delegates to it.
+
+    Returns the number of verified findings woven (always ``0`` when the flywheel
+    is archived). Never touches ``evidence_summary``.
+    """
+    try:
+        from cannavec_science.flywheel import (  # type: ignore[import-not-found]
+            weave_verified_findings as _weave,
+        )
+    except ModuleNotFoundError:
+        return 0  # flywheel archived — verified tier stays empty, cleanly
+    return _weave(answer, prompt=prompt, store_dir=store_dir)
+
+
 def compose_answer(
     prompt: str,
     audience: str = "researcher",
@@ -2307,11 +2330,7 @@ def compose_answer(
     # network), so the default brief is unchanged. Never touches
     # ``evidence_summary`` — breadth augments the core, it does not re-grade it.
     if verified and not a.is_refusal:
-        try:
-            from cannavec_science.flywheel import weave_verified_findings
-            weave_verified_findings(a, prompt=prompt, store_dir=verified_store_dir)
-        except Exception:  # noqa: BLE001 — best-effort; the curated core stands
-            pass
+        weave_verified_findings(a, prompt=prompt, store_dir=verified_store_dir)
 
     # ── Blend: weave citation-checked live breadth onto the curated core ──
     # Constitution §IX (live-discovery contract) + §IV (research-grade breadth

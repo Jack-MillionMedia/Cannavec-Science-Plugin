@@ -966,6 +966,39 @@ def _cmd_pdf(args: argparse.Namespace) -> int:
     from cannavec_science import pdf_export
 
     answer = compose_answer(args.question)
+
+    # /cv:pdf packs the brief with on-topic, conservatively-graded live evidence
+    # by DEFAULT (spec 036 Task 7) — the curated core, widened with the live
+    # primary-source frontier via the ``BRIEF_SOURCES`` literature-breadth set,
+    # gated on-topic and clamped to provisional grades (≤ Low, never curated).
+    # ``--no-live`` opts out entirely (offline / curated-only).
+    #
+    # CRITICAL: the live tier must NEVER crash OR refuse the PDF. Two guards:
+    #   1. a network failure / unreachable lane degrades silently inside
+    #      ``augment_answer``; we also wrap it so no exception can propagate.
+    #   2. the §XI render gate (enforced in ``export_pdf``) is a HARD guarantee
+    #      for the curated surface and must not be weakened — but a provisional
+    #      live finding must never be able to make the whole brief refuse. So we
+    #      pre-check the augmented render: if weaving the live tier would trip the
+    #      faithfulness gate, we fall back to the curated-only answer (which always
+    #      renders) rather than refuse. The curated brief always stands.
+    if not getattr(args, "no_live", False) and not answer.is_refusal:
+        from cannavec_science import live as _live
+        try:
+            augmented = compose_answer(args.question)
+            _live.augment_answer(augmented, sources=_live.BRIEF_SOURCES)
+            if augmented.live_findings:
+                pdf_export.assert_render_faithful(
+                    augmented, pdf_export.render_html(augmented)
+                )
+                answer = augmented
+        except pdf_export.FaithfulnessError as exc:
+            print(f"[pdf] live tier dropped (curated-only): render gate — {exc}",
+                  file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001 — PDF never crashes on live
+            print(f"[pdf] live augmentation skipped (curated-only): {exc}",
+                  file=sys.stderr)
+
     out_prefix = args.out or _pdf_slug(args.question)
     try:
         result = pdf_export.export_pdf(
@@ -1210,6 +1243,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pf.add_argument(
         "--html-only", action="store_true",
         help="Emit only the self-contained HTML (skip PDF rendering).",
+    )
+    pf.add_argument(
+        "--no-live", action="store_true",
+        help=("Skip live primary-source augmentation; render the curated-only "
+              "brief (offline / deterministic). Default: pack the brief with "
+              "on-topic, conservatively-graded live evidence."),
     )
     pf.set_defaults(func=_cmd_pdf)
 

@@ -28,6 +28,22 @@ cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science pdf "$ARGUMENTS"
 - It always writes a **self-contained HTML** evidence brief (works on any
   machine), then renders it to **PDF** via the best available backend: headless
   Chrome (best looking) → a pure-Python reportlab fallback → HTML-only.
+- **By default it packs the brief with the live primary-source frontier.** On top
+  of the verified curated core, it fans out across literature + trial + bioactivity
+  lanes (PubMed, Europe PMC, ClinicalTrials.gov, ChEMBL), then weaves the
+  **on-topic, conservatively-graded** hits into a clearly-labelled "Live discovery"
+  section — so each brief is as comprehensive as the credible evidence allows.
+  - Live hits are gated **on-topic**: a wrong-indication efficacy row (e.g. a Dravet
+    seizure trial surfaced for a chronic-pain question) is dropped, never surfaced.
+  - Live grades are **provisional and conservative** — at most **Low certainty
+    (Level C)**, never a curated grade — and every one is labelled `· live ·
+    provisional`. A live finding can **never** raise (or change) the curated grade.
+  - It **never crashes or refuses** because of the live tier: if the frontier is
+    unreachable or a live finding would trip the citation-integrity gate, it
+    degrades silently to the **curated-only** brief. The curated brief always stands.
+- `--no-live` skips live augmentation entirely → the **curated-only** brief
+  (offline + deterministic). Use it when you want a reproducible curated artifact or
+  have no network.
 - `--out PREFIX` controls the output path (`PREFIX.html` + `PREFIX.pdf`). Default
   is `cannavec-<slug>` in the current directory.
 - `--html-only` skips PDF rendering (emit just the HTML to print yourself).
@@ -46,8 +62,9 @@ The credibility guarantee is enforced in code — honour the result:
     the system correctly declining — a credibility feature, not a bug.
   - a **"no curated efficacy evidence" brief** — the backbone has no verified
     efficacy evidence for this indication. The PDF says so plainly and frames any
-    compound background as **not** indication-specific evidence. Point the user at
-    `/cv:discover` (live primary-source search) or `/cv:research` for the frontier.
+    compound background as **not** indication-specific evidence. The live tier (on
+    by default) may still surface provisional, clearly-labelled frontier findings;
+    point the user at `/cv:discover` or `/cv:research` to go deeper on the frontier.
 - If the backend was **reportlab** or **HTML-only** (no Chrome found), say so and,
   for HTML-only, tell the user to open the HTML and **Print → Save as PDF**.
 - **Non-zero exit** with `[pdf] refused — render not citation-lossless` on stderr
@@ -57,12 +74,22 @@ The credibility guarantee is enforced in code — honour the result:
 
 ## Scope (be honest about it)
 
-`pdf` renders the **offline curated** answer, so it produces a full evidence brief
-for the curated core (paediatric seizures, chronic pain, PTSD, sleep, anxiety,
-CINV, MS spasticity, and the other curated indications) and an **honest empty/
-refusal brief for everything else** — it never fabricates findings or citations to
-fill a page. Its content is exactly the content of the verified answer it
-transforms; breadth is a retrieval problem (`/cv:discover` → verify, then semantic
-retrieval), not a job for this skill. Never present it as a "make a PDF about any
-cannabis topic" tool — its value is that every brief it emits is verified, honest
-about its grade, and stays empty when it must.
+`pdf` renders the **verified curated** answer — a full evidence brief for the
+curated core (paediatric seizures, chronic pain, PTSD, sleep, anxiety, CINV, MS
+spasticity, and the other curated indications) — and packs it with the **live
+primary-source frontier** so the brief is as comprehensive as credible evidence
+allows. It still emits an **honest empty / refusal brief** when there is nothing
+verified to show — it never fabricates findings or citations to fill a page.
+
+The two tiers stay clearly separated and honestly graded:
+- The **curated core** carries the verified grades (up to High certainty) and is
+  the evidence the brief leads with.
+- The **live tier** is clearly labelled provisional, capped at Low certainty
+  (Level C), gated on-topic, and never auto-promoted into the curated core — it
+  widens breadth without lowering the bar, and a reader must confirm each live
+  source before citing.
+
+Use `--no-live` for a reproducible curated-only artifact. Never present it as a
+"make a PDF about any cannabis topic" tool — its value is that every brief it emits
+is verified or honestly provisional, honest about its grade, and stays empty when
+it must.

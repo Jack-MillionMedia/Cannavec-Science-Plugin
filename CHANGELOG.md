@@ -1,5 +1,50 @@
 # Changelog
 
+## Phase 2 — live comprehensiveness (spec 036, 2026-06)
+
+The live primary-source tier graduates from a bare "provisional, unverified" list
+into honest, on-topic, conservatively-graded breadth that widens coverage **without
+lowering the evidence floor** — and `/cv:pdf` now packs it by default.
+
+- **On-topic gate on the live tier.** Live rows are gated at the single merge point
+  before they reach the brief: a wrong-indication efficacy row (e.g. a Dravet
+  seizure trial surfaced for a Tourette / chronic-pain query) is **dropped**, with
+  the same sibling-subtype precision the curated predicate has (Dravet vs TSC share
+  the `epilepsy` family tag); a low-relevance context row is **demoted**, never
+  silently lost. The Answer exposes `on_topic_filter_applied` + a dropped count.
+- **Honest, metadata-only GRADE for live hits.** Each live hit is graded from the
+  metadata its lane already returned (journal + pubtypes; preprint server name) —
+  no per-finding network fetch — through the same GRADE engine as the curated tier,
+  then **clamped**: a live journal hit is at most **Level C (Low certainty)**, a
+  preprint at most **Level D**, never A/B. A non-empty grade rationale and a visible
+  `· live · provisional` qualifier ride along; an ungradeable row degrades to the
+  provisional string. A live grade can never raise the curated `evidence_summary`.
+- **Graded live findings enter the §XI evidence surface.** A graded live finding's
+  identifier + grade now survive a render losslessly, and **forging that grade
+  upward is refused** by the citation-integrity gate — the live tier is held to the
+  same no-inflation guarantee as a curated claim.
+- **Informative live findings.** Each on-topic finding renders, where the data
+  allows: a verified `abstract_snippet` (a true substring of the abstract, never a
+  paraphrase), a `direction` (supports / refutes / neutral) sourced only from the
+  existing synthesis attributor, and a Live-section search-provenance line
+  ("Searched N live sources · M found · K on-topic").
+- **On-topic convergence + honest synthesis prose.** Cross-source convergence is
+  computed over post-gate rows only (a dropped row never manufactures agreement);
+  sibling epilepsy subtypes canonicalize to one family cluster; and `synthesize`
+  emits a human-readable prose line whose wording matches the verdict and **never
+  asserts efficacy**.
+- **`BRIEF_SOURCES` literature-breadth set.** A named superset of the lean serverless
+  `DEFAULT_SOURCES` (adds Europe PMC + ChEMBL) used by the brief / PDF augment path;
+  the lean web-API default is unchanged (registry invariants intact).
+- **`/cv:pdf` packs on-topic graded live evidence by default.** The PDF brief now
+  augments the verified curated core with the live frontier (`BRIEF_SOURCES`) before
+  rendering — and **never crashes or refuses** because of it: an unreachable lane or
+  a live finding that would trip the §XI gate degrades silently to the curated-only
+  brief. `--no-live` opts out for a reproducible, offline curated-only artifact.
+- **Cleanup.** The archived curation-flywheel weaver (`weave_verified_findings`) is
+  now a clean no-op when the flywheel module is absent (post-MVP, under `archive/`),
+  instead of a raised-and-swallowed `ImportError` that masked real errors.
+
 ## GRADE-certainty grading + expert credibility (2026-06)
 
 - **GRADE-certainty wording, system-wide.** Every output surface (Markdown brief,
