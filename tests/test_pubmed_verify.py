@@ -22,6 +22,7 @@ from cannavec_science.pubmed_verify import (   # noqa: E402
     PubMedRecord,
     VerificationVerdict,
     _decode_response_strict,
+    _surname_from_pubmed_name,
     fetch_crossref_doi,
     fetch_pubmed_record,
     scan_dois,
@@ -56,6 +57,36 @@ class TestSurnameNormalise(unittest.TestCase):
     def test_empty_returns_empty(self) -> None:
         self.assertEqual(surname_normalise(""), "")
         self.assertEqual(surname_normalise(None or ""), "")
+
+
+class TestSurnameFromPubmedName(unittest.TestCase):
+    """esummary author names are "Surname Initials". The surname is everything
+    before the trailing initials token, so compound / particle surnames survive.
+    Regression: the parser took the FIRST whitespace token, so "de Macedo AS"
+    rendered as "de".
+    """
+
+    def test_simple_surname(self) -> None:
+        self.assertEqual(_surname_from_pubmed_name("Devinsky O"), "Devinsky")
+        self.assertEqual(_surname_from_pubmed_name("Smith JA"), "Smith")
+
+    def test_compound_particle_surname_preserved(self) -> None:
+        self.assertEqual(_surname_from_pubmed_name("de Macedo AS"), "de Macedo")
+        self.assertEqual(
+            _surname_from_pubmed_name("van der Berg JPM"), "van der Berg",
+        )
+
+    def test_single_token_or_empty(self) -> None:
+        self.assertEqual(_surname_from_pubmed_name("Smith"), "Smith")
+        self.assertEqual(_surname_from_pubmed_name(""), "")
+        self.assertEqual(_surname_from_pubmed_name("   "), "")
+
+    def test_collective_name_without_initials_kept_whole(self) -> None:
+        # No trailing initials token → return the name unchanged, never the
+        # first token alone.
+        self.assertEqual(
+            _surname_from_pubmed_name("WHO Study Group"), "WHO Study Group",
+        )
 
 
 # ── Fixture builders ──────────────────────────────────────────────────
@@ -152,6 +183,28 @@ class TestFetchPubMedRecord(unittest.TestCase):
         self.assertEqual(rec.journal, "N Engl J Med")
         self.assertIn("Cannabidiol", rec.title)
         self.assertEqual(rec.retraction_status, "clean")
+
+    def test_compound_surname_not_truncated(self) -> None:
+        # Regression: "de Macedo AS" used to parse to "de".
+        body = json.dumps({
+            "result": {
+                "uids": ["40528799"],
+                "40528799": {
+                    "uid": "40528799",
+                    "pubdate": "2025 Jun 01",
+                    "source": "Environ Sci Process Impacts",
+                    "authors": [
+                        {"name": "de Macedo AS", "authtype": "Author"},
+                        {"name": "Smith J", "authtype": "Author"},
+                    ],
+                    "title": "Following the smell: terpene emission profiles.",
+                    "pubtype": ["Journal Article"],
+                },
+            },
+        })
+        rec = fetch_pubmed_record("40528799", fetcher=lambda url: body)
+        assert rec is not None
+        self.assertEqual(rec.first_author_surname, "de Macedo")
 
     def test_malformed_pmid_returns_none(self) -> None:
         # Letters in PMID → reject pre-fetch.

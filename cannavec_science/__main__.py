@@ -441,55 +441,91 @@ def _verify_pmid_render(ident: str, args: argparse.Namespace) -> int:
 
 
 def _verify_doi_render(ident: str, args: argparse.Namespace) -> int:
-    from cannavec_science.pubmed_verify import verify_doi
+    from cannavec_science.pubmed_verify import verify_doi, VerificationVerdict
     from cannavec_science.retraction import is_retracted
 
     result = verify_doi(ident)
     rec = is_retracted(doi=ident)
 
+    # Map the typed verdict to a CLI verdict + exit code, failing CLOSED —
+    # identical discipline to _verify_pmid_render (Constitution §I / M2: a
+    # citation is trustworthy only once the upstream record is confirmed).
+    # verify_doi ALWAYS returns a (truthy) VerificationResult, so a bare
+    # `if not result` guard is dead code — the verdict MUST be inspected, or a
+    # NOT_FOUND/NETWORK_ERROR DOI renders a false PASS. Crossref never surfaces
+    # RETRACTED, so a retraction can only come from the local registry (`rec`),
+    # which is definitive even when the upstream fetch failed.
+    #   0 = PASS · 1 = FAIL (record bad/retracted/mismatch) · 3 = UNVERIFIED
+    verdict = result.verdict
+    if rec is not None:
+        cli_verdict, exit_code = "FAIL", 1
+    elif verdict == VerificationVerdict.NETWORK_ERROR:
+        cli_verdict, exit_code = "UNVERIFIED", 3
+    elif verdict in (
+        VerificationVerdict.NOT_FOUND,
+        VerificationVerdict.RETRACTED,
+        VerificationVerdict.MISMATCH,
+    ):
+        cli_verdict, exit_code = "FAIL", 1
+    else:  # MATCH / BARE_CITE_OK
+        cli_verdict, exit_code = "PASS", 0
+
     if getattr(args, "json", False):
         out = {
             "identifier": ident,
             "kind": "DOI",
-            "first_author": getattr(result, "first_author_surname", None)
-                or getattr(result, "first_author", None),
-            "year": getattr(result, "year", None),
-            "journal": getattr(result, "journal", None),
-            "title": getattr(result, "title", None),
-            "retraction_status": getattr(result, "retraction_status", "unknown"),
+            "verdict": cli_verdict,
+            "first_author": result.actual_first_author,
+            "year": result.actual_year,
+            "journal": result.journal,
+            "title": result.title,
+            "retraction_status": result.retraction_status,
         }
+        if result.notes:
+            out["notes"] = list(result.notes)
         if rec is not None:
             out["retraction_registry"] = {
                 "status": rec.status.value,
                 "date": getattr(rec, "date", None),
             }
         print(json.dumps(out, indent=2, default=str))
-        return 1 if rec is not None or not result else 0
+        return exit_code
 
     print(f"## Identifier verification — DOI {ident}")
     print("")
-    if not result:
-        print("- **Status:** FAIL — identifier not resolvable upstream")
-        return 1
-    print(
-        f"- **First author:** "
-        f"{getattr(result, 'first_author_surname', None) or getattr(result, 'first_author', None) or '?'}"
-    )
-    print(f"- **Year:** {getattr(result, 'year', None) or '?'}")
-    print(f"- **Journal:** {getattr(result, 'journal', None) or '?'}")
-    if hasattr(result, "title") and result.title:
-        print(f"- **Title:** {result.title}")
-    retr_status = getattr(result, "retraction_status", "unknown")
-    print(f"- **Retraction status:** {retr_status}")
+    # Locally-registered retraction is definitive even if the upstream fetch
+    # failed — surface it first.
     if rec is not None:
         print(
             f"- **Retraction registry:** **{rec.status.value}**"
             f" ({getattr(rec, 'date', '?')})"
         )
+        print("- **Verdict:** FAIL — citation is retracted")
+        return exit_code
+    if verdict == VerificationVerdict.NETWORK_ERROR:
+        print("- **Status:** UNVERIFIED — could not reach Crossref (network error)")
+        for note in result.notes:
+            print(f"  - {note}")
+        print("- **Verdict:** UNVERIFIED")
+        return exit_code
+    if verdict == VerificationVerdict.NOT_FOUND:
+        print("- **Status:** FAIL — DOI not found in Crossref")
         print("- **Verdict:** FAIL")
-        return 1
+        return exit_code
+    print(f"- **First author:** {result.actual_first_author or '?'}")
+    print(f"- **Year:** {result.actual_year or '?'}")
+    print(f"- **Journal:** {result.journal or '?'}")
+    if result.title:
+        print(f"- **Title:** {result.title}")
+    print(f"- **Retraction status:** {result.retraction_status}")
+    if verdict == VerificationVerdict.RETRACTED:
+        print("- **Verdict:** FAIL — record is retracted")
+        return exit_code
+    if verdict == VerificationVerdict.MISMATCH:
+        print("- **Verdict:** FAIL — record does not match the cited claim")
+        return exit_code
     print("- **Verdict:** PASS")
-    return 0
+    return exit_code
 
 
 def _verify_nct_render(ident: str, args: argparse.Namespace) -> int:

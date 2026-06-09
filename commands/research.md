@@ -44,6 +44,13 @@ facts** — you must verify each before citing it. If discovery is unavailable
 (no network / no `NCBI_API_KEY`), say so and proceed with the curated reference
 in step 4, still subject to verification.
 
+The PubMed lane auto-distills interrogative scaffolding (e.g. "What is the … ?")
+to content terms before searching, so a typed question maps cleanly. It does
+**not** translate vocabulary: if a query returns 0 rows, re-run with the
+*scientific* terms for any lay concept (e.g. "red eyes" → "conjunctival
+hyperemia", "munchies" → "appetite stimulation / hyperphagia") — that lexical
+reasoning is yours to do.
+
 ### 3. Verify every identifier you intend to cite
 
 For each PMID / DOI / NCT / ChEMBL / UniProt accession you plan to use:

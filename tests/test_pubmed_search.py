@@ -20,6 +20,7 @@ from cannavec_science.pubmed_search import (  # noqa: E402
     LivePubMedHit,
     PubMedSearcher,
     SearchRefused,
+    distill_query,
     render_markdown,
     render_json,
     suggested_grade_for_pubtypes,
@@ -402,6 +403,67 @@ class TestSortRetractedLast(unittest.TestCase):
         # Retracted "1" should be last.
         self.assertEqual(hits[-1].pmid, "1")
         self.assertEqual(hits[-1].retraction_status, "retracted")
+
+
+# ── Query distillation ────────────────────────────────────────────────
+
+
+class TestDistillQuery(unittest.TestCase):
+    """Natural-language questions must be distilled to content terms before
+    they reach PubMed esearch. Regression: a typed question reached esearch
+    verbatim, which automatic term mapping parses as `the, is[Author] AND
+    (...)` — reading "is" as an [Author] field — and returns ZERO hits even
+    though thousands of relevant papers exist.
+    """
+
+    def test_question_scaffolding_stripped_content_kept(self) -> None:
+        out = distill_query(
+            "What is the molecular difference between THC and CBD?"
+        )
+        tokens = out.split()
+        for stop in ("What", "what", "is", "the", "between", "and"):
+            self.assertNotIn(stop, tokens)
+        for kw in ("molecular", "difference", "THC", "CBD"):
+            self.assertIn(kw, tokens)
+        self.assertNotIn("?", out)
+
+    def test_keyword_query_is_unchanged_idempotent(self) -> None:
+        kw = "THC CBD molecular structure"
+        self.assertEqual(distill_query(kw), kw)
+        self.assertEqual(distill_query(distill_query(kw)), kw)
+
+    def test_single_uppercase_letter_preserved(self) -> None:
+        # "vitamin A" must survive even though lowercase "a" is a stopword.
+        self.assertEqual(distill_query("vitamin A and cannabis"), "vitamin A cannabis")
+
+    def test_domain_spelling_with_punctuation_preserved(self) -> None:
+        out = distill_query("How does Δ9-THC bind the CB1 receptor?")
+        tokens = out.split()
+        self.assertIn("Δ9-THC", tokens)
+        self.assertIn("CB1", tokens)
+        self.assertIn("receptor", tokens)
+        self.assertNotIn("How", tokens)
+        self.assertNotIn("does", tokens)
+
+    def test_all_stopwords_falls_back_to_original(self) -> None:
+        # Never return an empty search; degrade to the original query.
+        self.assertEqual(distill_query("what is the"), "what is the")
+
+    def test_natural_language_question_is_distilled_before_esearch(self) -> None:
+        from urllib.parse import unquote
+
+        esearch = _stub_fetcher(_make_esearch_fixture([]))
+        esummary = _stub_fetcher(_make_esummary_fixture([]))
+        s = PubMedSearcher(esearch_fetcher=esearch, esummary_fetcher=esummary)
+        s.search(
+            "What is the molecular difference between THC and CBD?",
+            max_results=5,
+        )
+        term = unquote(esearch.calls[0].split("&term=")[1].split("&")[0])
+        self.assertNotIn("is", term.lower().split())
+        self.assertNotIn("what", term.lower().split())
+        for kw in ("molecular", "difference", "THC", "CBD"):
+            self.assertIn(kw, term)
 
 
 if __name__ == "__main__":

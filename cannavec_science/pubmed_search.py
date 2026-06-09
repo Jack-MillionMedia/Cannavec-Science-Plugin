@@ -50,10 +50,15 @@ from dataclasses import dataclass, asdict, field
 from typing import Callable, Optional
 
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
+# Re-exported (kept in __all__) so `pubmed_search.distill_query` and the esearch
+# URL builder keep working — the canonical home is now intent (it is shared with
+# the OpenAlex lane and the synthesis subject picker).
+from cannavec_science.intent import distill_query
 from cannavec_science.pubmed_verify import (
     Fetcher,
     default_pubmed_fetcher,
     _parse_pubmed_year,
+    _surname_from_pubmed_name,
 )
 
 
@@ -61,6 +66,7 @@ __all__ = [
     "LivePubMedHit",
     "PubMedSearcher",
     "SearchRefused",
+    "distill_query",
     "render_markdown",
     "render_json",
     "suggested_grade_for_pubtypes",
@@ -265,9 +271,12 @@ class PubMedSearcher:
     def _build_esearch_url(
         self, query: str, since: Optional[str], retmax: int
     ) -> str:
+        # Distill conversational phrasing to content terms — a raw NL question
+        # reaches esearch as `is[Author] AND (...)` and returns 0 hits.
+        term = distill_query(query)
         parts = [
             _PUBMED_ESEARCH_URL,
-            f"&term={urllib.parse.quote(query)}",
+            f"&term={urllib.parse.quote(term)}",
             f"&retmax={retmax}",
             "&sort=date",
         ]
@@ -321,7 +330,7 @@ class PubMedSearcher:
         if authors and isinstance(authors[0], dict):
             name = authors[0].get("name") or ""
             if name:
-                first_surname = name.strip().split()[0]
+                first_surname = _surname_from_pubmed_name(name.strip())
         pubtypes_field = rec.get("pubtype") or []
         pubtypes = tuple(
             p for p in pubtypes_field if isinstance(p, str)

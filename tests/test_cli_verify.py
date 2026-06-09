@@ -367,5 +367,131 @@ class PMIDVerifyVerdictTests(unittest.TestCase):
         self.assertNotIn("PASS", json.dumps(payload))
 
 
+# ── DOI verify verdict handling (fail-closed) ─────────────────────────
+
+
+def _mk_doi_result(verdict, **kw):
+    return VerificationResult(
+        identifier="10.1056/NEJMoa1611618", verdict=verdict, **kw,
+    )
+
+
+class DOIVerifyVerdictTests(unittest.TestCase):
+    """The DOI verify path must branch on the typed verdict and fail
+    CLOSED — identical discipline to :class:`PMIDVerifyVerdictTests`
+    (Constitution §I / M2: a citation is trustworthy only once the upstream
+    record is confirmed).
+
+    Regression for the fail-OPEN where ``verify_doi``'s NOT_FOUND /
+    NETWORK_ERROR verdict was ignored — ``_verify_doi_render`` rendered PASS
+    for *every* DOI (fabricated, garbage, real alike), and author/year always
+    showed '?' because the render read non-existent attributes
+    (``first_author_surname`` / ``year``) instead of ``actual_first_author`` /
+    ``actual_year``. ``verify_doi`` itself was always correct.
+    """
+
+    def _run(self, result, *, json_mode=False):
+        args = argparse.Namespace(
+            identifier="10.1056/NEJMoa1611618",
+            json=json_mode,
+            no_citation_network=True,
+        )
+        with patch(
+            "cannavec_science.pubmed_verify.verify_doi", return_value=result,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_verify(args)
+        return rc, buf.getvalue()
+
+    def test_bare_cite_ok_renders_pass_with_author_and_year(self):
+        rc, out = self._run(_mk_doi_result(
+            VerificationVerdict.BARE_CITE_OK,
+            actual_first_author="Devinsky", actual_year=2017,
+            journal="N Engl J Med", title="Trial of Cannabidiol...",
+            retraction_status="unknown",
+        ))
+        self.assertEqual(rc, 0)
+        self.assertIn("PASS", out)
+        # Field-name regression: author/year now render (were always '?').
+        self.assertIn("Devinsky", out)
+        self.assertIn("2017", out)
+
+    def test_not_found_is_fail_not_pass(self):
+        # The headline anti-hallucination regression: a DOI that resolves no
+        # Crossref record must FAIL, never PASS (Constitution §I / M2).
+        rc, out = self._run(_mk_doi_result(VerificationVerdict.NOT_FOUND))
+        self.assertEqual(rc, 1)
+        self.assertIn("FAIL", out)
+        self.assertNotIn("PASS", out)
+
+    def test_network_error_is_unverified_not_pass(self):
+        rc, out = self._run(_mk_doi_result(
+            VerificationVerdict.NETWORK_ERROR,
+            notes=("network error: URLError: <urlopen error timed out>",),
+        ))
+        self.assertNotEqual(rc, 0)            # fail closed
+        self.assertIn("UNVERIFIED", out)
+        self.assertNotIn("PASS", out)
+
+    def test_mismatch_is_fail_not_pass(self):
+        rc, out = self._run(_mk_doi_result(
+            VerificationVerdict.MISMATCH,
+            actual_first_author="Someone", actual_year=1999,
+        ))
+        self.assertEqual(rc, 1)
+        self.assertIn("FAIL", out)
+        self.assertNotIn("PASS", out)
+
+    def test_not_found_json_marks_fail(self):
+        rc, out = self._run(
+            _mk_doi_result(VerificationVerdict.NOT_FOUND), json_mode=True,
+        )
+        self.assertEqual(rc, 1)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "FAIL")
+        self.assertNotIn("PASS", json.dumps(payload))
+
+    def test_bare_cite_ok_json_passes_with_fields(self):
+        rc, out = self._run(
+            _mk_doi_result(
+                VerificationVerdict.BARE_CITE_OK,
+                actual_first_author="Devinsky", actual_year=2017,
+                journal="N Engl J Med",
+            ),
+            json_mode=True,
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "PASS")
+        self.assertEqual(payload["first_author"], "Devinsky")
+        self.assertEqual(payload["year"], 2017)
+
+    def test_local_registry_retraction_is_fail(self):
+        # A locally-registered retraction is a definitive FAIL even when the
+        # upstream record resolves clean (Constitution §VIII).
+        from types import SimpleNamespace
+        from cannavec_science.retraction import RetractionStatus
+
+        rec = SimpleNamespace(status=RetractionStatus.RETRACTED)
+        args = argparse.Namespace(
+            identifier="10.1056/NEJMoa1611618",
+            json=False,
+            no_citation_network=True,
+        )
+        with patch(
+            "cannavec_science.pubmed_verify.verify_doi",
+            return_value=_mk_doi_result(VerificationVerdict.BARE_CITE_OK),
+        ), patch(
+            "cannavec_science.retraction.is_retracted", return_value=rec,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_verify(args)
+        self.assertEqual(rc, 1)
+        self.assertIn("FAIL", buf.getvalue())
+        self.assertNotIn("- **Verdict:** PASS", buf.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

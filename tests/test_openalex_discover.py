@@ -215,5 +215,27 @@ class RenderingTests(unittest.TestCase):
         self.assertIn("No hits", md)
 
 
+class QueryDistillationTests(unittest.TestCase):
+    """OpenAlex's ``search=`` is keyword-based and (like PubMed) returns nothing
+    for a raw interrogative question. The lane must distill the query first.
+    """
+
+    def test_natural_language_question_is_distilled(self):
+        from urllib.parse import unquote_plus
+
+        fetcher = _stub_fetcher(_make_payload([_make_work()]))
+        s = OpenAlexSearcher(fetcher=fetcher)
+        s.search("What is the molecular difference between THC and CBD?")
+        url = fetcher.calls[0]
+        # Extract the search= value and decode it.
+        search_val = unquote_plus(url.split("search=")[1].split("&")[0])
+        tokens = search_val.split()
+        self.assertNotIn("What", tokens)
+        self.assertNotIn("is", tokens)
+        self.assertNotIn("between", tokens)
+        for kw in ("molecular", "difference", "THC", "CBD"):
+            self.assertIn(kw, tokens)
+
+
 if __name__ == "__main__":
     unittest.main()
