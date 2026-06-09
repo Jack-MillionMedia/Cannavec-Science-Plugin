@@ -454,6 +454,11 @@ def _findings(answer: "Answer") -> str:
             present = ", ".join(f"{k} {v}" for k, v in sorted(counts.items()) if v) or "no live rows returned"
             head.append(f"<p><strong>Cross-source synthesis: {html.escape(str(conv))}</strong> — "
                         f"convergence across the live primary-source tier ({html.escape(present)}).</p>")
+            # Spec 036 Step 5 — the honest one-line summary (counts/verdict only;
+            # never asserts efficacy; wording matches the verdict).
+            prose = answer.live_synthesis.get("prose")
+            if prose:
+                head.append(f"<p class='note'>{html.escape(str(prose))}</p>")
         # Split graded findings (a real, clamped single-source GRADE) from ungraded
         # context rows. A graded finding's GRADE label is part of the §XI evidence
         # surface (its forged inflation must be refused), so its rows are wrapped in

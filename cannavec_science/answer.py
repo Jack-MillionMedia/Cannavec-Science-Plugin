@@ -712,6 +712,12 @@ class Answer:
                     f"**Cross-source synthesis: {conv}** — convergence across "
                     f"the live primary-source tier ({present})."
                 )
+                # Spec 036 Step 5 — the honest one-line summary, built from the
+                # counts/verdict only (never asserts efficacy; wording matches
+                # the verdict). Rendered when present.
+                prose = self.live_synthesis.get("prose")
+                if prose:
+                    lines.append(f"- {prose}")
                 dis = self.live_synthesis.get("disagreement")
                 if dis:
                     lines.append(f"- Disagreement flagged: {dis}")

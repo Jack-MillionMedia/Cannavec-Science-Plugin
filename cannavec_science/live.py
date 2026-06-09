@@ -39,6 +39,7 @@ from cannavec_science.synthesis import synthesize
 __all__ = [
     "DEFAULT_SOURCES",
     "SUPPORTED_SOURCES",
+    "BRIEF_SOURCES",
     "DiscoverRefused",
     "run_discovery",
     "augment_answer",
@@ -62,6 +63,18 @@ SUPPORTED_SOURCES: tuple[str, ...] = (
     "pubmed", "ctgov", "chembl", "europepmc", "chebi", "quickgo",
     "reactome", "efo",
 )
+
+# Spec 036 Step 5 — the literature-breadth lane set for the brief / PDF / CLI
+# augment path (Task 7 opts into this). Broader than the lean serverless
+# ``DEFAULT_SOURCES`` (which stays the web-API default): it adds the second
+# literature lane (Europe PMC) and the bioactivity lane (ChEMBL) for mechanistic
+# context, so the brief is "packed with all relevant evidence" without changing
+# the lean web-API default. STRICT INVARIANT (pinned by tests):
+# ``DEFAULT_SOURCES ⊆ BRIEF_SOURCES ⊆ default_runners().keys()`` — every BRIEF
+# lane is a real, wired lane; this is an additional named SUBSET, never a new
+# lane. ``DEFAULT_SOURCES`` / ``SUPPORTED_SOURCES`` / ``default_runners`` are
+# UNCHANGED (registry invariants depend on them).
+BRIEF_SOURCES: tuple[str, ...] = ("pubmed", "europepmc", "ctgov", "chembl")
 
 _MAX_RESULTS_CEILING = 25
 

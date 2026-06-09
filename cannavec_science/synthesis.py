@@ -186,6 +186,10 @@ class SynthesisBlock:
     unreachable_sources: tuple[str, ...] = ()
     incomplete: bool = False
     disclaimer: str = _DISCLAIMER
+    # Spec 036 Step 5 — a short, human-readable summary of the verdict, built
+    # ONLY from the counts/convergence above (no new claims, no effect-size
+    # invention, never asserts efficacy). See ``_synthesis_prose``.
+    prose: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -195,6 +199,7 @@ class SynthesisBlock:
             "unreachable_sources": list(self.unreachable_sources),
             "incomplete": self.incomplete,
             "disclaimer": self.disclaimer,
+            "prose": self.prose,
         }
 
 
@@ -532,6 +537,7 @@ def synthesize(
 
     convergence = _convergence_for_clusters(clusters)
     disagreement = _first_disagreement(clusters)
+    prose = _synthesis_prose(convergence, counts, clusters, disagreement)
 
     return SynthesisBlock(
         per_source_counts=counts,
@@ -539,6 +545,7 @@ def synthesize(
         disagreement=disagreement,
         unreachable_sources=unreachable,
         incomplete=bool(unreachable),
+        prose=prose,
     )
 
 
@@ -572,6 +579,117 @@ _SOURCE_DISPLAY = {
 }
 
 
+# Verdict → the agreement clause the prose uses. Locked to the ``Convergence``
+# enum so the wording can NEVER drift from the computed verdict (honesty is
+# mechanical, not editorial). None of these assert efficacy — they describe the
+# *agreement of sources*, not whether the compound works.
+#
+# STRONG/MIXED phrase as a verb the source list governs ("… converge / give a
+# mixed signal on X"); WEAK/NONE phrase as a trailing evidence clause ("…;
+# cross-source evidence is limited / insufficient") because there are too few
+# sources for "converge" to be honest.
+_CONVERGENCE_VERB = {
+    Convergence.STRONG: "converge",
+    Convergence.MIXED: "give a mixed signal",
+}
+_CONVERGENCE_TAIL = {
+    Convergence.WEAK: "cross-source evidence is limited",
+    Convergence.NONE: "cross-source evidence is insufficient",
+}
+
+
+def _dominant_subject(clusters: list[ClaimCluster]) -> tuple[str, str]:
+    """The (compound, condition) of the cluster driving the verdict.
+
+    The verdict is ``max distinct-source-count across clusters``; the prose
+    names that same driving cluster's subject so the summary and the verdict
+    describe the SAME thing. Deterministic tiebreak: most distinct sources,
+    then lexicographic by (compound, condition). The ('', '') sentinel is never
+    the subject.
+    """
+    best: Optional[ClaimCluster] = None
+    best_key: tuple = ()
+    for cluster in clusters:
+        if not cluster.compound and not cluster.condition:
+            continue
+        key = (
+            len(cluster.distinct_sources),
+            # Lexicographically EARLIER subject wins the tiebreak → negate by
+            # comparing the raw tuple with a flipped sense below.
+            cluster.compound,
+            cluster.condition,
+        )
+        if best is None:
+            best, best_key = cluster, key
+            continue
+        if key[0] > best_key[0] or (
+            key[0] == best_key[0] and (key[1], key[2]) < (best_key[1], best_key[2])
+        ):
+            best, best_key = cluster, key
+    if best is None:
+        return ("", "")
+    return (best.compound, best.condition)
+
+
+def _synthesis_prose(
+    convergence: Convergence,
+    counts: dict,
+    clusters: list[ClaimCluster],
+    disagreement: Optional[str],
+) -> str:
+    """A short, factual one-liner summarising the verdict — built ONLY from the
+    counts/convergence/clusters already computed.
+
+    Examples:
+        "3 live sources (PubMed, CT.gov, Europe PMC) converge on cannabidiol for
+         epilepsy; 0 disagree."
+        "1 live source (PubMed) addresses cannabidiol for epilepsy; cross-source
+         evidence is limited."
+        "No live primary-source rows returned; cross-source evidence is
+         insufficient."
+
+    Honesty contract (pinned by tests):
+    - The agreement clause is keyed off the ``Convergence`` enum
+      (``_CONVERGENCE_VERB`` / ``_CONVERGENCE_TAIL``), so it can never contradict
+      the verdict.
+    - It NEVER asserts efficacy — it reports how many *sources address* the
+      subject and whether they agree, not that the compound works.
+    """
+    present = [
+        _SOURCE_DISPLAY[s] for s in _SOURCE_KEYS if counts.get(s, 0) > 0
+    ]
+
+    if not present:
+        return (
+            "No live primary-source rows returned; cross-source evidence "
+            "is insufficient."
+        )
+
+    n = len(present)
+    src_phrase = f"{n} live source{'s' if n != 1 else ''} ({', '.join(present)})"
+
+    compound, condition = _dominant_subject(clusters)
+    if compound and condition:
+        subject = f"{compound} for {condition}"
+    elif compound:
+        subject = compound
+    elif condition:
+        subject = condition
+    else:
+        subject = "this question"
+
+    if convergence in _CONVERGENCE_VERB:
+        # STRONG / MIXED — the source list governs the agreement verb.
+        verb = _CONVERGENCE_VERB[convergence]
+        disagree_n = 1 if disagreement else 0
+        return f"{src_phrase} {verb} on {subject}; {disagree_n} disagree."
+    # WEAK / NONE — too few converging sources to claim convergence; report the
+    # coverage and the limited/insufficient evidence clause.
+    tail = _CONVERGENCE_TAIL[convergence]
+    verb = "addresses" if n == 1 else "address"
+    return f"{src_phrase} {verb} {subject}; {tail}."
+
+
 def render_markdown(block: SynthesisBlock) -> str:
     lines: list[str] = []
     lines.append("SYNTHESIS")
@@ -583,6 +701,8 @@ def render_markdown(block: SynthesisBlock) -> str:
         else:
             lines.append(f"- {label}: {count}")
     lines.append(f"- Convergence: {block.convergence.value}")
+    if block.prose:
+        lines.append(f"- Summary: {block.prose}")
     lines.append(
         f"- Disagreement: {block.disagreement or 'none flagged'}"
     )
