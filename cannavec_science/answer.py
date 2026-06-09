@@ -410,7 +410,10 @@ class Answer:
                 finding["certainty"] = certainty
             if grade_rationale is not None:
                 finding["grade_rationale"] = grade_rationale
-            finding["provisional"] = bool(provisional) or True
+            # A live finding is ALWAYS provisional (§IX): it is breadth, never
+            # curated. The flag is unconditionally True — the ``provisional``
+            # parameter is retained only for call-site symmetry with the grader.
+            finding["provisional"] = True
         self.live_findings.append(finding)
 
     def add_verified_finding(
@@ -697,9 +700,20 @@ class Answer:
                     if status in _LIVE_FLAGGED_STATUSES
                     else ""
                 )
+                # A graded finding renders its clamped certainty + "Level C/D"
+                # letter, kept together and marked `· live · provisional` so it can
+                # never be read as a curated grade. Ungraded/context rows render the
+                # bare provisional qualifier (no letter), unchanged.
+                grade = f.get("grade")
+                if grade:
+                    grade_text = (
+                        f"{EvidenceLevel(grade).display()} · live · provisional"
+                    )
+                else:
+                    grade_text = f["provisional_grade"]
                 lines.append(
                     f"- [{f['source_tag']}]{badge} `{f['identifier']}`{yr}{label} "
-                    f"— provisional grade: {f['provisional_grade']}{url}".rstrip()
+                    f"— provisional grade: {grade_text}{url}".rstrip()
                 )
             lines.append("")
 

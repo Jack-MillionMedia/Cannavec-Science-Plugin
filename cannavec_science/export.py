@@ -290,6 +290,47 @@ def export_provenance(answer: "Answer") -> "tuple[CitationAtom, ...]":
     return tuple(atoms)
 
 
+def _live_finding_atoms(answer: "Answer") -> "tuple[CitationAtom, ...]":
+    """Inflation BASELINES for GRADED live findings (spec 036, Step 3).
+
+    A graded live finding sits OUTSIDE ``answer.citations`` (it never enters the
+    curated provenance), so the inflation gate would otherwise have no assigned
+    grade for it — and would read its own legitimate, clamped grade as ungraded.
+    This gives the gate the finding's OWN clamped grade as the baseline: rendering
+    that grade beside the live id is NOT inflation; rendering a stronger one IS.
+
+    Only findings that actually carry a ``grade`` are returned (an ungraded /
+    context row carries no grade and is covered solely by the identifier floor).
+    The bare id is parsed from the live finding's display identifier (``"PMID
+    39000001"`` → ``39000001``; ``"doi:10.x"`` → ``10.x``; an ``NCT…`` / registry
+    id / bare URL is used as-is), wrapped in a ``LIVE:`` atom so ``raw_id`` is the
+    discrete token the gate binds grade labels to.
+    """
+    atoms: list[CitationAtom] = []
+    seen: set[str] = set()
+    for f in getattr(answer, "live_findings", ()) or ():
+        grade = f.get("grade")
+        ident = (f.get("identifier") or "").strip()
+        if not grade or not ident:
+            continue
+        if ident.startswith("PMID "):
+            bare = ident.split(" ", 1)[1].strip()
+        elif ident.lower().startswith("doi:"):
+            bare = ident.split(":", 1)[1].strip()
+        else:
+            bare = ident
+        if not bare or bare in seen:
+            continue
+        # Only a real GRADE label (e.g. "Level C"/"Level D") is a usable baseline;
+        # a non-grade string (a flagged-status qualifier) leaves rank 0, which would
+        # flag ANY grade beside it — so skip it and let the floor cover the row.
+        if _grade_rank(grade) == 0:
+            continue
+        seen.add(bare)
+        atoms.append(CitationAtom(identifier=f"LIVE:{bare}", grade=grade))
+    return tuple(atoms)
+
+
 def assert_citation_lossless(answer: "Answer", rendered: str) -> LosslessReport:
     """Check a rendered transform of ``answer`` preserved every identifier and
     every GRADE label (§XI).
@@ -423,7 +464,11 @@ def grade_inflation_failures(
     Empty tuple == no citation is rendered above its verified grade.
     """
     text = _normalize_visible(rendered or "")
-    atoms = export_provenance(answer)
+    # Curated citation baselines PLUS graded-live-finding baselines (spec 036,
+    # Step 3): a graded live finding's own clamped grade is its anti-inflation
+    # baseline, so rendering that grade beside its live id is accepted while a
+    # stronger grade is refused — exactly like a curated citation.
+    atoms = export_provenance(answer) + _live_finding_atoms(answer)
     if not atoms:
         return ()
     id_spans: "list[tuple[int, int, CitationAtom]]" = []

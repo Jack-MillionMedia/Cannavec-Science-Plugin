@@ -438,22 +438,49 @@ def _findings(answer: "Answer") -> str:
             present = ", ".join(f"{k} {v}" for k, v in sorted(counts.items()) if v) or "no live rows returned"
             head.append(f"<p><strong>Cross-source synthesis: {html.escape(str(conv))}</strong> — "
                         f"convergence across the live primary-source tier ({html.escape(present)}).</p>")
-        rows = []
+        # Split graded findings (a real, clamped single-source GRADE) from ungraded
+        # context rows. A graded finding's GRADE label is part of the §XI evidence
+        # surface (its forged inflation must be refused), so its rows are wrapped in
+        # _ev() markers; ungraded/context rows carry NO grade and stay OUTSIDE _ev
+        # (covered only by the whole-document identifier floor). Each list keeps the
+        # ranker's order (flagged/off-topic last) within its block.
+        graded_rows: list[str] = []
+        plain_rows: list[str] = []
         for f in answer.live_findings:
             yr = f" ({html.escape(str(f['year']))})" if f.get("year") else ""
             status = f.get("retraction_status", "clean")
             badge = " &#9888; " + html.escape(status.upper()) if status in _LIVE_FLAGGED_STATUSES else ""
             url = f' — <a href="{html.escape(f["url"])}">{html.escape(f["url"])}</a>' if f.get("url") else ""
-            rows.append(
+            grade = f.get("grade")
+            if grade:
+                # Render the clamped grade as certainty + "Level C/D" letter, kept
+                # together and qualified `· live · provisional` so a reader can
+                # never mistake it for a curated grade. The letter MUST appear: it
+                # is the grade the §XI inflation gate binds to this live id.
+                grade_html = (
+                    f"— provisional grade: {_grade_badge(grade)} "
+                    "&middot; live &middot; provisional"
+                )
+            else:
+                grade_html = (
+                    f"— provisional grade: {_inline(f['provisional_grade'])}"
+                )
+            row = (
                 f'<li><span class="tag">{html.escape(f["source_tag"])}</span>{badge} '
                 f'<code>{html.escape(f["identifier"])}</code>{yr} {_inline(f.get("label",""))} '
-                f"— provisional grade: {_inline(f['provisional_grade'])}{url}</li>"
+                f"{grade_html}{url}</li>"
             )
+            (graded_rows if grade else plain_rows).append(row)
+        # Graded rows enter the §XI surface (_ev); ungraded rows stay outside it.
+        graded_html = _ev(f"<ul>{''.join(graded_rows)}</ul>") if graded_rows else ""
+        plain_html = f"<ul>{''.join(plain_rows)}</ul>" if plain_rows else ""
         out.append(
             '<section class="live"><h2>Live discovery — provisional, not curated</h2>'
             "<p class='note'>Live-source results, provenance-tagged and "
-            "retraction-checked, carrying no curated grade — confirm before citing.</p>"
-            + "".join(head) + f"<ul>{''.join(rows)}</ul></section>"
+            "retraction-checked. Graded hits carry a conservative single-source "
+            "GRADE, marked <code>&middot; live &middot; provisional</code> and never "
+            "curated — confirm before citing.</p>"
+            + "".join(head) + graded_html + plain_html + "</section>"
         )
     return "".join(out)
 
