@@ -73,6 +73,69 @@ class RunDiscoveryTests(unittest.TestCase):
         # Synthesis still computed over the surviving lane.
         self.assertIn("synthesis", result)
 
+    def test_pubmed_failure_backfills_europepmc(self):
+        # When the flaky NCBI host is wholly down (all retries exhausted),
+        # Europe PMC — a different host indexing the same MEDLINE — backfills
+        # so the query is not left empty. Resilience for novel queries the
+        # cache cannot serve.
+        def _boom(query, since, n):
+            raise RuntimeError("The read operation timed out")
+        epmc_rows = [_FakeHit(pmid="999", title="MEDLINE via Europe PMC", year=2024)]
+        result = live.run_discovery(
+            "cannabis CB1 receptor short-term memory",
+            sources=["pubmed"],
+            runners={"pubmed": _boom, "europepmc": _pubmed_runner(epmc_rows)},
+        )
+        self.assertIn("error", result["sources"]["pubmed"])
+        self.assertEqual(len(result["sources"]["europepmc"]), 1)
+        self.assertEqual(result["sources"]["europepmc"][0]["pmid"], "999")
+        self.assertEqual(result.get("pubmed_fallback"), "europepmc")
+
+    def test_pubmed_empty_backfills_europepmc(self):
+        epmc_rows = [_FakeHit(pmid="999", title="x", year=2024)]
+        result = live.run_discovery(
+            "q", sources=["pubmed"],
+            runners={"pubmed": _pubmed_runner([]),
+                     "europepmc": _pubmed_runner(epmc_rows)},
+        )
+        self.assertEqual(len(result["sources"]["europepmc"]), 1)
+        self.assertEqual(result.get("pubmed_fallback"), "europepmc")
+
+    def test_pubmed_success_skips_europepmc_backfill(self):
+        # No happy-path cost: Europe PMC is never called when PubMed delivered.
+        called = {"epmc": 0}
+
+        def _epmc(query, since, n):
+            called["epmc"] += 1
+            return []
+        rows = [_FakeHit(pmid="111", title="ok", year=2023)]
+        result = live.run_discovery(
+            "cannabis", sources=["pubmed"],
+            runners={"pubmed": _pubmed_runner(rows), "europepmc": _epmc},
+        )
+        self.assertEqual(len(result["sources"]["pubmed"]), 1)
+        self.assertEqual(called["epmc"], 0, "no backfill when pubmed returned rows")
+        self.assertNotIn("europepmc", result["sources"])
+        self.assertNotIn("pubmed_fallback", result)
+
+    def test_explicit_europepmc_not_double_run_on_pubmed_failure(self):
+        # Europe PMC already requested + returned rows → backfill is a no-op
+        # (no second call), so it is never run twice.
+        calls = {"epmc": 0}
+
+        def _epmc(query, since, n):
+            calls["epmc"] += 1
+            return [_FakeHit(pmid="555", title="already here", year=2024)]
+
+        def _boom(query, since, n):
+            raise RuntimeError("down")
+        result = live.run_discovery(
+            "q", sources=["pubmed", "europepmc"],
+            runners={"pubmed": _boom, "europepmc": _epmc},
+        )
+        self.assertEqual(calls["epmc"], 1, "europepmc runs once, not twice")
+        self.assertEqual(len(result["sources"]["europepmc"]), 1)
+
     def test_empty_query_raises(self):
         with self.assertRaises(ValueError):
             live.run_discovery("   ")

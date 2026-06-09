@@ -4,9 +4,10 @@ Stdlib only (``urllib`` + ``time``). Every discoverer and verifier routes
 through this module so the project has a single tunable for HTTP
 behaviour. Behaviour preserved by default — discoverers that previously
 called ``urllib.request.urlopen(req, timeout=N)`` now call
-:func:`retry_urlopen` with the same timeout; transient 429 / 502 / 503 /
-504 / URLError responses trigger bounded exponential backoff before
-re-raising.
+:func:`retry_urlopen` with the same timeout; transient 429 / 500 / 502 /
+503 / 504 / URLError responses trigger bounded exponential backoff before
+re-raising. :func:`retry_fetch` extends this to the body read so a
+``socket.timeout`` during ``resp.read()`` is retried too.
 
 Public surface
 --------------
@@ -27,6 +28,7 @@ Public surface
 from __future__ import annotations
 
 import os
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -41,6 +43,7 @@ __all__ = [
     "ncbi_email",
     "append_ncbi_auth",
     "retry_urlopen",
+    "retry_fetch",
     "RetryableHTTPError",
 ]
 
@@ -52,8 +55,12 @@ TIMEOUT_FAST = 10  # seconds
 TIMEOUT_SLOW = 15  # seconds
 
 # Retry on transient HTTP responses only. 4xx (other than 429) is a
-# caller-side problem and must propagate immediately.
-_RETRYABLE_STATUSES: frozenset[int] = frozenset({429, 502, 503, 504})
+# caller-side problem and must propagate immediately. 500 is a *server*
+# error, not a caller-side fault — every upstream this tool talks to is a
+# public, free research API (NCBI E-utilities especially) that emits
+# transient 500s under load, so it belongs with the other retryable 5xx.
+# (501/505 stay non-retryable: those are permanent "not implemented".)
+_RETRYABLE_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 
 # Hard ceiling on any single backoff sleep — protects against a hostile
 # or buggy upstream sending Retry-After: 86400.
@@ -199,6 +206,67 @@ def retry_urlopen(
     # The loop above always returns or raises before this point.
     assert last_exc is not None  # pragma: no cover — defensive
     raise last_exc  # pragma: no cover
+
+
+def retry_fetch(
+    req: urllib.request.Request,
+    *,
+    timeout: float,
+    max_attempts: int = 3,
+    base_backoff: float = 0.5,
+    sleep=None,
+) -> tuple[bytes, str | None]:
+    """Open ``req``, read the whole body, and return ``(body, charset)``.
+
+    The crucial difference from :func:`retry_urlopen`: the body ``read()``
+    happens **inside** the retry loop, so a body-read timeout
+    (``socket.timeout`` — "The read operation timed out", which NCBI
+    E-utilities throws routinely when its shared-IP rate limit is hit) is
+    retried instead of escaping as a permanent failure. ``retry_urlopen``
+    only wraps the ``urlopen`` handshake; the caller's later ``resp.read()``
+    is outside its protection.
+
+    Retries on the same transient HTTP statuses as :func:`retry_urlopen`
+    (429 / 500 / 502 / 503 / 504), on :class:`urllib.error.URLError`, and on
+    ``socket.timeout`` raised during the read. Non-transient HTTP errors
+    (404, 401, 403, …) propagate immediately. Backoff and ``Retry-After``
+    handling are identical to :func:`retry_urlopen`. ``charset`` is the
+    response's declared content charset (``None`` if absent), so the caller
+    can decode exactly as before.
+
+    Tests inject ``sleep`` to skip the real ``time.sleep``.
+    """
+    _sleep = sleep or time.sleep
+    for attempt in range(max_attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read()
+                charset = resp.headers.get_content_charset()
+            return body, charset
+        except urllib.error.HTTPError as exc:
+            if exc.code not in _RETRYABLE_STATUSES:
+                raise
+            if attempt == max_attempts - 1:
+                raise RetryableHTTPError(
+                    url=getattr(exc, "url", req.full_url),
+                    code=exc.code,
+                    msg=f"transient HTTP {exc.code} after {max_attempts} attempts",
+                    hdrs=exc.headers,
+                    fp=None,
+                ) from exc
+            delay = (
+                _retry_after_delay(exc)
+                or min(base_backoff * (2 ** attempt), _MAX_BACKOFF_SECONDS)
+            )
+            _sleep(delay)
+        except (urllib.error.URLError, socket.timeout) as exc:
+            # socket.timeout is an alias of TimeoutError on 3.10+; on 3.9 it
+            # is a distinct OSError subclass — naming it covers both. A read
+            # timeout is the body-read failure retry_urlopen cannot see.
+            if attempt == max_attempts - 1:
+                raise
+            _sleep(min(base_backoff * (2 ** attempt), _MAX_BACKOFF_SECONDS))
+    raise AssertionError("unreachable")  # pragma: no cover — defensive
 
 
 def _retry_after_delay(exc: urllib.error.HTTPError) -> float | None:

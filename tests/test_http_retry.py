@@ -4,17 +4,23 @@ The retry helper sits underneath every live discoverer and verifier; a
 silent regression here would surface to the user as confusing latency
 spikes or "transient" errors becoming permanent. Pinned behaviour:
 
-- Retries on 429 / 502 / 503 / 504.
-- Does NOT retry on 404, 401, 403, 500 (hard errors propagate).
+- Retries on 429 / 500 / 502 / 503 / 504 (the standard transient-5xx set;
+  every upstream this tool hits is a public research API that emits
+  transient 500s under load — NCBI E-utilities especially).
+- Does NOT retry on 404, 401, 403 (hard client errors propagate).
 - Honours ``Retry-After`` (numeric seconds) on 429.
 - Caps backoff at 8 s and Retry-After at 30 s (defeat hostile upstreams).
 - Surfaces :class:`RetryableHTTPError` after ``max_attempts`` failures.
 - Retries on :class:`urllib.error.URLError` (transient network).
+- :func:`retry_fetch` additionally retries a **body-read timeout**
+  (``socket.timeout`` / ``TimeoutError`` raised by ``resp.read()``),
+  which sits outside :func:`retry_urlopen`'s scope.
 """
 
 from __future__ import annotations
 
 import io
+import socket
 import unittest
 import urllib.error
 from email.message import Message
@@ -25,6 +31,7 @@ from cannavec_science._http import (
     TIMEOUT_FAST,
     TIMEOUT_SLOW,
     crossref_contact,
+    retry_fetch,
     retry_urlopen,
     user_agent,
 )
@@ -100,6 +107,20 @@ class RetryUrlopenRetryableStatusTests(unittest.TestCase):
                     sleep=sleeps.append,
                 )
             self.assertEqual(len(sleeps), 1, f"{code} should retry once")
+
+    def test_500_retried_then_succeeds(self):
+        # NCBI E-utilities (and the other public research APIs this tool
+        # hits) return transient 500s under load — a server error, not a
+        # caller-side fault, so it must retry like the other 5xx.
+        sleeps: list[float] = []
+        responses = [_http_error(500), _FakeResponse(b'{"ok": true}')]
+        with patch("urllib.request.urlopen", side_effect=responses):
+            resp = retry_urlopen(
+                self._request(), timeout=TIMEOUT_FAST,
+                sleep=sleeps.append,
+            )
+            self.assertEqual(resp.read(), b'{"ok": true}')
+        self.assertEqual(len(sleeps), 1)
 
 
 class RetryUrlopenNonRetryableTests(unittest.TestCase):
@@ -216,6 +237,90 @@ class RetryAfterHeaderTests(unittest.TestCase):
                 )
         # Every backoff should be the cap (8.0), not 10/20/40.
         self.assertTrue(all(s == 8.0 for s in sleeps), sleeps)
+
+
+class _ReadTimeoutResponse:
+    """Response whose first ``read()`` raises a socket timeout, then succeeds.
+
+    A fresh response is opened per attempt, so the production read happens on
+    a *new* object each retry. To model "first attempt's body read times out,
+    second attempt succeeds" we hand two distinct responses to urlopen's
+    side_effect — this one always raises, the good one always returns.
+    """
+
+    def __init__(self, body: bytes = b"{}", *, raise_timeout: bool = False):
+        self._body = body
+        self._raise = raise_timeout
+        self.headers = Message()
+
+    def read(self, n: int | None = None) -> bytes:
+        if self._raise:
+            raise socket.timeout("The read operation timed out")
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> None:
+        return None
+
+
+class RetryFetchTests(unittest.TestCase):
+    """:func:`retry_fetch` retries the whole fetch — including the body read.
+
+    ``retry_urlopen`` only wraps the ``urlopen`` call; a timeout raised by
+    ``resp.read()`` escapes its retry loop. ``retry_fetch`` closes that gap.
+    """
+
+    def _request(self) -> urllib.request.Request:
+        import urllib.request as r
+        return r.Request("https://example.test/x")
+
+    def test_read_timeout_retried_then_succeeds(self):
+        # Attempt 1: urlopen ok, but resp.read() times out.
+        # Attempt 2: urlopen ok, resp.read() returns the body.
+        sleeps: list[float] = []
+        good = _ReadTimeoutResponse(b'{"ok": true}')
+        bad = _ReadTimeoutResponse(raise_timeout=True)
+        with patch("urllib.request.urlopen", side_effect=[bad, good]):
+            body, _charset = retry_fetch(
+                self._request(), timeout=TIMEOUT_SLOW, sleep=sleeps.append,
+            )
+        self.assertEqual(body, b'{"ok": true}')
+        self.assertEqual(len(sleeps), 1, "one backoff before the read retry")
+
+    def test_500_retried_then_body_returned(self):
+        sleeps: list[float] = []
+        good = _ReadTimeoutResponse(b'{"hit": 1}')
+        with patch(
+            "urllib.request.urlopen", side_effect=[_http_error(500), good]
+        ):
+            body, _charset = retry_fetch(
+                self._request(), timeout=TIMEOUT_SLOW, sleep=sleeps.append,
+            )
+        self.assertEqual(body, b'{"hit": 1}')
+        self.assertEqual(len(sleeps), 1)
+
+    def test_hard_404_propagates_without_retry(self):
+        sleeps: list[float] = []
+        with patch("urllib.request.urlopen", side_effect=_http_error(404)):
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                retry_fetch(
+                    self._request(), timeout=TIMEOUT_FAST, sleep=sleeps.append,
+                )
+            self.assertEqual(ctx.exception.code, 404)
+        self.assertEqual(sleeps, [], "a hard client error must not retry")
+
+    def test_persistent_read_timeout_raises_after_max_attempts(self):
+        sleeps: list[float] = []
+        bad = _ReadTimeoutResponse(raise_timeout=True)
+        with patch("urllib.request.urlopen", side_effect=[bad, bad, bad]):
+            with self.assertRaises(socket.timeout):
+                retry_fetch(
+                    self._request(), timeout=TIMEOUT_SLOW,
+                    max_attempts=3, sleep=sleeps.append,
+                )
+        self.assertEqual(len(sleeps), 2, "no sleep after the final failure")
 
 
 class HttpHelperTests(unittest.TestCase):

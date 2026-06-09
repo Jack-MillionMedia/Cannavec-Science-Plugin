@@ -17,8 +17,9 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from cannavec_science.__main__ import _cmd_discover
@@ -97,6 +98,79 @@ class DiscoverSequentialTests(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         self.assertIn("error", payload["sources"]["whatever"])
         self.assertIn("unknown source", payload["sources"]["whatever"]["error"])
+
+    def test_pubmed_failure_backfills_europepmc(self):
+        # The user-facing path: NCBI down → Europe PMC backfills so the query
+        # is not left empty. europepmc is in the registry but not requested.
+        registry = {
+            "pubmed": _failing_runner("pubmed", RuntimeError("read timed out")),
+            "europepmc": _runner("europepmc"),
+        }
+        args = self._args(sources="pubmed")
+        with patch.dict(
+            "cannavec_science.__main__._DISCOVERER_REGISTRY",
+            registry, clear=True,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_discover(args)
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertIn("error", payload["sources"]["pubmed"])
+        self.assertEqual(len(payload["sources"]["europepmc"]), 2)
+        self.assertEqual(payload["pubmed_fallback"], "europepmc")
+
+    def test_pubmed_success_does_not_backfill(self):
+        # Negative: a healthy PubMed never triggers the Europe PMC backfill,
+        # so the happy path pays no extra call.
+        calls = {"epmc": 0}
+
+        def _epmc(args):
+            calls["epmc"] += 1
+            return [_FakeRow("europepmc", "e-0")]
+        registry = {"pubmed": _runner("pubmed"), "europepmc": _epmc}
+        args = self._args(sources="pubmed")
+        with patch.dict(
+            "cannavec_science.__main__._DISCOVERER_REGISTRY",
+            registry, clear=True,
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = _cmd_discover(args)
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(calls["epmc"], 0, "no backfill when PubMed delivered")
+        self.assertNotIn("europepmc", payload["sources"])
+        self.assertNotIn("pubmed_fallback", payload)
+
+    def test_ncbi_key_hint_on_empty_pubmed_without_key(self):
+        registry = {"pubmed": _runner("pubmed", n=0)}
+        args = self._args(sources="pubmed")
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("NCBI_API_KEY", None)
+            with patch.dict(
+                "cannavec_science.__main__._DISCOVERER_REGISTRY",
+                registry, clear=True,
+            ):
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    _cmd_discover(args)
+        self.assertIn("NCBI_API_KEY", err.getvalue())
+        # The hint is on stderr only — stdout (the artifact) stays clean.
+        self.assertNotIn("NCBI_API_KEY", out.getvalue())
+
+    def test_no_ncbi_key_hint_when_key_set(self):
+        registry = {"pubmed": _runner("pubmed", n=0)}
+        args = self._args(sources="pubmed")
+        with patch.dict(os.environ, {"NCBI_API_KEY": "abc123"}, clear=False):
+            with patch.dict(
+                "cannavec_science.__main__._DISCOVERER_REGISTRY",
+                registry, clear=True,
+            ):
+                err = io.StringIO()
+                with redirect_stdout(io.StringIO()), redirect_stderr(err):
+                    _cmd_discover(args)
+        self.assertNotIn("NCBI_API_KEY", err.getvalue())
 
     def test_lane_exception_surfaces_as_error_dict(self):
         registry = {

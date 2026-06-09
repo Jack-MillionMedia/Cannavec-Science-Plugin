@@ -225,6 +225,33 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             for source_key in sorted_sources:
                 out_payload["sources"][source_key] = results[source_key]
 
+    # Reliability backfill: a failed/empty PubMed lane is backed up by Europe
+    # PMC (different host, same MEDLINE). Same policy as live.run_discovery so
+    # the CLI and web-API paths behave identically. Fires only when PubMed
+    # produced nothing and Europe PMC was not already requested with rows.
+    if _live_lanes.needs_pubmed_fallback(out_payload["sources"]):
+        fb_key = _live_lanes.PUBMED_FALLBACK_SOURCE
+        _key, fb_payload = _run_one(fb_key)
+        if isinstance(fb_payload, list) and fb_payload:
+            out_payload["sources"][fb_key] = fb_payload
+            out_payload["pubmed_fallback"] = fb_key
+
+    # Operator hint (stderr — never pollutes the JSON / Markdown artifact):
+    # a key-less NCBI request is on the shared 3 req/s limit and is the root
+    # cause of the transient 500s / read-timeouts. Fire only when PubMed
+    # actually came back empty, so it is actionable, not noise.
+    from cannavec_science._http import ncbi_api_key as _ncbi_api_key
+
+    _pm = out_payload["sources"].get("pubmed")
+    _pubmed_troubled = isinstance(_pm, dict) or (isinstance(_pm, list) and not _pm)
+    if _pubmed_troubled and _ncbi_api_key() is None:
+        print(
+            "[hint] PubMed returned no rows. Set NCBI_API_KEY to raise the "
+            "E-utilities rate limit (3→10 req/s) and cut the transient "
+            "500s / read-timeouts that empty the lane.",
+            file=sys.stderr,
+        )
+
     # Build synthesis block keyed by the synthesis _SOURCE_KEYS — the
     # same short keys the CLI uses, so cross-source clustering picks up
     # every live row that came back.
@@ -290,6 +317,11 @@ def _cmd_discover(args: argparse.Namespace) -> int:
                 or ""
             )
             print(f"- `{ident}` ({yr}) {title}".rstrip())
+    if out_payload.get("pubmed_fallback"):
+        print(
+            f"\n_PubMed was unavailable; Europe PMC backfilled the same MEDLINE "
+            f"literature from a different host._"
+        )
     print("\n## Cross-source synthesis")
     print("")
     print(render_markdown(block))
