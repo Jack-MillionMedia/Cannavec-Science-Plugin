@@ -76,7 +76,14 @@ class TestLiveFindingFromRow(unittest.TestCase):
         self.assertEqual(f["source_tag"], "live_pubmed")
         self.assertEqual(f["label"], "CBD trial")
         self.assertEqual(f["year"], "2024")
-        self.assertEqual(f["provisional_grade"], "provisional (live, unverified)")
+        # spec 036 Step 2: an undesigned journal row (no journal, no pubtypes)
+        # now carries a real, conservative metadata-only GRADE at the floor
+        # (Level D / Very low), with a visible `live · provisional` qualifier —
+        # never the old bare "provisional" string, never a curated A/B.
+        self.assertEqual(f["grade"], "Level D")
+        self.assertEqual(f["certainty"], "Very low")
+        self.assertTrue(f["provisional"])
+        self.assertIn("live · provisional", f["provisional_grade"])
 
     def test_preprint_lane_caps_at_level_d(self) -> None:
         f = live_finding_from_row(
@@ -84,8 +91,10 @@ class TestLiveFindingFromRow(unittest.TestCase):
         )
         assert f is not None
         self.assertEqual(f["source_tag"], "live_biorxiv")
-        self.assertIn("Level D", f["provisional_grade"])
-        self.assertIn("preprint", f["provisional_grade"])
+        # A preprint caps at Level D (Very low) — the clamp is honest and visible.
+        self.assertEqual(f["grade"], "Level D")
+        self.assertEqual(f["certainty"], "Very low")
+        self.assertIn("live · provisional", f["provisional_grade"])
 
     def test_row_without_identifier_is_dropped(self) -> None:
         # Nothing citable per §I → no finding.

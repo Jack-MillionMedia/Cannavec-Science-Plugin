@@ -49,7 +49,10 @@ from cannavec_science.evidence import (
     Source,
     SourceTier,
     grade_rationale,
+    infer_tier_from_pubtypes,
+    journal_tier_from_name,
     missing_disclosures,
+    study_design_signal_from_abstract,
 )
 from cannavec_science.intent import Intent, classify_intent
 from cannavec_science.safety import SafetyAction, SafetyVerdict
@@ -356,6 +359,10 @@ class Answer:
         year: "str | int | None" = None,
         retraction_status: str = "clean",
         off_topic: bool = False,
+        grade: "str | None" = None,
+        certainty: "str | None" = None,
+        grade_rationale: "str | None" = None,
+        provisional: bool = False,
     ) -> None:
         """Attach one unverified live-discovery hit (Constitution §IX).
 
@@ -372,6 +379,13 @@ class Answer:
         a low-relevance / context row is kept (breadth is never silently lost)
         but flagged so the surface can sort it after the on-topic rows and never
         let it lead. The key is emitted only when True, so a normal finding's
+        pinned dict shape is unchanged.
+
+        ``grade`` / ``certainty`` / ``grade_rationale`` / ``provisional`` are the
+        Phase-2 honest metadata-only GRADE (spec 036, Step 2): a real, conservative
+        single-source grade clamped to <= Level C (journal) / Level D (preprint),
+        with its rationale and a visible ``live · provisional`` qualifier. They are
+        emitted only when a grade was assigned, so an ungraded/context finding's
         pinned dict shape is unchanged.
         """
         if not (label or identifier):
@@ -390,6 +404,13 @@ class Answer:
         }
         if off_topic:
             finding["off_topic"] = True
+        if grade is not None:
+            finding["grade"] = grade
+            if certainty is not None:
+                finding["certainty"] = certainty
+            if grade_rationale is not None:
+                finding["grade_rationale"] = grade_rationale
+            finding["provisional"] = bool(provisional) or True
         self.live_findings.append(finding)
 
     def add_verified_finding(
@@ -1317,6 +1338,143 @@ _LIVE_FLAG_LABEL = {
 }
 
 
+# The HONEST ceiling for a live hit's grade (spec 036, Step 2): a live JOURNAL
+# hit is NEVER more certain than curated evidence (clamp to Level C / Low), and a
+# live PREPRINT caps one notch lower (Level D / Very low). The clamp is applied
+# AFTER the real GRADE engine runs, so the engine's single-study caps still bite
+# (an off-design row may land below the ceiling) — the clamp only ever LOWERS.
+_LIVE_JOURNAL_GRADE_CEILING = EvidenceLevel.C
+_LIVE_PREPRINT_GRADE_CEILING = EvidenceLevel.D
+
+
+def _clamp_grade(grade: EvidenceLevel, ceiling: EvidenceLevel) -> EvidenceLevel:
+    """Return ``grade`` capped at ``ceiling`` by rank (never raises it)."""
+    return grade if grade.rank <= ceiling.rank else ceiling
+
+
+def live_source_from_row(source_key: str, row: dict) -> "Source | None":
+    """Build a :class:`Source` for a live-discovery row from metadata the lane
+    ALREADY returned — no network fetch (Constitution §X, spec 036).
+
+    The tier is the stronger-but-still-honest of two metadata signals: the study
+    design inferred from ``pubtypes`` and the journal's tier from
+    ``data/journal_tiers.json``. ``pre_registered`` / ``adequately_powered`` come
+    from a trial-registry id / sample-size signal in the title+abstract. Preprint
+    lanes are pinned to the preprint tier regardless of any journal field.
+
+    Returns ``None`` when the row carries no primary identifier (nothing to
+    grade per §I) — the caller then keeps the existing provisional string.
+    """
+    pmid = str(row.get("pmid")) if row.get("pmid") else None
+    doi = str(row.get("doi")) if row.get("doi") else None
+    url = str(row.get("url") or row.get("link") or "") or None
+    if not (pmid or doi or url):
+        return None
+
+    title = str(
+        row.get("title") or row.get("brief_title") or row.get("compound") or ""
+    )
+    abstract = str(row.get("abstract") or "")
+    year_raw = row.get("year") or row.get("start_year")
+    try:
+        year = int(year_raw) if year_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        year = None
+    retraction_status = str(row.get("retraction_status") or "clean")
+    # The live retraction vocab uses "clean"/"retracted"/… ; CTgov uses "ok".
+    if retraction_status == "ok":
+        retraction_status = "clean"
+    pre_registered, adequately_powered = study_design_signal_from_abstract(
+        title, abstract
+    )
+
+    if source_key in _PREPRINT_LIVE_SOURCES:
+        # A preprint has no peer-reviewed journal tier; pin it to the preprint
+        # design tier. Its grade is clamped to Level D downstream regardless.
+        tier = SourceTier.PREPRINT_OR_SMALL
+    else:
+        pubtypes = tuple(
+            p for p in (row.get("pubtypes") or ()) if isinstance(p, str)
+        )
+        design_tier = infer_tier_from_pubtypes(pubtypes)
+        journal_tier = journal_tier_from_name(str(row.get("journal") or ""))
+        # Combine the two honest signals, but only let the journal STRENGTHEN the
+        # row when it is a *recognised* high-impact venue. An unknown/empty
+        # journal name carries no positive signal — it must never lift an
+        # undesigned row off its conservative floor (prefer-lower when ambiguous,
+        # spec 036 honesty contract). A flagship journal lifts an undesigned
+        # article; a strong design lifts a no-name journal; but neither can
+        # exceed the downstream clamp.
+        journal_recognised = journal_tier in (
+            SourceTier.SR_FLAGSHIP,
+            SourceTier.JOURNAL_RCT,
+        )
+        tier = (
+            min(design_tier, journal_tier, key=lambda t: int(t))
+            if journal_recognised
+            else design_tier
+        )
+
+    try:
+        return Source(
+            title=title or (pmid or doi or url or "live source"),
+            tier=tier,
+            pmid=pmid,
+            doi=doi,
+            url=url,
+            year=year,
+            pre_registered=pre_registered,
+            adequately_powered=adequately_powered,
+            retraction_status=retraction_status,
+        )
+    except ValueError:
+        return None
+
+
+def _live_grade_for_row(source_key: str, row: dict) -> "tuple[EvidenceLevel, str] | None":
+    """Compute the clamped live grade + rationale for a row, or ``None`` when the
+    row carries no gradeable metadata (degrade to the provisional string).
+
+    Routes through the SAME engine the curated tier uses
+    (:meth:`Claim.best_supportable_grade` + :func:`grade_rationale`), then clamps
+    to the live ceiling — so the 'why' can never drift from the grade and a live
+    hit can never out-certain a curated claim.
+    """
+    source = live_source_from_row(source_key, row)
+    if source is None:
+        return None
+    # Grade on STUDY DESIGN alone. A live hit carries no effect-size / CI /
+    # comparator metadata, so routing it through ``CLINICAL_EFFICACY`` (8
+    # required disclosures) would crush every row to UNSUPPORTED via the
+    # missing-disclosure penalty — dishonest in the *opposite* direction (it
+    # would hide a real recent RCT). ``EDUCATIONAL`` carries no required
+    # disclosures, so the single-source design caps govern, and the downstream
+    # clamp to <= Level C / Level D guarantees a live hit never out-certains a
+    # curated claim.
+    claim = Claim(
+        text=str(row.get("title") or ""),
+        claim_type=ClaimType.EDUCATIONAL,
+        sources=(source,),
+    )
+    computed = claim.best_supportable_grade()
+    if computed is EvidenceLevel.UNSUPPORTED:
+        return None
+    ceiling = (
+        _LIVE_PREPRINT_GRADE_CEILING
+        if source_key in _PREPRINT_LIVE_SOURCES
+        else _LIVE_JOURNAL_GRADE_CEILING
+    )
+    clamped = _clamp_grade(computed, ceiling)
+    rationale = grade_rationale(claim).summary()
+    note = (
+        "live preprint, not peer-reviewed (unverified)"
+        if source_key in _PREPRINT_LIVE_SOURCES
+        else "live, unverified"
+    )
+    rationale = f"{rationale} — {note}" if rationale else note
+    return clamped, rationale
+
+
 def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
     """Map a live-discovery row (a lane's ``.to_dict()``) to a provisional
     live-finding dict for :meth:`Answer.add_live_finding`.
@@ -1365,9 +1523,12 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
     if rec is None and row.get("doi"):
         rec = is_retracted(doi=str(row.get("doi")))
     retraction_status = rec.status.value if rec is not None else "clean"
-    if retraction_status in _LIVE_FLAGGED_STATUSES:
-        grade = f"{_LIVE_FLAG_LABEL[retraction_status]} ({retraction_status})"
-    return {
+
+    # Phase-2 honest metadata-only GRADE (spec 036, Step 2). A flagged row keeps
+    # its §VIII badge as the provisional string and is NOT given a certainty
+    # grade (a retracted/EOC paper must never read as graded evidence). A clean
+    # row is graded through the curated engine and clamped to the live ceiling.
+    finding: dict = {
         "label": title,
         "identifier": ident_label,
         "source_tag": f"live_{source_key}",
@@ -1376,6 +1537,29 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
         "year": str(year) if year else "",
         "retraction_status": retraction_status,
     }
+    if retraction_status in _LIVE_FLAGGED_STATUSES:
+        finding["provisional_grade"] = (
+            f"{_LIVE_FLAG_LABEL[retraction_status]} ({retraction_status})"
+        )
+        return finding
+
+    graded = _live_grade_for_row(source_key, row)
+    if graded is not None:
+        level, rationale = graded
+        # Structured grade fields — the canonical grade lives HERE. The render
+        # (Task 4 / spec 036 Step 3) reads these into the §XI-checked surface;
+        # until then the human ``provisional_grade`` string carries only a
+        # certainty-word qualifier (NOT the "Level X" letter), so the gate-level
+        # grade cannot leak into the render outside the §XI surface.
+        finding["grade"] = level.value          # e.g. "Level C"
+        finding["certainty"] = level.certainty  # e.g. "Low"
+        finding["grade_rationale"] = rationale
+        finding["provisional"] = True
+        # The visible qualifier distinct from a curated grade.
+        finding["provisional_grade"] = (
+            f"{level.certainty} certainty · live · provisional"
+        )
+    return finding
 
 
 def compose_answer(
