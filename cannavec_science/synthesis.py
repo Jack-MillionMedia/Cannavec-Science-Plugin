@@ -375,7 +375,17 @@ def _row_compound(source: str, row: dict) -> str:
     canon = _canonical_compound(title)
     if canon:
         return canon
-    return _normalise(title.lower().split()[0]) if title else ""
+    # No recognised cannabinoid: fall back to the first CONTENT word of the
+    # title. distill_query drops leading function words that would otherwise
+    # become a meaningless cluster key and synthesis subject (e.g.
+    # "addresses a;"). Lowercase first so a title's leading article "A" is
+    # stripped — distill_query deliberately preserves a bare uppercase "A"
+    # (vitamin A) for live search queries, which we don't want here. The
+    # fallback token is _normalise()d anyway. Empty / all-stopword title → "".
+    from cannavec_science.intent import distill_query
+
+    tokens = distill_query(title.lower()).split()
+    return _normalise(tokens[0]) if tokens else ""
 
 
 def _row_condition(source: str, row: dict) -> str:

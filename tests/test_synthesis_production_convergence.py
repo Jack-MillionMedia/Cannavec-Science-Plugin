@@ -83,5 +83,30 @@ class TestProductionConvergenceNoSeam(unittest.TestCase):
         self.assertNotEqual(block.convergence, Convergence.MIXED)
 
 
+class TestSynthesisSubjectNotStopword(unittest.TestCase):
+    """The synthesis prose subject is derived from the dominant cluster's
+    compound; for a non-cannabinoid (botany) title with no recognised compound
+    or condition it used to fall back to the title's FIRST word — which could be
+    an article, producing "... addresses a; ...". Skip leading function words.
+    """
+
+    def test_leading_article_not_used_as_subject(self):
+        rows = {
+            "pubmed": [{
+                "pmid": "41926629",
+                "title": (
+                    "A Novel CsYABBY3-CsAS1 Feedback Loop Coordinates "
+                    "Trichome Differentiation in Cannabis sativa"
+                ),
+            }],
+        }
+        block = synthesize("trichome differentiation", rows)
+        # The bare article must never be the subject.
+        self.assertNotIn("addresses a;", block.prose.lower())
+        self.assertNotIn(" address a;", block.prose.lower())
+        # A real content word from the title carries the subject instead.
+        self.assertIn("novel", block.prose.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
