@@ -1652,9 +1652,10 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
 def weave_verified_findings(answer, *, prompt: str, store_dir=None) -> int:
     """Weave the expert-gated verified-breadth tier onto ``answer`` (§IX).
 
-    The curation flywheel that produces this tier is post-MVP machinery archived
-    under ``archive/`` (mission realignment v3.0.0), so ``cannavec_science.flywheel``
-    is intentionally not importable in the shipped engine. When it is absent this
+    The curation flywheel that produces this tier is post-MVP machinery removed
+    from the shipped tree in the v3.0.0 teardown (restorable from git history;
+    tag ``pre-mvp-teardown-2026-06-05``), so ``cannavec_science.flywheel`` is
+    intentionally not importable in the shipped engine. When it is absent this
     is a **clean no-op** — the verified tier stays empty and nothing is raised —
     rather than a raised-and-swallowed ``ImportError`` that masks real errors. If a
     future build re-homes the flywheel into the engine, this transparently

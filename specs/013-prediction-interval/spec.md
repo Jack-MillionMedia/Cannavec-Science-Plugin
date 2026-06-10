@@ -1,6 +1,6 @@
 # Spec 013 — Random-effects prediction interval
 
-**Status**: Implemented, then archived (PR #41 MVP teardown — see archive/ARCHIVE_MANIFEST.md)
+**Status**: Implemented, then archived (PR #41 MVP teardown — see git tag pre-mvp-teardown-2026-06-05)
 
 **Created**: 2026-06-01
 

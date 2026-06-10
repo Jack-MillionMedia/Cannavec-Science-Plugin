@@ -128,5 +128,5 @@ python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
 `.specify/memory/constitution.md`. The detailed v0.7 engineering reference is
 preserved at `docs/full-reference-v0.7.md`; version history is in
 `CHANGELOG.md`. Post-MVP machinery (meta-analysis, curation flywheel, researcher
-scaffolders) is parked under `archive/` and is restorable — see
-`archive/ARCHIVE_MANIFEST.md`.*
+scaffolders) was removed from the working tree in the v3.0.0+ teardown and is
+restorable from git history (tag `pre-mvp-teardown-2026-06-05`).*

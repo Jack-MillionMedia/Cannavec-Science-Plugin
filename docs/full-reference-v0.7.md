@@ -2,8 +2,9 @@
 
 > ⚠️ **Historical snapshot — predates the v3.0.0 first-principles MVP teardown
 > (PR #41, merged 2026-06-05).** This document describes machinery that was
-> subsequently archived under `archive/` (meta-analysis / GRADE calculators,
-> the larger CLI surface, etc.) and its hard numbers (test counts, module
+> subsequently archived and removed from the tree (meta-analysis / GRADE
+> calculators, the larger CLI surface, etc.; recoverable from git history, tag
+> `pre-mvp-teardown-2026-06-05`) and its hard numbers (test counts, module
 > counts, eval-prompt counts) are **stale**. It is preserved as engineering
 > history, **not** as a description of the current shipped product. For the
 > current surface and live, mechanically-enforced numbers see `README.md` and
