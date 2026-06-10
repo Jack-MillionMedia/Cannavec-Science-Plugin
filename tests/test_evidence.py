@@ -12,7 +12,6 @@ from cannavec_science.evidence import (   # noqa: E402
     Claim,
     ClaimType,
     EvidenceLevel,
-    ProvenanceScore,
     Source,
     SourceTier,
     apply_grade_modifiers,
@@ -158,39 +157,6 @@ class TestGradeModifiers(unittest.TestCase):
             missing_disclosure_count=2,
         )
         self.assertEqual(grade, EvidenceLevel.C)
-
-
-class TestProvenanceScore(unittest.TestCase):
-    def test_score_capped_at_one(self) -> None:
-        p = ProvenanceScore(
-            link_liveness_factor=1.0,
-            retraction_factor=1.0,
-            source_authority_weight=1.5,
-        )
-        self.assertEqual(p.score, 1.0)
-
-    def test_retracted_zeroes_score(self) -> None:
-        p = ProvenanceScore(
-            link_liveness_factor=1.0,
-            retraction_factor=0.0,
-            source_authority_weight=1.0,
-        )
-        self.assertEqual(p.score, 0.0)
-        self.assertIn("Reject", p.acceptable_use)
-
-    def test_acceptable_use_bins(self) -> None:
-        self.assertIn(
-            "Level A/B",
-            ProvenanceScore(1.0, 1.0, 0.9).acceptable_use,
-        )
-        self.assertIn(
-            "Level C",
-            ProvenanceScore(1.0, 1.0, 0.65).acceptable_use,
-        )
-        self.assertIn(
-            "Context only",
-            ProvenanceScore(1.0, 1.0, 0.45).acceptable_use,
-        )
 
 
 class TestRequiredDisclosures(unittest.TestCase):

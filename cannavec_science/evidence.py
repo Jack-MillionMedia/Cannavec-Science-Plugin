@@ -468,33 +468,6 @@ def apply_grade_modifiers(
     return grade
 
 
-@dataclass(frozen=True)
-class ProvenanceScore:
-    link_liveness_factor: float          # 1.0 LIVE, 0.5 REDIRECT_OK, 0.0 DEAD/RETRACTED
-    retraction_factor: float             # 1.0 CLEAN, 0.5 EOC, 0.3 UNDER_CORRECTION, 0.0 RETRACTED
-    source_authority_weight: float       # per :func:`source_authority_weight`
-
-    @property
-    def score(self) -> float:
-        return min(
-            1.0,
-            self.link_liveness_factor
-            * self.retraction_factor
-            * self.source_authority_weight,
-        )
-
-    @property
-    def acceptable_use(self) -> str:
-        s = self.score
-        if s >= 0.80:
-            return "Level A/B claim support"
-        if s >= 0.60:
-            return "Level C claim support with hedging"
-        if s >= 0.40:
-            return "Context only, not primary support"
-        return "Reject; do not cite as primary"
-
-
 # Required disclosures per claim type. A claim missing any of these is
 # downgraded one grade and surfaced to the reviewer.
 _REQUIRED_DISCLOSURES: dict[ClaimType, frozenset[str]] = {
