@@ -22,7 +22,7 @@ Read-only at runtime.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Iterable
 
 
@@ -111,6 +111,36 @@ def _latest_last_verified(rows: Iterable[object]) -> str:
         if lv > latest:
             latest = lv
     return latest
+
+
+# Curation dates for the registries whose row dataclasses predate the per-row
+# ``last_verified`` field. Recovered from git — the date each registry was first
+# curated and its citations checked (these eight were all authored 2026-05-21,
+# the same day as their dated siblings ecbome / analytical_chemistry /
+# cultivation_science). Conservative: these facts were verified no LATER than
+# this date — never fabricated as "today". Newer registries carry the date on the
+# row itself, so this map is the fallback, not the primary source.
+_REGISTRY_CURATION_DATE: dict[str, str] = {
+    "major_cannabinoids": "2026-05-21",
+    "minor_cannabinoids": "2026-05-21",
+    "terpenes": "2026-05-21",
+    "interactions": "2026-05-21",
+    "adverse_events": "2026-05-21",
+    "populations": "2026-05-21",
+    "contraindications": "2026-05-21",
+    "pharmacogenomics": "2026-05-21",
+}
+
+
+def _with_freshness(groups: tuple["RegistryGroup", ...]) -> tuple["RegistryGroup", ...]:
+    """Fill an empty ``last_verified`` from the curation-date fallback so every
+    registry honestly reports when it was last checked."""
+    return tuple(
+        replace(g, last_verified=_REGISTRY_CURATION_DATE[g.name])
+        if not g.last_verified and g.name in _REGISTRY_CURATION_DATE
+        else g
+        for g in groups
+    )
 
 
 def _build_major_cannabinoids() -> RegistryGroup:
@@ -446,13 +476,13 @@ def build_inventory(
     """
     if registry == "all":
         groups = tuple(b() for b in (_BUILDERS[n] for n in all_registry_groups()))
-        return RegistryInventory(groups=groups)
+        return RegistryInventory(groups=_with_freshness(groups))
     if registry not in _BUILDERS:
         raise ValueError(
             f"unknown registry: {registry!r}; expected one of "
             f"{tuple(_BUILDERS)} or 'all'"
         )
-    return RegistryInventory(groups=(_BUILDERS[registry](),))
+    return RegistryInventory(groups=_with_freshness((_BUILDERS[registry](),)))
 
 
 def render_markdown(inv: RegistryInventory) -> str:
