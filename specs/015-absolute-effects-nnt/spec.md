@@ -1,6 +1,6 @@
 # Spec 015 — Absolute effects & Number-Needed-to-Treat (GRADE Summary-of-Findings translation)
 
-**Status**: Implemented
+**Status**: Implemented, then archived (PR #41 MVP teardown — see archive/ARCHIVE_MANIFEST.md)
 
 **Created**: 2026-06-01
 

@@ -23,6 +23,18 @@ no user-facing surface, or (c) true orphans imported by nothing.
 | Orphans | `terpene_reference`, `evidence_synthesis`, `contradiction` | Imported by nothing (or only by each other). Dead code. |
 | Skill | `skills/cannabis-evidence-synthesis` | Routed to the archived `meta`/`fragility`/`signal`/`affinity` tools. |
 
+## Also relocated — 2026-06-09 (P1 docs / dead-code cleanup)
+
+Moved here because they reference parked machinery and were misleading or dead in
+the live tree (none are imported by shipping code, tests, or CI):
+
+| Item | Path here | Why |
+|---|---|---|
+| Flywheel eval drivers | `evals/demand_probe.py`, `evals/seed_flywheel.py` | Import the archived `cannavec_science.demand` / `.flywheel`; crash on run. Belong with the flywheel cluster. |
+| v0.2 demo script | `docs/DEMO_SCRIPT.md` | Scripts six removed CLI subcommands (affinity/meta/signal/fragility/freshness/source-health) — hard errors for a fresh user. |
+| Flywheel doc | `docs/FLYWHEEL.md` | Documents the archived §IX curation flywheel (M5 anti-pattern) as if it ships. |
+| Rating-delta snapshots | `docs/V0{2..6}_RATING_DELTA.md`, `docs/v08_expert_session_2026-05-24.md` | Honestly-dated pre-teardown history; relocated out of the live `docs/` tree. |
+
 ## How to restore a module
 
 ```bash

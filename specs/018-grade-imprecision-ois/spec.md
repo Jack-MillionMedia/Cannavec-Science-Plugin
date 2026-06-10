@@ -1,6 +1,6 @@
 # Spec 018 — GRADE imprecision via the Optimal Information Size
 
-**Status**: Implemented
+**Status**: Implemented, then archived (PR #41 MVP teardown — see archive/ARCHIVE_MANIFEST.md)
 
 **Created**: 2026-06-01
 

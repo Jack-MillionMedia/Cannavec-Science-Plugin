@@ -551,6 +551,16 @@ class DocsConsistencyTests(unittest.TestCase):
         self.assertIn("twenty-one curated", desc.lower())
         self.assertEqual(n, 21)  # guard: regenerate docs if this changes
 
+    def test_pyproject_description_is_not_stale(self):
+        """pyproject.toml is published package metadata — it must not carry the
+        v0.6-era blob ('twenty curated science registries', 'thirteen primary-
+        source databases') that silently rotted while plugin.json/README were
+        guarded. Text-based + offline so it runs on Python 3.9 (no tomllib)."""
+        txt = (self._ROOT / "pyproject.toml").read_text("utf-8").lower()
+        self.assertNotIn("twenty curated", txt)
+        self.assertNotIn("thirteen primary-source", txt)
+        self.assertIn("twenty-one curated", txt)
+
     def test_readme_states_correct_registry_and_module_counts(self):
         readme = (self._ROOT / "README.md").read_text("utf-8")
         # 21 registries, with the endocrine group enumerated.

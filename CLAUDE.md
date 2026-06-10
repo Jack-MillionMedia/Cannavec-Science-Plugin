@@ -57,7 +57,8 @@ generator output more strings?"
   / model orchestration / rendering are first-class but live in their own
   justified, gracefully-degrading layer — they must not break the offline core.
 - **Slash commands**: exactly five — `research`, `ask`, `discover`, `verify`,
-  `rigor`. Adding a sixth requires a constitution amendment.
+  `rigor`. This five-command cap is a deliberate project invariant; adding a
+  sixth is a significant scope decision, not a casual change.
 - **CLI entry point**: `python3 -m cannavec_science <subcommand>`.
 - **Tests**: `python3 -m unittest discover -s tests` runs offline and must stay
   green; every change ships a positive + negative test (Constitution §III).

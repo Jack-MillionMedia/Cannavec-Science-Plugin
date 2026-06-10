@@ -1,6 +1,6 @@
 # Spec 017 — Summary-of-Findings woven into the research brief
 
-**Status**: Implemented
+**Status**: Implemented, then archived (PR #41 MVP teardown — see archive/ARCHIVE_MANIFEST.md)
 
 **Created**: 2026-06-01
 

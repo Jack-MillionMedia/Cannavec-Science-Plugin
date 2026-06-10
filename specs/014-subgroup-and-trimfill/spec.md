@@ -1,6 +1,6 @@
 # Spec 014 — Subgroup analysis & trim-and-fill
 
-**Status**: Implemented
+**Status**: Implemented, then archived (PR #41 MVP teardown — see archive/ARCHIVE_MANIFEST.md)
 
 **Created**: 2026-06-01
 

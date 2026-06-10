@@ -1,6 +1,6 @@
 # Spec 016 — GRADE certainty rating for the meta pool (completes the SoF table)
 
-**Status**: Implemented
+**Status**: Implemented, then archived (PR #41 MVP teardown — see archive/ARCHIVE_MANIFEST.md)
 
 **Created**: 2026-06-01
 

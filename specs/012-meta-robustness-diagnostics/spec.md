@@ -1,6 +1,6 @@
 # Spec 012 — Meta-analysis robustness diagnostics
 
-**Status**: Implemented
+**Status**: Implemented, then archived (PR #41 MVP teardown — see archive/ARCHIVE_MANIFEST.md)
 
 **Created**: 2026-06-01
 
