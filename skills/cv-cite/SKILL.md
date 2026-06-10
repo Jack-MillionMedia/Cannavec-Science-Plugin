@@ -43,7 +43,7 @@ The command enforces the credibility guarantee in code; honour its result:
   - `no verified citations` — the answer has no graded evidence for this
     indication (e.g. an uncurated indication the backbone honestly refuses). Tell
     the user there is no curated efficacy evidence to cite, and point them at
-    `/cv:discover` (live primary-source search) or `/cv:research` for the frontier.
+    `/cannavec-science:discover` (live primary-source search) or `/cannavec-science:research` for the frontier.
   - `not citation-lossless (<fmt>)` — a render dropped an identifier or GRADE;
     the export was refused rather than ship a lossy reference set.
 
@@ -53,6 +53,6 @@ The command enforces the credibility guarantee in code; honour its result:
 curated core (paediatric seizures, chronic pain, PTSD, sleep, anxiety, CINV, MS
 spasticity, and the other curated indications) and **emits nothing for everything
 else** — it refuses rather than fabricate. For the broader frontier, the
-citations come from live retrieval (`/cv:discover` → verify), not from this skill.
+citations come from live retrieval (`/cannavec-science:discover` → verify), not from this skill.
 Never present this as a "cite anything about cannabis" tool; its value is that
 every reference it emits is verified, and it stays silent when it cannot be.
