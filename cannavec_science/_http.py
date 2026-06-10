@@ -34,6 +34,8 @@ import urllib.error
 import urllib.request
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from cannavec_science import _creds
+
 __all__ = [
     "TIMEOUT_FAST",
     "TIMEOUT_SLOW",
@@ -114,14 +116,12 @@ def ncbi_api_key() -> str | None:
     request is sent unauthenticated, exactly as before, so offline tests and
     key-less deployments are unaffected.
     """
-    key = os.environ.get("NCBI_API_KEY", "").strip()
-    return key or None
+    return _creds.resolve("NCBI_API_KEY")
 
 
 def ncbi_email() -> str | None:
     """Operator contact e-mail from ``NCBI_EMAIL`` (NCBI etiquette). Optional."""
-    mail = os.environ.get("NCBI_EMAIL", "").strip()
-    return mail or None
+    return _creds.resolve("NCBI_EMAIL")
 
 
 def append_ncbi_auth(url: str) -> str:

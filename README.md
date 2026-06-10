@@ -98,6 +98,21 @@ python3 -m cannavec_science verify 28538134   # no dependencies to install
 New here? Read [what to expect and what not to trust yet](docs/KNOWN_LIMITATIONS.md)
 before you start.
 
+### Set up your free NCBI key (recommended)
+
+Live retrieval is faster and more reliable with your **own free NCBI API key**.
+NCBI requires every user to use their own key (it's free, and sharing one key is
+not allowed), so Cannavec never ships a key — you add yours once, in 2 minutes:
+
+```bash
+python3 -m cannavec_science setup
+```
+
+It walks you through getting the key and stores it **on your machine only**
+(`~/.cannavec/credentials`, owner-readable, never shared, never committed). Check
+status anytime with `setup --show`. (A local `.env` with `NCBI_API_KEY=…` works
+too.) Without a key it still runs — just slower and more rate-limited.
+
 ## The five commands (in Claude, as a plugin)
 
 | Command | What it does |
@@ -108,7 +123,7 @@ before you start.
 | `/verify` | Spot-check one identifier (PMID / DOI / NCT / ChEMBL / UniProt): real? retracted? |
 | `/rigor` | Run the deterministic phytochemistry + reporting-rigor + banned-pattern detectors on any text. |
 
-Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit>`.
+Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit|setup>`.
 
 ### Operator tools (not slash commands)
 
@@ -130,7 +145,7 @@ python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
 - **GRADE honesty** — grades are computed by code, not by confident prose; a single RCT caps at Level B.
 - **Phytochemistry precision** — every cannabinoid named by isomer, every receptor by UniProt accession, every dose by route.
 - **Curated reference corpus** — **twenty-one curated science registries** (cannabinoids, terpenes, interactions, adverse events, pharmacokinetics, **endocrine**, and more; 230 rows) are kept as *labelled offline reference the model reasons over* — never presented as the answer itself.
-- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **2,170+ unit tests**. The engine is **73 modules**; run `python3 -m unittest discover -s tests`. (The "+" is a floor enforced by `tests/test_readme_claims.py` — the suite is asserted to meet it, so this number can never silently overstate reality.)
+- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **2,170+ unit tests**. The engine is **74 modules**; run `python3 -m unittest discover -s tests`. (The "+" is a floor enforced by `tests/test_readme_claims.py` — the suite is asserted to meet it, so this number can never silently overstate reality.)
 
 ## Honest scope (what it does *not* do yet)
 

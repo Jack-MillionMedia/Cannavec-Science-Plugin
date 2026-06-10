@@ -1173,6 +1173,107 @@ def _cmd_registries(args: argparse.Namespace) -> int:
     return 0
 
 
+_SETUP_INSTRUCTIONS = """\
+  Cannavec Science works best with your OWN free NCBI API key — it makes live
+  retrieval fast and reliable. NCBI requires each person to use their own key
+  (sharing one key is not allowed), and it is free.
+
+  How to get it (about two minutes, one time):
+    1. Open  https://account.ncbi.nlm.nih.gov/   → sign in or create a free account.
+    2. Open  https://account.ncbi.nlm.nih.gov/settings/  → "API Key Management"
+       → "Create an API Key", then copy the key.
+    3. Paste it below.
+"""
+
+
+def _validate_ncbi_key(key: str) -> "tuple[bool, str]":
+    """Best-effort live check that NCBI accepts the key. Returns
+    ``(definitely_ok, message)``. Offline or a non-auth error is treated as
+    inconclusive (not a rejection) so setup still works without a network."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+
+    url = (
+        "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+        "?db=pubmed&term=cannabidiol&retmax=1&api_key="
+        + urllib.parse.quote(key)
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": user_agent("setup")})
+    try:
+        with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
+            resp.read()
+        return True, "Checking your key against NCBI… valid."
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return False, (
+                f"NCBI rejected the key (HTTP {exc.code}) — double-check you "
+                f"copied it exactly. (Use --force to save it anyway.)"
+            )
+        return True, (
+            f"Couldn't fully validate (HTTP {exc.code}); the key looks usable — "
+            f"saving it."
+        )
+    except Exception:  # noqa: BLE001 — offline / DNS / timeout → inconclusive, not a reject
+        return True, "Couldn't reach NCBI to validate (offline?) — saving anyway."
+
+
+def _mask(secret: str) -> str:
+    s = (secret or "").strip()
+    if len(s) <= 6:
+        return "set"
+    return f"{s[:4]}…{s[-2:]}"
+
+
+def _cmd_setup(args: argparse.Namespace) -> int:
+    """Store the user's own NCBI key (this machine only) for reliable live
+    retrieval — or, with --show, report the current credential status."""
+    from cannavec_science import _creds
+
+    if getattr(args, "show", False):
+        key = _creds.resolve("NCBI_API_KEY")
+        email = _creds.resolve("NCBI_EMAIL")
+        path = _creds.credentials_path()
+        print("## Cannavec Science — credential status\n")
+        print(f"- NCBI_API_KEY: {'set (' + _mask(key) + ')' if key else 'NOT set'}")
+        print(f"- NCBI_EMAIL: {email or 'NOT set'}")
+        print(f"- credentials file: {path} "
+              f"({'present' if path.exists() else 'not created yet'})")
+        if not key:
+            print("\nRun `python3 -m cannavec_science setup` to add your free key.")
+        return 0 if key else 1
+
+    key = (getattr(args, "ncbi_key", None) or "").strip()
+    email = (getattr(args, "ncbi_email", None) or "").strip()
+    if not key:
+        print(_SETUP_INSTRUCTIONS)
+        try:
+            key = input("  NCBI API key: ").strip()
+            if not email:
+                email = input("  Your email (recommended, press Enter to skip): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[setup] cancelled — nothing saved.", file=sys.stderr)
+            return 2
+    if not key:
+        print("[setup] No key entered — nothing saved.", file=sys.stderr)
+        return 2
+
+    ok, msg = _validate_ncbi_key(key)
+    print(f"  {msg}")
+    if not ok and not getattr(args, "force", False):
+        return 1
+
+    values = {"NCBI_API_KEY": key}
+    if email:
+        values["NCBI_EMAIL"] = email
+    path = _creds.save_credentials(values)
+    print(f"  Saved to {path} — this machine only, never shared.")
+    print('  You\'re set. Try:  python3 -m cannavec_science discover "CBD epilepsy" --max 5')
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m cannavec_science",
@@ -1425,10 +1526,33 @@ def _build_parser() -> argparse.ArgumentParser:
     ka.add_argument("--out", help="Write the report to this file instead of stdout.")
     ka.set_defaults(func=_cmd_kb_audit)
 
+    # setup — one-time, interactive: store the user's OWN free NCBI key for fast,
+    # reliable live retrieval (NCBI requires each user to use their own key).
+    st = sub.add_parser(
+        "setup",
+        help=("Save your own free NCBI API key for fast, reliable live retrieval "
+              "(stored on this machine only; NCBI requires a personal key)."),
+    )
+    st.add_argument("--ncbi-key", default=None,
+                    help="Set the NCBI API key non-interactively (else prompted).")
+    st.add_argument("--ncbi-email", default=None,
+                    help="Set the contact email non-interactively (NCBI etiquette).")
+    st.add_argument("--show", action="store_true",
+                    help="Show current credential status (key masked) and exit.")
+    st.add_argument("--force", action="store_true",
+                    help="Save even if NCBI rejects the key during validation.")
+    st.set_defaults(func=_cmd_setup)
+
     return p
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # Developer convenience: a local .env populates the environment (without
+    # overriding anything already set) before any credential is resolved. Per-user
+    # keys also live in ~/.cannavec/credentials (see `setup`); both are read by
+    # cannavec_science._creds — no key is ever baked into the shipped package.
+    from cannavec_science import _creds
+    _creds.load_dotenv(".env")
     parser = _build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

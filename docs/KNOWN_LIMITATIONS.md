@@ -47,11 +47,18 @@ filing — and please *do* report anything in the "report these" list.
   over-refusal, not a real "no evidence" claim — the data may exist via
   `discover`.
 - **Live retrieval reliability.** Key-less NCBI/PubMed can rate-limit or `403`
-  from shared/cloud IPs; the tool falls back to **Europe PMC**, but for reliable
-  live results set an `NCBI_API_KEY` (and `NCBI_EMAIL`) in your environment.
+  from shared/cloud IPs; the tool falls back to **Europe PMC**, but for fast,
+  reliable live results add your own free NCBI key: `python3 -m cannavec_science
+  setup` (stored on your machine only — NCBI requires each user to use their own
+  key, so none ships in this repo).
 - **Web/API surface is early scaffolding.** The Vercel handlers (`api/`) work but
   default `CANNAVEC_ALLOWED_ORIGIN` to `*` and have no rate limiting — fine for a
-  local/trusted try, not yet hardened for a public deployment.
+  local/trusted try, not yet hardened for a public deployment. **Compliance note:**
+  NCBI prohibits pooling many users' traffic through one key, so a *hosted*
+  deployment must not route all visitors through a single `NCBI_API_KEY` — keep it
+  operator-only, lean on the key-less Europe PMC lane, or have each user supply
+  their own key. The per-user model above is for the plugin / CLI, where each
+  person runs it with their own key.
 
 ## How to read a verdict
 
