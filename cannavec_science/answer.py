@@ -1405,18 +1405,13 @@ def _set_short_answer(a: Answer) -> None:
 # Live lanes that are not peer-reviewed cap at Level D (preprint).
 _PREPRINT_LIVE_SOURCES = frozenset({"biorxiv", "medrxiv", "preprint"})
 
-# Live-tier §VIII statuses that warrant a "do not / verify before cite" badge
-# AND a last-place rank (a flagged paper must never lead the live breadth). A
-# plain CORRECTION is excluded — a correction means the paper stands, so it is
-# neither badged nor sunk.
-_LIVE_FLAGGED_STATUSES = frozenset(
-    {"retracted", "expression_of_concern", "under_correction"}
+# Live-tier §VIII flagged statuses + badge labels — single-sourced in
+# retraction.py so the brief and the web API never disagree on which statuses are
+# flagged or how they are worded. A plain CORRECTION is excluded (paper stands).
+from cannavec_science.retraction import (  # noqa: E402 — co-located with its use
+    LIVE_FLAGGED_STATUSES as _LIVE_FLAGGED_STATUSES,
+    BADGE_LABEL as _LIVE_FLAG_LABEL,
 )
-_LIVE_FLAG_LABEL = {
-    "retracted": "RETRACTED — do not cite",
-    "expression_of_concern": "EXPRESSION OF CONCERN — verify before citing",
-    "under_correction": "UNDER CORRECTION — verify before citing",
-}
 
 
 # The HONEST ceiling for a live hit's grade (spec 036, Step 2): a live JOURNAL

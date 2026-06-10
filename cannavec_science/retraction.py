@@ -58,6 +58,26 @@ class RetractionStatus(str, Enum):
     CORRECTED = "corrected"           # correction issued, paper stands
 
 
+# §VIII flagged statuses — a flagged live finding is badged "do-not / verify
+# before cite" and sunk to last place. CORRECTED is excluded (the paper stands).
+# Single-sourced so the answer brief, the web API, and the ranker never disagree
+# on which statuses are flagged.
+LIVE_FLAGGED_STATUSES = frozenset({
+    RetractionStatus.RETRACTED.value,
+    RetractionStatus.EXPRESSION_OF_CONCERN.value,
+    RetractionStatus.UNDER_CORRECTION.value,
+})
+
+# Canonical human badge label per flagged status — the single source so two
+# surfaces can never word the same §VIII status differently. Each surface adds
+# its own decoration (e.g. the web API prepends " — ⚠ ").
+BADGE_LABEL = {
+    RetractionStatus.RETRACTED.value: "RETRACTED — do not cite",
+    RetractionStatus.EXPRESSION_OF_CONCERN.value: "EXPRESSION OF CONCERN — verify before citing",
+    RetractionStatus.UNDER_CORRECTION.value: "UNDER CORRECTION — verify before citing",
+}
+
+
 @dataclass(frozen=True)
 class RetractionRecord:
     """A single, citable retraction / EOC / correction record."""
