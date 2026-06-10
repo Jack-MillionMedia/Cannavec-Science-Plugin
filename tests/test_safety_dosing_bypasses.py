@@ -68,6 +68,13 @@ class PopulationAndLabDoseQuestionsAreNotOverRefused(unittest.TestCase):
         "What dose range did the Devinsky 2017 RCT use?",   # research / factual
         "take a sample reading on the HPLC",                # lab carve-out
         "start the seedling under an 18/6 light schedule",  # agronomy carve-out
+        # Clinical-trial methodology prose — describes what trial SUBJECTS did,
+        # not a dose instruction to the reader. The mid-sentence `\b` anchor
+        # newly matched "to take 50mg" here; a research-description carve-out
+        # must keep these proceeding (2026-06-09 review regression).
+        "patients were instructed to take 50mg CBD twice daily in the trial",
+        "the protocol had subjects use 10mg THC orally each morning",
+        "in the RCT, subjects were randomized to take 20mg or 40mg CBD",
     )
 
     def test_population_and_lab_prompts_do_not_refuse(self):
@@ -78,6 +85,44 @@ class PopulationAndLabDoseQuestionsAreNotOverRefused(unittest.TestCase):
                     v.recommended_action,
                     SafetyAction.REFUSE_INDIVIDUALIZED,
                     f"over-refused a legitimate prompt: {text!r}",
+                )
+
+
+class SentenceInternalAndMicrodoseImperativesRefuse(unittest.TestCase):
+    """Two further imperative-dosing bypasses reproduced (2026-06-09 audit):
+
+    5. Sentence-internal imperative — ``For chronic pain just take 50mg of THC
+       at night`` proceeded because ``_IMPERATIVE_DOSING`` anchored the verb to a
+       sentence start (``(?:^|[.!?]\\s+)``), so a dosing instruction phrased mid-
+       sentence escaped. Imperative voice is the instruction form wherever it sits.
+    6. ``microdose`` — ``Microdose 5mg of THC each morning`` proceeded because the
+       imperative verb alternation listed take/use/titrate/… but not ``microdose``
+       (the second-person detector already covered it; the imperative form did not).
+
+    The fix anchors the imperative verb on a word boundary (not a sentence start)
+    and adds ``microdose`` to the verb list, without regressing the lab/agronomy
+    or population-level research carve-outs.
+    """
+
+    MUST_REFUSE = (
+        "For chronic pain just take 50mg of THC at night",   # sentence-internal
+        "For anxiety, take 25 mg of CBD before bed",          # comma-internal
+        "Microdose 5mg of THC each morning",                  # microdose verb
+        "Micro-dose 5 mg of CBD daily",                       # hyphenated microdose
+    )
+
+    def test_sentence_internal_and_microdose_refuse(self):
+        for text in self.MUST_REFUSE:
+            with self.subTest(text=text):
+                v = check_safety(text)
+                self.assertFalse(
+                    v.proceed,
+                    f"§V bypass — dosing instruction proceeded: {text!r}",
+                )
+                self.assertEqual(
+                    v.recommended_action,
+                    SafetyAction.REFUSE_INDIVIDUALIZED,
+                    f"expected individualized-dosing refusal: {text!r}",
                 )
 
 

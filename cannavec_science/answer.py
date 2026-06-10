@@ -3164,12 +3164,30 @@ def _drop_offkb_indication_efficacy_claims(a: Answer, prompt: str) -> int:
 # questions (which carry no "for <indication>" frame) are never swept in. The
 # safe failure direction is over-refusal (an honest "no curated efficacy"), never
 # a confident wrong answer.
+#
+# Efficacy frames are EFFICACY-SPECIFIC verbs/prepositions only. Bare "and" is
+# deliberately excluded: it is not an efficacy cue and would sweep in mechanism /
+# PK / interaction questions ("CBD and CYP3A4"), over-refusing them. The natural
+# phrasings a researcher types — "help with", "useful in", "effective in",
+# "work(s) for", "good for" — are included so the backstop is not defeated by
+# wording the closed lexicon never enumerated (§I / M2 leak, 2026-06-09 audit).
 _EFFICACY_FRAME_RX = re.compile(
-    r"\b(?:for|to\s+treat|treating|treatment\s+of|therapy\s+for|"
-    r"manage|managing|against)\s+"
+    r"\b(?:for|to\s+treat|treat(?:s|ed|ing)?|treatment\s+of|therapy\s+for|"
+    r"manage|managing|against|help(?:s|ing)?\s+(?:with|for|in)|"
+    r"useful\s+(?:for|in)|effective(?:ness)?\s+(?:for|in|at|against)|"
+    r"benefi(?:t|ts|cial)\s+(?:for|in)|works?\s+(?:for|in)|"
+    r"good\s+for)\s+",
+    flags=re.IGNORECASE,
+)
+
+# The indication object captured immediately after an efficacy frame. Split from
+# the frame regex (above) so a non-overlapping ``finditer`` scan over frames does
+# not greedily consume a later frame: "evidence for CBD to treat breast cancer"
+# must skip the cannabinoid-headed "for CBD …" object and still reach the real
+# "to treat <indication>" frame.
+_EFFICACY_OBJECT_RX = re.compile(
     r"(?P<indication>[A-Za-z][A-Za-z0-9'’\-]*"
     r"(?:\s+[A-Za-z0-9'’\-]+){0,4})",
-    flags=re.IGNORECASE,
 )
 
 # Objects after the efficacy preposition that are NOT an indication — model
@@ -3204,19 +3222,27 @@ def _structural_efficacy_indication(prompt: str) -> "str | None":
     """
     if not prompt or not _CANNABIS_CUE_RX.search(prompt):
         return None
-    m = _EFFICACY_FRAME_RX.search(prompt)
-    if not m:
-        return None
-    phrase = m.group("indication").strip().strip("'’-").strip()
-    if len(phrase) < 3:
-        return None
-    head = phrase.split()[0].lower().strip("'’-")
-    if head in _NON_INDICATION_OBJECTS:
-        return None
-    # An object that is itself a cannabinoid ("THC for CBD") is not an indication.
-    if _CANNABIS_CUE_RX.fullmatch(head) or _CANNABIS_CUE_RX.fullmatch(phrase):
-        return None
-    return phrase
+    # Scan EVERY efficacy frame, not just the first. A cannabinoid-first prompt
+    # ("evidence for CBD to treat breast cancer") matches "for" BEFORE the
+    # cannabinoid, so the first frame's object is the cannabinoid itself; skip it
+    # and keep scanning to the real "to treat <indication>" frame. Returning early
+    # on that first frame was the confident-wrong-answer leak (§I / M2).
+    for fm in _EFFICACY_FRAME_RX.finditer(prompt):
+        om = _EFFICACY_OBJECT_RX.match(prompt, fm.end())
+        if not om:
+            continue
+        phrase = om.group("indication").strip().strip("'’-").strip()
+        if len(phrase) < 3:
+            continue
+        head = phrase.split()[0].lower().strip("'’-")
+        if head in _NON_INDICATION_OBJECTS:
+            continue
+        # An object that is itself a cannabinoid (the leading "CBD" in "for CBD
+        # to treat …", or "THC for CBD") is not an indication — keep scanning.
+        if _CANNABIS_CUE_RX.fullmatch(head) or _CANNABIS_CUE_RX.fullmatch(phrase):
+            continue
+        return phrase
+    return None
 
 
 def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None":
