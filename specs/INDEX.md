@@ -10,13 +10,13 @@ v3.0.0 teardown — their modules are recoverable from git tag
 | # | Spec | Status |
 |---|------|--------|
 | 001 | [science-mvp](001-science-mvp/) | Approved for `/speckit-plan` |
-| 002 | [elite-development](002-elite-development/) | Draft |
+| 002 | [elite-development](002-elite-development/) | Implemented |
 | 003 | [industry-expert-review](003-industry-expert-review/) | Draft |
 | 004 | [industry-expert-depth](004-industry-expert-depth/) | Approved for `/speckit-plan` and immediate implementation |
 | 005 | [clinical-pharmacology-depth](005-clinical-pharmacology-depth/) | Approved for `/speckit-plan` and immediate implementation |
 | 006 | [research-domain-breadth](006-research-domain-breadth/) | Approved for `/speckit-plan` and immediate implementation |
-| 007 | [production-readiness](007-production-readiness/) | Draft |
-| 008 | [expert-research-fidelity](008-expert-research-fidelity/) | Draft |
+| 007 | [production-readiness](007-production-readiness/) | Implemented |
+| 008 | [expert-research-fidelity](008-expert-research-fidelity/) | Implemented |
 | 009 | [research-lead-agent](009-research-lead-agent/) | Implemented |
 | 010 | [constitution-amendment](010-constitution-amendment/) | Ratified |
 | 011 | [quantitative-evidence-synthesis](011-quantitative-evidence-synthesis/) | Implemented, then archived |
