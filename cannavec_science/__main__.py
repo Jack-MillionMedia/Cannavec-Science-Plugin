@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -179,6 +180,10 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     from cannavec_science.discover_guard import DiscoverRefused, preflight
     from cannavec_science.synthesis import synthesize, render_markdown
 
+    if not (args.query or "").strip():
+        print('[error] discover needs a non-empty query, e.g. '
+              '`discover "CBD epilepsy"`.', file=sys.stderr)
+        return 2
     try:
         preflight(args.query)
     except DiscoverRefused as exc:
@@ -1558,7 +1563,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not getattr(args, "func", None):
         parser.print_help()
         return 0
-    return args.func(args)
+    # CLI boundary backstop: a user must never see a raw Python traceback. Any
+    # unexpected error renders as a clean message and a non-zero exit; set
+    # CANNAVEC_DEBUG=1 to re-raise the full traceback for developers.
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("\n[cancelled]", file=sys.stderr)
+        return 130
+    except Exception as exc:  # noqa: BLE001 — backstop; never crash with a traceback
+        if os.environ.get("CANNAVEC_DEBUG"):
+            raise
+        print(f"[error] {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
