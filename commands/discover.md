@@ -19,11 +19,22 @@ cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science discover "$ARGUMENT
 
 Optional flags:
 
-- `--sources` — comma-separated subset. Defaults to
-  `pubmed,chembl,ctgov`. Cannabis-primary widening adds
-  `pubchem`, `pharmgkb`, `rcsb`, `opentargets`, `gwas`, `bindingdb`.
+- `--sources` — comma-separated subset. Defaults to `pubmed,chembl,ctgov`. Full
+  lane set: `pubmed`, `chembl`, `ctgov`, `pubchem`, `pharmgkb`, `rcsb`,
+  `opentargets`, `gwas`, `bindingdb`, `biorxiv`, `medrxiv`, `europepmc`,
+  `openalex`, `chebi`, `quickgo`, `reactome`, `efo` (see `discover --help`).
+- `--include-europepmc` / `--include-openalex` — add the Europe PMC / OpenAlex
+  lane on top of `--sources` (broader literature + open citation graph).
 - `--since YYYY-MM-DD` — date floor for PubMed publication date.
-- `--max N` — per-source row cap (default 10).
+- `--max N` — per-source row cap.
+- `--parallel N` — thread-pool size for concurrent fan-out (default 1 serial;
+  ≤ 4 for NCBI etiquette; output is deterministic regardless of completion order).
+- `--no-rank` — disable the free, offline, deterministic cross-source re-ranking
+  (on by default; retracted papers are sunk to the bottom).
+- `--rerank-llm` [`--rerank-model M`] — optional LLM rerank lift on a genuine
+  top-of-list near-tie (ranks indices only, never a citation source; degrades to
+  the deterministic order if the model / API key / network is absent). Requires
+  `ANTHROPIC_API_KEY`.
 - `--json` — emit structured JSON for downstream tools.
 
 ### Source-picking heuristic
