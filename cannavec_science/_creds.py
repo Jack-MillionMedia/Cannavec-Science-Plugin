@@ -32,6 +32,7 @@ __all__ = [
 KNOWN_KEYS = (
     "NCBI_API_KEY",
     "NCBI_EMAIL",
+    "CANNAVEC_API_KEY",
     "CANNAVEC_CROSSREF_MAILTO",
     "ANTHROPIC_API_KEY",
 )
@@ -74,6 +75,13 @@ def _read_file(path: Path) -> dict:
         return parse_env_text(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError):
         return {}
+
+
+def load_all(path: "Path | None" = None) -> dict:
+    """Return every ``KEY=VALUE`` pair from the credentials file (an empty dict if
+    it is missing/unreadable). Used to merge a new key in without clobbering the
+    others already saved."""
+    return _read_file(path or credentials_path())
 
 
 def resolve(name: str, *, path: "Path | None" = None) -> "str | None":

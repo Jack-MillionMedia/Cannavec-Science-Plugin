@@ -79,9 +79,32 @@ class SetupCommand(unittest.TestCase):
             cli._validate_ncbi_key = lambda key: (False, "NCBI rejected the key")
             with redirect_stdout(io.StringIO()):
                 rc = cli._cmd_setup(argparse.Namespace(
-                    show=False, ncbi_key="badkey123456", ncbi_email="", force=False))
+                    show=False, ncbi_key="badkey123456", ncbi_email="",
+                    cannavec_key=None, force=False))
             self.assertEqual(rc, 1)
             self.assertIsNone(_creds.resolve("NCBI_API_KEY"))  # not saved
+
+    def test_cannavec_key_is_stored_masked_and_merges_with_ncbi(self):
+        with _Sandbox():
+            # Save NCBI first.
+            with redirect_stdout(io.StringIO()):
+                cli._cmd_setup(argparse.Namespace(
+                    show=False, ncbi_key="NCBIkey123456", ncbi_email="me@x.org",
+                    cannavec_key=None, force=False))
+            # Then add the Cannavec key — must NOT wipe the NCBI key.
+            with redirect_stdout(io.StringIO()):
+                rc = cli._cmd_setup(argparse.Namespace(
+                    show=False, ncbi_key=None, ncbi_email=None,
+                    cannavec_key="ck_live_abcdef123456", force=False))
+            self.assertEqual(rc, 0)
+            self.assertEqual(_creds.resolve("NCBI_API_KEY"), "NCBIkey123456")  # preserved
+            self.assertEqual(_creds.resolve("CANNAVEC_API_KEY"), "ck_live_abcdef123456")
+            out = io.StringIO()
+            with redirect_stdout(out):
+                cli._cmd_setup(argparse.Namespace(show=True))
+            text = out.getvalue()
+            self.assertIn("CANNAVEC_API_KEY: set (", text)
+            self.assertNotIn("ck_live_abcdef123456", text)  # masked, not leaked
 
 
 if __name__ == "__main__":

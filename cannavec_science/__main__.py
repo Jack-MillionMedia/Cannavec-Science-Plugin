@@ -1191,6 +1191,14 @@ _SETUP_INSTRUCTIONS = """\
 """
 
 
+_CANNAVEC_INSTRUCTIONS = """\
+  Optional — add your Cannavec key to enable semantic/vector search over the
+  curated cannabis knowledge base (sharper, concept-level recall). The plugin
+  audits every source the KB returns before you see it, so quality stays elite.
+  Get your key from your Cannavec account at https://cannavec.ai .
+"""
+
+
 def _validate_ncbi_key(key: str) -> "tuple[bool, str]":
     """Best-effort live check that NCBI accepts the key. Returns
     ``(definitely_ok, message)``. Offline or a non-auth error is treated as
@@ -1233,49 +1241,67 @@ def _mask(secret: str) -> str:
 
 
 def _cmd_setup(args: argparse.Namespace) -> int:
-    """Store the user's own NCBI key (this machine only) for reliable live
-    retrieval — or, with --show, report the current credential status."""
+    """Store the user's own keys (this machine only): the free NCBI key for fast
+    live retrieval, and the Cannavec key for semantic/vector KB search. With
+    --show, report the current credential status (keys masked)."""
     from cannavec_science import _creds
 
     if getattr(args, "show", False):
-        key = _creds.resolve("NCBI_API_KEY")
+        ncbi = _creds.resolve("NCBI_API_KEY")
         email = _creds.resolve("NCBI_EMAIL")
+        cannavec = _creds.resolve("CANNAVEC_API_KEY")
         path = _creds.credentials_path()
         print("## Cannavec Science — credential status\n")
-        print(f"- NCBI_API_KEY: {'set (' + _mask(key) + ')' if key else 'NOT set'}")
+        print(f"- NCBI_API_KEY: {'set (' + _mask(ncbi) + ')' if ncbi else 'NOT set'}")
         print(f"- NCBI_EMAIL: {email or 'NOT set'}")
+        print(f"- CANNAVEC_API_KEY: {'set (' + _mask(cannavec) + ')' if cannavec else 'NOT set'}")
         print(f"- credentials file: {path} "
               f"({'present' if path.exists() else 'not created yet'})")
-        if not key:
-            print("\nRun `python3 -m cannavec_science setup` to add your free key.")
-        return 0 if key else 1
+        if not (ncbi or cannavec):
+            print("\nRun `python3 -m cannavec_science setup` to add your keys.")
+        return 0 if (ncbi or cannavec) else 1
 
-    key = (getattr(args, "ncbi_key", None) or "").strip()
+    ncbi_key = (getattr(args, "ncbi_key", None) or "").strip()
     email = (getattr(args, "ncbi_email", None) or "").strip()
-    if not key:
+    cannavec_key = (getattr(args, "cannavec_key", None) or "").strip()
+    interactive = not (ncbi_key or cannavec_key)  # any flag → non-interactive
+    if interactive:
         print(_SETUP_INSTRUCTIONS)
         try:
-            key = input("  NCBI API key: ").strip()
-            if not email:
-                email = input("  Your email (recommended, press Enter to skip): ").strip()
+            ncbi_key = input("  NCBI API key (press Enter to skip): ").strip()
+            if ncbi_key and not email:
+                email = input("  Your email (recommended, Enter to skip): ").strip()
+            print(_CANNAVEC_INSTRUCTIONS)
+            cannavec_key = input("  Cannavec API key (press Enter to skip): ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n[setup] cancelled — nothing saved.", file=sys.stderr)
             return 2
-    if not key:
-        print("[setup] No key entered — nothing saved.", file=sys.stderr)
+    if not (ncbi_key or cannavec_key):
+        print("[setup] Nothing entered — nothing saved.", file=sys.stderr)
         return 2
 
-    ok, msg = _validate_ncbi_key(key)
-    print(f"  {msg}")
-    if not ok and not getattr(args, "force", False):
-        return 1
+    if ncbi_key:
+        ok, msg = _validate_ncbi_key(ncbi_key)
+        print(f"  NCBI: {msg}")
+        if not ok and not getattr(args, "force", False):
+            return 1
 
-    values = {"NCBI_API_KEY": key}
+    # Merge with whatever is already saved so adding one key never wipes another.
+    values = _creds.load_all()
+    if ncbi_key:
+        values["NCBI_API_KEY"] = ncbi_key
     if email:
         values["NCBI_EMAIL"] = email
+    if cannavec_key:
+        values["CANNAVEC_API_KEY"] = cannavec_key
     path = _creds.save_credentials(values)
     print(f"  Saved to {path} — this machine only, never shared.")
-    print('  You\'re set. Try:  python3 -m cannavec_science discover "CBD epilepsy" --max 5')
+    if cannavec_key:
+        print("  Cannavec semantic search enabled. To let Claude Code call the KB"
+              " directly, wire the MCP (keeps the key out of config files):")
+        print("    claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \\")
+        print('      --header "Authorization: Bearer ${CANNAVEC_API_KEY}"')
+    print('  Try:  python3 -m cannavec_science discover "CBD epilepsy" --max 5')
     return 0
 
 
@@ -1542,6 +1568,8 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="Set the NCBI API key non-interactively (else prompted).")
     st.add_argument("--ncbi-email", default=None,
                     help="Set the contact email non-interactively (NCBI etiquette).")
+    st.add_argument("--cannavec-key", default=None,
+                    help="Set the Cannavec API key (semantic/vector KB search).")
     st.add_argument("--show", action="store_true",
                     help="Show current credential status (key masked) and exit.")
     st.add_argument("--force", action="store_true",
