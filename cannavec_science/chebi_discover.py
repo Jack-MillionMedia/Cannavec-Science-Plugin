@@ -33,11 +33,10 @@ import html
 import json
 import re
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_FAST, make_json_fetcher
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -65,24 +64,10 @@ _ACCESSION_RE = re.compile(r"^chebi:(\d+)$", re.IGNORECASE)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 
-class NetworkError(Exception):
-    """Raised when a ChEBI fetch / parse fails after preflight passed."""
-
-
 Fetcher = Callable[[str], str]
 
 
-def default_chebi_fetcher(url: str) -> str:
-    """Production fetcher — polite UA, JSON Accept, fast timeout, bounded retry."""
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": user_agent("chebi-discover"),
-            "Accept": "application/json",
-        },
-    )
-    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
-        return resp.read().decode("utf-8")
+default_chebi_fetcher = make_json_fetcher("chebi-discover", timeout=TIMEOUT_FAST)
 
 
 @dataclass(frozen=True)

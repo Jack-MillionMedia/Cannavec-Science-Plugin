@@ -32,11 +32,10 @@ from __future__ import annotations
 import json
 import re
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_FAST, make_json_fetcher
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -79,24 +78,10 @@ _UNIPROT_RE = re.compile(
 )
 
 
-class NetworkError(Exception):
-    """Raised when a Reactome fetch / parse fails after preflight passed."""
-
-
 Fetcher = Callable[[str], str]
 
 
-def default_reactome_fetcher(url: str) -> str:
-    """Production fetcher — polite UA, JSON Accept, fast timeout, bounded retry."""
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": user_agent("reactome-discover"),
-            "Accept": "application/json",
-        },
-    )
-    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
-        return resp.read().decode("utf-8")
+default_reactome_fetcher = make_json_fetcher("reactome-discover", timeout=TIMEOUT_FAST)
 
 
 @dataclass(frozen=True)

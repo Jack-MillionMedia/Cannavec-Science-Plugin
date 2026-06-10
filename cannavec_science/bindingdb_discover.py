@@ -26,11 +26,10 @@ from __future__ import annotations
 import json
 import re
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_SLOW, make_json_fetcher
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -81,23 +80,10 @@ _CANNABIS_UNIPROTS = {
 }
 
 
-class NetworkError(Exception):
-    """Raised when a BindingDB fetch / parse fails after preflight."""
-
-
 Fetcher = Callable[[str], str]
 
 
-def default_bindingdb_fetcher(url: str) -> str:
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": user_agent("bindingdb-discover"),
-            "Accept": "application/json",
-        },
-    )
-    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
-        return resp.read().decode("utf-8")
+default_bindingdb_fetcher = make_json_fetcher("bindingdb-discover", timeout=TIMEOUT_SLOW)
 
 
 @dataclass(frozen=True)

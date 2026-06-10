@@ -24,12 +24,11 @@ from __future__ import annotations
 import json
 import re
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
 from cannavec_science import _identifiers as _ids
-from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_FAST, make_json_fetcher
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -78,32 +77,13 @@ _NCT_RE = _ids.NCT_EXACT  # centralized in cannavec_science._identifiers
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-# ── Exceptions ────────────────────────────────────────────────────────
-
-
-class NetworkError(Exception):
-    """Raised when a CT.gov fetch fails (HTTP error, timeout, JSON
-    parse error). Distinct from DiscoverRefused (preflight refusal)."""
-
-
 # ── Fetcher ───────────────────────────────────────────────────────────
 
 
 Fetcher = Callable[[str], str]
 
 
-def default_ctgov_fetcher(url: str) -> str:
-    """Production fetcher — polite User-Agent, fast timeout, bounded retry."""
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": user_agent("ctgov-discover"),
-            "Accept": "application/json",
-        },
-    )
-    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
-        raw = resp.read()
-    return raw.decode("utf-8")
+default_ctgov_fetcher = make_json_fetcher("ctgov-discover", timeout=TIMEOUT_FAST)
 
 
 # ── Row dataclasses ───────────────────────────────────────────────────

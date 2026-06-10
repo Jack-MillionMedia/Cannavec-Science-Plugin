@@ -27,7 +27,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_SLOW, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -106,10 +106,6 @@ query associatedDiseases($ensemblId: String!, $size: Int!) {
   }
 }
 """.strip()
-
-
-class NetworkError(Exception):
-    """Raised when an Open Targets fetch / parse fails after preflight."""
 
 
 Fetcher = Callable[..., str]

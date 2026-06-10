@@ -27,11 +27,10 @@ from __future__ import annotations
 
 import json
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_FAST, make_json_fetcher
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -82,42 +81,13 @@ _MAX_RESULTS_CEILING = 50
 _SUGGESTED_GRADE = "Level C (provisional, live_chembl)"
 
 
-# ── Exceptions ────────────────────────────────────────────────────────
-
-
-class NetworkError(Exception):
-    """Raised when a ChEMBL fetch fails (HTTP error, timeout, JSON
-    parse error).
-
-    Distinct from :class:`DiscoverRefused` (raised by the safety
-    preflight before any network call): a NetworkError surfaces an
-    operational problem the caller may want to retry or report.
-    """
-
-
 # ── Fetcher ───────────────────────────────────────────────────────────
 
 
 Fetcher = Callable[[str], str]
 
 
-def default_chembl_fetcher(url: str) -> str:
-    """Production fetcher — polite User-Agent, fast timeout, bounded retry.
-
-    Tests inject a stub fetcher; in production we hit the EBI host via
-    :func:`retry_urlopen` so transient 429 / 503 responses are backed off
-    before surfacing to the caller.
-    """
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": user_agent("chembl-discover"),
-            "Accept": "application/json",
-        },
-    )
-    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
-        raw = resp.read()
-    return raw.decode("utf-8")
+default_chembl_fetcher = make_json_fetcher("chembl-discover", timeout=TIMEOUT_FAST)
 
 
 # ── Row dataclass ─────────────────────────────────────────────────────

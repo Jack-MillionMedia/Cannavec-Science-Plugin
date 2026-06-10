@@ -16,11 +16,10 @@ import json
 import re
 import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_SLOW, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_SLOW, make_json_fetcher
 
 
 __all__ = [
@@ -80,24 +79,10 @@ def parse_doi(doi: str) -> Optional[tuple[str, Optional[int]]]:
 # ── Network ──────────────────────────────────────────────────────────
 
 
-class NetworkError(Exception):
-    """Raised when a preprint fetch fails."""
-
-
 PreprintFetcher = Callable[[str], str]
 
 
-def default_preprint_fetcher(url: str) -> str:
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": user_agent("preprint-discover"),
-            "Accept": "application/json",
-        },
-    )
-    with retry_urlopen(req, timeout=TIMEOUT_SLOW) as resp:
-        raw = resp.read()
-    return raw.decode("utf-8")
+default_preprint_fetcher = make_json_fetcher("preprint-discover", timeout=TIMEOUT_SLOW)
 
 
 # ── Row dataclass ────────────────────────────────────────────────────
