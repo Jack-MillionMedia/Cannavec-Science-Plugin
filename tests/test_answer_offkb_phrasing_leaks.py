@@ -156,5 +156,68 @@ class ConditionAgnosticQuestionsAreNotOverRefused(unittest.TestCase):
                 )
 
 
+class DiseaseFirstPatientNarrativeRefusesHonestly(unittest.TestCase):
+    """A disease named FIRST in a patient narrative ("I have X", "diagnosed with
+    X", "suffer from X") + a cannabis cue + a help intent must refuse honestly for
+    an off-curated-list disease — the disease-FIRST sibling of the structural
+    efficacy frame, which only catches a disease that FOLLOWS the efficacy verb.
+    "I have diabetes, can cannabis help me" used to surface a confident Level-C
+    BLUF stitched onto a tangential observational row (2026-06-10 readiness audit).
+    """
+
+    MUST_REFUSE = (
+        ("I have diabetes, can cannabis help me", "diabetes"),
+        ("I was diagnosed with lupus, will CBD help", "lupus"),
+        ("I suffer from psoriasis, does cannabis help", "psoriasis"),
+    )
+
+    def test_no_graded_frame_for_offkb_patient_narrative(self):
+        for prompt, _ in self.MUST_REFUSE:
+            with self.subTest(prompt=prompt):
+                a = compose_answer(prompt)
+                self.assertFalse(
+                    _has_efficacy_certainty_frame(a.short_answer),
+                    f"BLUF asserts a graded frame for an off-KB disease named in "
+                    f"a patient narrative: {a.short_answer!r}",
+                )
+                self.assertEqual(
+                    [c for c in a.claims
+                     if c.claim_type == ClaimType.CLINICAL_EFFICACY], [],
+                    "no clinical-efficacy claim may be bound to an off-KB disease",
+                )
+
+    def test_bluf_refuses_and_names_the_disease(self):
+        for prompt, needle in self.MUST_REFUSE:
+            with self.subTest(prompt=prompt):
+                a = compose_answer(prompt)
+                sa = (a.short_answer or "").lower()
+                self.assertIn("no curated", sa,
+                              f"BLUF should refuse honestly, got: {a.short_answer!r}")
+                self.assertIn(needle, sa,
+                              f"BLUF should name the disease, got: {a.short_answer!r}")
+
+
+class PatientNarrativeDoesNotOverRefuse(unittest.TestCase):
+    """The patient-narrative gate fires only on a disease + cannabis + help
+    intent — a curated disease still answers, and a condition merely mentioned
+    alongside a non-efficacy question is never swept into a refusal."""
+
+    def test_curated_disease_first_still_answers(self):
+        a = compose_answer("I have chronic pain, can cannabis help me")
+        self.assertFalse(_was_uncovered_cleared(a),
+                         "curated disease (chronic pain) wrongly cleared")
+        self.assertTrue(
+            any(c.claim_type == ClaimType.CLINICAL_EFFICACY for c in a.claims),
+            "curated disease-first question lost its efficacy claim")
+
+    def test_non_efficacy_question_mentioning_a_condition_is_not_cleared(self):
+        # No help/efficacy intent → a PK question that merely names a condition
+        # must keep its claims.
+        a = compose_answer("I have diabetes; what is the pharmacokinetics of CBD?")
+        self.assertFalse(
+            _was_uncovered_cleared(a),
+            "a non-efficacy question mentioning a condition was over-refused")
+
+
 if __name__ == "__main__":
     unittest.main()

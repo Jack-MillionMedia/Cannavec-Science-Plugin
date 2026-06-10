@@ -3200,7 +3200,7 @@ _NON_INDICATION_OBJECTS = frozenset({
 # <indication>" efficacy frame, never to arbitrary "for X" prose.
 _CANNABIS_CUE_RX = re.compile(
     r"\b(?:cannabi\w*|cbd|cannabidiol|thc\w*|tetrahydrocannabinol|cbg\w*|"
-    r"cbn|cbc|cbdv|thcv|cbda|thca|marijuana|hemp|cannabinoid\w*|"
+    r"cbn|cbc|cbdv|thcv|cbda|thca|marijuana|hemp|cannabinoid\w*|weed|pot|"
     r"nabiximols|sativex|epidiolex|epidyolex|dronabinol|delta.?[89])\b",
     flags=re.IGNORECASE,
 )
@@ -3241,6 +3241,64 @@ def _structural_efficacy_indication(prompt: str) -> "str | None":
     return None
 
 
+# ── Disease-first patient-narrative refusal ─────────────────────────────────
+# The structural frame above captures a disease that FOLLOWS the efficacy verb
+# ("CBD for diabetes", "help with diabetes"). A patient narrative names the
+# disease FIRST — "I have diabetes, can cannabis help me" — so the disease is the
+# object of "I have", not of an efficacy preposition, and "help me" carries no
+# indication object. That phrasing slipped past every gate and surfaced a
+# tangential off-topic row under a confident graded BLUF (§I / M2 leak, 2026-06-10
+# readiness audit). This is the disease-first backstop, HIGH precision: it fires
+# only when a cannabis cue, an efficacy/help INTENT, and a first-person condition
+# narrative all co-occur — so a pure PK / mechanism question that merely mentions
+# a condition ("I have diabetes; what is CBD's pharmacokinetics?") carries no help
+# intent and is never swept in.
+_EFFICACY_INTENT_RX = re.compile(
+    r"\b(?:help|treat|cure|benefi\w*|good\s+for|works?\s+for|manage|managing|"
+    r"useful|reliev\w*|ease|alleviat\w*)\b",
+    flags=re.IGNORECASE,
+)
+_PATIENT_NARRATIVE_RX = re.compile(
+    r"\b(?:i\s+have(?:\s+got)?|i'?ve\s+got|"
+    r"i\s+(?:was|am|have\s+been|'ve\s+been)\s+diagnosed\s+with|"
+    r"diagnosed\s+with|i\s+suffer\s+from|suffering\s+from|living\s+with)\s+"
+    r"(?:(?:a|an|the|some|any|no)\s+)?"
+    r"(?P<indication>[A-Za-z][A-Za-z0-9'’\-]*"
+    r"(?:\s+[A-Za-z0-9'’\-]+){0,3})",
+    flags=re.IGNORECASE,
+)
+# Non-disease nouns that commonly follow "I have …" in a help-intent prompt; never
+# an indication. Keeps "I have a friend with cancer", "I have a question" out.
+_NON_DISEASE_NARRATIVE_HEADS = frozenset({
+    "friend", "friends", "family", "doctor", "doctors", "question", "questions",
+    "problem", "problems", "issue", "issues", "concern", "concerns", "idea",
+    "ideas", "thought", "thoughts", "experience", "partner", "husband", "wife",
+    "kid", "kids", "child", "children", "time", "money", "appointment",
+})
+
+
+def _patient_narrative_indication(prompt: str) -> "str | None":
+    """Disease named first in a patient narrative, when a cannabis cue AND an
+    efficacy/help intent are also present. Vocabulary-independent backstop for the
+    disease-first phrasing the structural frame cannot reach. ``None`` unless all
+    three signals co-occur and the captured head is a plausible indication."""
+    if not prompt or not _CANNABIS_CUE_RX.search(prompt):
+        return None
+    if not _EFFICACY_INTENT_RX.search(prompt):
+        return None
+    for m in _PATIENT_NARRATIVE_RX.finditer(prompt):
+        phrase = m.group("indication").strip().strip("'’-").strip()
+        if len(phrase) < 3:
+            continue
+        head = phrase.split()[0].lower().strip("'’-")
+        if head in _NON_INDICATION_OBJECTS or head in _NON_DISEASE_NARRATIVE_HEADS:
+            continue
+        if _CANNABIS_CUE_RX.fullmatch(head) or _CANNABIS_CUE_RX.fullmatch(phrase):
+            continue
+        return phrase
+    return None
+
+
 def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None":
     """Display label for an indication the prompt asks efficacy about but the
     curated KB has NO clinical-efficacy claim for — vocabulary first (nice
@@ -3252,7 +3310,10 @@ def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None"
     offkb = _uncovered_offkb_indications(a, prompt)
     if offkb:
         return ", ".join(sorted(_INDICATION_LABEL.get(t, t) for t in offkb))
-    return _structural_efficacy_indication(prompt)
+    structural = _structural_efficacy_indication(prompt)
+    if structural:
+        return structural
+    return _patient_narrative_indication(prompt)
 
 
 def _claim_text_names_indication(claim: Claim, indication: str) -> bool:

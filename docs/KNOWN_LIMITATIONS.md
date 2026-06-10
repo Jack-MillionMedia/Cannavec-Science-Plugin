@@ -33,12 +33,14 @@ filing — and please *do* report anything in the "report these" list.
 
 ## Genuine rough edges — please report if they bite you
 
-- **Off-list disease, phrased as a personal narrative.** A question like *"I have
-  &lt;disease not in the curated set&gt;, can cannabis help me"* can still surface a
-  **low-certainty (Level C) graded frame** stitched onto a tangentially-related
-  observational row, instead of an honest refusal. **Do not trust a confident or
-  graded answer for a disease that isn't in the ~8 curated indications** — check
-  the citation it gives. (We're closing this; report cases you find.)
+- **Off-list disease (general skepticism).** The common phrasings — *"I have
+  &lt;disease&gt;, can cannabis help me"*, *"diagnosed with X"*, *"I suffer from X"*,
+  and *"&lt;cannabinoid&gt; for / to treat / help with X"* — now **refuse honestly**
+  ("No curated efficacy evidence for X") for any disease outside the ~8 curated
+  indications. The standing guidance still holds, though: **don't trust a
+  confident or graded answer for a disease that isn't in the curated set** — an
+  unusual phrasing could still slip a tangential row through. Check the citation,
+  and report any that do.
 - **Mechanism/receptor questions may over-refuse.** A pure binding/mechanism
   question naming a target (e.g. *"binding affinity of THC for CB1"*) may be
   wrongly answered with "No curated efficacy evidence for CB1." That's an
