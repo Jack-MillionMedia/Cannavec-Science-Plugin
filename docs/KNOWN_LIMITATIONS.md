@@ -1,0 +1,69 @@
+# Known limitations — what to expect (and what not to trust yet)
+
+Cannavec Science is an **early build**. The verification spine is solid and
+well-tested, but coverage is deliberately narrow and a few rough edges remain.
+This page tells you, as an early tester, what is **intentional behaviour** (not a
+bug) and what is a **genuine rough edge** worth reporting. Please read it before
+filing — and please *do* report anything in the "report these" list.
+
+## What it is genuinely good at
+
+- **Verifying citations.** A fabricated PMID/DOI returns `FAIL`; a retracted one
+  is blocked; an unreachable one returns `UNVERIFIED` (never a false `PASS`).
+- **Refusing rather than confabulating.** For most questions it has no curated
+  evidence for, it says so honestly ("No curated efficacy evidence for X")
+  instead of inventing an answer.
+- **Catching unscientific language** (cure claims, isomer confusion,
+  dose-without-route) deterministically and offline.
+
+## Intentional behaviour — *not* a bug
+
+- **Narrow curated coverage.** The curated corpus covers roughly **7–8 efficacy
+  indications** (paediatric epilepsy/Dravet/LGS/TSC, MS spasticity, chronic
+  neuropathic pain, CINV, cachexia) plus pharmacology/safety registries. For
+  anything outside that, the tool **grounds via live retrieval** (PubMed, Europe
+  PMC, ClinicalTrials.gov, ChEMBL, …) or honestly refuses. Hitting "no curated
+  evidence" for an off-list disease is **expected**, not a failure.
+- **`UNVERIFIED` offline.** Without network, `verify` can't confirm a citation
+  upstream, so it returns `UNVERIFIED` (exit code 3) rather than guessing `PASS`.
+- **Safety refusals are sovereign.** Individualized dosing ("how much should I
+  take") and personal medical-advice questions are refused by design. This is a
+  research-evidence tool, not a clinical-advice tool.
+- **No legal / regulatory / dosing / cultivation advice surfaces.**
+
+## Genuine rough edges — please report if they bite you
+
+- **Off-list disease, phrased as a personal narrative.** A question like *"I have
+  &lt;disease not in the curated set&gt;, can cannabis help me"* can still surface a
+  **low-certainty (Level C) graded frame** stitched onto a tangentially-related
+  observational row, instead of an honest refusal. **Do not trust a confident or
+  graded answer for a disease that isn't in the ~8 curated indications** — check
+  the citation it gives. (We're closing this; report cases you find.)
+- **Mechanism/receptor questions may over-refuse.** A pure binding/mechanism
+  question naming a target (e.g. *"binding affinity of THC for CB1"*) may be
+  wrongly answered with "No curated efficacy evidence for CB1." That's an
+  over-refusal, not a real "no evidence" claim — the data may exist via
+  `discover`.
+- **Live retrieval reliability.** Key-less NCBI/PubMed can rate-limit or `403`
+  from shared/cloud IPs; the tool falls back to **Europe PMC**, but for reliable
+  live results set an `NCBI_API_KEY` (and `NCBI_EMAIL`) in your environment.
+- **Web/API surface is early scaffolding.** The Vercel handlers (`api/`) work but
+  default `CANNAVEC_ALLOWED_ORIGIN` to `*` and have no rate limiting — fine for a
+  local/trusted try, not yet hardened for a public deployment.
+
+## How to read a verdict
+
+| Verdict | Means |
+|---|---|
+| `PASS` | Citation resolves upstream and is not retracted. |
+| `FAIL` | Does not resolve, is retracted/flagged, or metadata mismatches. |
+| `UNVERIFIED` | Could not confirm (offline / network error) — **never** treated as PASS. |
+| "No curated efficacy evidence for X" | Honest refusal — the curated set has nothing for X. Try `discover` for the live frontier. |
+
+## Reporting
+
+- A **wrong or fabricated citation**, a **confident answer for an off-list
+  disease**, a **crash/hang/stack trace** → file a
+  [bug report](https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/issues/new?template=bug_report.md).
+- How a real research task went, especially the **trust** of the output → file
+  [early-user feedback](https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/issues/new?template=early_user_feedback.md).

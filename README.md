@@ -74,6 +74,30 @@ pipeline can gate on it.
   is graded Unsupported.
 ```
 
+## Install
+
+**As a Claude Code plugin** (recommended for researchers) — run these in Claude Code:
+
+```text
+/plugin marketplace add Jack-MillionMedia/Cannavec-Science-Plugin
+/plugin install cannavec-science@cannavec-science
+```
+
+There is **nothing to `pip install`** — the verification core is stdlib-only
+Python (≥ 3.9). Once installed, the five commands appear under the
+`cannavec-science:` namespace (e.g. `/cannavec-science:research`).
+
+**As a direct CLI** (developers / CI):
+
+```bash
+git clone https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin
+cd Cannavec-Science-Plugin
+python3 -m cannavec_science verify 28538134   # no dependencies to install
+```
+
+New here? Read [what to expect and what not to trust yet](docs/KNOWN_LIMITATIONS.md)
+before you start.
+
 ## The five commands (in Claude, as a plugin)
 
 | Command | What it does |
@@ -113,6 +137,15 @@ python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
 - **Coverage is narrow by design.** The tool is elite at *verification*; curated breadth (specific indications, deep clinical-pharmacology recall) is the roadmap, not a claim. It grounds via **live retrieval**, not by memorizing papers. `python3 evals/run_evals.py` reports this transparently: the deterministic **contract** buckets (verification / rigor / refusal / routing) are 100% green; the **coverage** buckets are tracked and visibly incomplete.
 - **No individualized advice.** It answers "what does the evidence say," never "what should *you* take." Safety refusals are sovereign.
 - **No legal / regulatory / dosing / cultivation / lab-QC surfaces.** Out of scope — this is primary-source research science only.
+
+## Feedback (early users)
+
+This is an early build — **[what to expect and what not to trust yet](docs/KNOWN_LIMITATIONS.md)**
+sets honest expectations (narrow curated coverage, honest refusals, a couple of
+known rough edges). If you try it, please tell us how a real research task went —
+especially whether you could **trust** the output:
+**[open an issue →](https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/issues/new/choose)**
+(early-user feedback, or a bug report for a crash or a wrong/fabricated citation).
 
 ## Next logical improvements
 
