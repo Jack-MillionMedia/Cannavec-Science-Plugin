@@ -28,6 +28,7 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
+from cannavec_science import _identifiers as _ids
 from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
@@ -73,7 +74,7 @@ _STATUS_RANK = {
 # live_ctgov suffix per Constitution Principle VI.
 _SUGGESTED_GRADE = "Level B (provisional, live_ctgov)"
 
-_NCT_RE = re.compile(r"^NCT\d{8}$")
+_NCT_RE = _ids.NCT_EXACT  # centralized in cannavec_science._identifiers
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 

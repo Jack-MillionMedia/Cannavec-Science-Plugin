@@ -53,6 +53,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, Iterable, Optional, Protocol
 
+from cannavec_science import _identifiers as _ids
 from cannavec_science._http import (
     TIMEOUT_SLOW,
     append_ncbi_auth,
@@ -280,7 +281,7 @@ _PUBMED_ESUMMARY_URL = (
     "?db=pubmed&retmode=json&tool=cannavec&id={pmid}"
 )
 
-_PMID_RE = re.compile(r"^\d{4,9}$")
+_PMID_RE = _ids.PMID_EXACT  # centralized in cannavec_science._identifiers
 
 
 def _parse_pubmed_year(pubdate: str) -> Optional[int]:
@@ -647,11 +648,10 @@ def verify_doi(
 # ── Bulk citation scanner ─────────────────────────────────────────────
 
 
-_PMID_TOKEN_RE = re.compile(r"\bPMID[:\s#]*([0-9]{4,9})\b", re.IGNORECASE)
-_DOI_TOKEN_RE = re.compile(
-    r"\b(?:doi[:\s]*)?(?P<doi>10\.[0-9]{4,9}/[\w\.\-/:();<>]+)",
-    re.IGNORECASE,
-)
+# Citation scanners — centralized in cannavec_science._identifiers (the prefixed
+# PMID scan and broad DOI scan; see that module for the §VIII bare-scan sibling).
+_PMID_TOKEN_RE = _ids.PMID_PREFIXED_SCAN
+_DOI_TOKEN_RE = _ids.DOI_SCAN
 
 
 def scan_pmids(text: str) -> tuple[str, ...]:

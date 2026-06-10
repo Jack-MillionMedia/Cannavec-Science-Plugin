@@ -382,7 +382,7 @@ _DISCOVERER_REGISTRY = {
 }
 
 
-_NCT_RE = __import__("re").compile(r"^NCT\d{8}$", __import__("re").IGNORECASE)
+from cannavec_science._identifiers import NCT_EXACT_CI as _NCT_RE
 _CHEMBL_RE = __import__("re").compile(r"^CHEMBL\d+$", __import__("re").IGNORECASE)
 
 

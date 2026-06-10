@@ -48,6 +48,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable
 
+from cannavec_science import _identifiers as _ids
+
 
 class RetractionStatus(str, Enum):
     RETRACTED = "retracted"
@@ -197,14 +199,11 @@ def is_retracted(
     return None
 
 
-_PMID_IN_TEXT = re.compile(
-    r"\b(?:PMID:?\s*)?(\d{6,9})\b",
-    flags=re.IGNORECASE,
-)
-_DOI_IN_TEXT = re.compile(
-    r"\b(?:doi:?\s*)?(10\.\d{4,9}/[\w\.\-/]+)",
-    flags=re.IGNORECASE,
-)
+# §VIII sweep patterns — centralized in cannavec_science._identifiers (the BARE
+# PMID scan, >= 6 digits so a year is not mistaken for a PMID, and the narrower
+# DOI trailing class). See that module for the prefixed-verifier siblings.
+_PMID_IN_TEXT = _ids.PMID_BARE_SCAN
+_DOI_IN_TEXT = _ids.DOI_RETRACTION_SCAN
 
 
 @dataclass(frozen=True)
