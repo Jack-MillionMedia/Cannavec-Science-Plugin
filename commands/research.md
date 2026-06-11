@@ -51,6 +51,30 @@ to content terms before searching, so a typed question maps cleanly. It does
 hyperemia", "munchies" → "appetite stimulation / hyperphagia") — that lexical
 reasoning is yours to do.
 
+### 2b. Semantic recall via the Cannavec KB — when connected
+
+If the **Cannavec MCP is connected** (the `search_cannabis_kb` tool is available),
+also retrieve *semantically* — it surfaces conceptually-relevant primary sources
+that the keyword fan-out in step 2 misses (the biggest recall upgrade for
+mechanism questions). The KB does **not** replace verification:
+
+1. Call `search_cannabis_kb` with the research question.
+2. Take the primary-source identifiers (PMIDs / DOIs) it returns and **audit**
+   them — this verifies each against the live source + retraction registry, flags
+   any fabricated/retracted ones, and detects primary sources the KB missed,
+   feeding the improvement flywheel:
+
+```bash
+cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science audit-mcp --query "$ARGUMENTS" --sources "<comma-separated PMIDs/DOIs the KB returned>"
+```
+
+Cite **only** what the audit lists as **Elite** (verified real + not retracted).
+Anything it lists as **FALSE** is fabricated or retracted — never cite it (it is
+logged to the KB flywheel, not for you). The **Missing** list is engine-found
+coverage the KB lacked; those came from live discovery so you may cite them, and
+they are logged for KB improvement. If the MCP isn't connected, skip this step —
+steps 2–3 still fully ground the brief.
+
 ### 3. Verify every identifier you intend to cite
 
 For each PMID / DOI / NCT / ChEMBL / UniProt accession you plan to use:

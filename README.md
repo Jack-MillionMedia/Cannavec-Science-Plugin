@@ -113,6 +113,27 @@ It walks you through getting the key and stores it **on your machine only**
 status anytime with `setup --show`. (A local `.env` with `NCBI_API_KEY=…` works
 too.) Without a key it still runs — just slower and more rate-limited.
 
+### Semantic search + the KB flywheel (Cannavec)
+
+Add your **Cannavec key** in `setup` to unlock semantic/vector recall over the
+curated cannabis KB — concept-level retrieval that keyword search misses (the
+biggest recall upgrade for mechanism questions). Connect it to Claude Code so the
+model can query it:
+
+```bash
+claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \
+  --header "Authorization: Bearer ${CANNAVEC_API_KEY}"
+```
+
+Crucially, **every source the KB returns is audited before you see it** — the
+engine verifies each identifier is real and not retracted (§I), so only
+verified-elite evidence is cited. Two by-products feed a **flywheel**: fabricated
+or retracted KB sources (FALSE) and primary sources the engine found that the KB
+lacked (MISSING) are appended to `~/.cannavec/improve_queue.jsonl` — the operator
+review queue for improving the KB as it's used. (`audit-mcp` does this; the
+`/cannavec-science:research` command runs it automatically when the MCP is
+connected.)
+
 ## The five commands (in Claude, as a plugin)
 
 | Command | What it does |
