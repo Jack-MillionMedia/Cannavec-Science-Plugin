@@ -95,12 +95,19 @@ class SourceAudit:
 class QueueSummary:
     """A frequency ranking of the operator improve-queue: which gaps recur most,
     so the highest-impact ones are reviewed first. Pure reporting over the log —
-    no automation, no writes."""
+    no automation, no writes.
+
+    Source-level fields (``missing_by_id`` / ``false_by_id``) come from the
+    identifier tier; the ``chunk_*`` fields come from the chunk tier
+    (:mod:`cannavec_science.chunk_audit`). Both tiers share this one queue."""
     entries: int                       # audit events logged
     missing_by_id: tuple = ()          # ((identifier, count), ...) desc
     false_by_id: tuple = ()            # ((identifier, count, reason), ...) desc
     queries_by_count: tuple = ()       # ((query, count), ...) desc
     path: Optional[str] = None
+    chunk_issues: int = 0              # total chunk-level issues logged
+    chunk_by_dimension: tuple = ()     # ((dimension, count), ...) desc
+    chunk_by_key: tuple = ()           # ((chunk_key, count), ...) desc — recurring chunks
 
     def to_dict(self) -> dict:
         return {
@@ -110,6 +117,10 @@ class QueueSummary:
                             for i, c, r in self.false_by_id],
             "queries_by_count": [{"query": q, "count": c} for q, c in self.queries_by_count],
             "path": self.path,
+            "chunk_issues": self.chunk_issues,
+            "chunk_by_dimension": [{"dimension": d, "count": c}
+                                   for d, c in self.chunk_by_dimension],
+            "chunk_by_key": [{"chunk_key": k, "count": c} for k, c in self.chunk_by_key],
         }
 
 
@@ -163,6 +174,9 @@ def summarize_improve_queue(*, path=None, store_dir=None) -> QueueSummary:
     false_ids: "dict[str, int]" = {}
     false_reason: "dict[str, str]" = {}
     queries: "dict[str, int]" = {}
+    chunk_total = 0
+    chunk_dim: "dict[str, int]" = {}
+    chunk_key: "dict[str, int]" = {}
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -190,11 +204,24 @@ def summarize_improve_queue(*, path=None, store_dir=None) -> QueueSummary:
                 continue
             false_ids[fid] = false_ids.get(fid, 0) + 1
             false_reason.setdefault(fid, reason)
+        # Chunk tier (cannavec_science.chunk_audit) — same queue, additive.
+        for ci in obj.get("chunk_issues", []) or []:
+            if not isinstance(ci, dict):
+                continue
+            chunk_total += 1
+            dim = str(ci.get("dimension", "") or "").strip()
+            if dim:
+                chunk_dim[dim] = chunk_dim.get(dim, 0) + 1
+            ck = str(ci.get("chunk_key", "") or "").strip()
+            if ck:
+                chunk_key[ck] = chunk_key.get(ck, 0) + 1
 
     false_ranked = tuple((i, c, false_reason.get(i, "")) for i, c in _rank(false_ids))
     return QueueSummary(
         entries=entries, missing_by_id=_rank(missing), false_by_id=false_ranked,
         queries_by_count=_rank(queries), path=str(p),
+        chunk_issues=chunk_total, chunk_by_dimension=_rank(chunk_dim),
+        chunk_by_key=_rank(chunk_key),
     )
 
 

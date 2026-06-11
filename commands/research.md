@@ -68,6 +68,26 @@ mechanism questions). The KB does **not** replace verification:
 cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science audit-mcp --query "$ARGUMENTS" --sources "<comma-separated PMIDs/DOIs the KB returned>"
 ```
 
+When the KB returns **chunk prose** (not just identifiers), also forward the
+chunks it gave you to the chunk-level audit, so retrieval / citation / accuracy /
+completeness gaps are caught — not just citation identifiers:
+
+```bash
+cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science audit-mcp --query "$ARGUMENTS" --sources "<PMIDs/DOIs>" --chunks '<JSON array of {doc_id,h2_anchor,text,citations,score} the KB returned>'
+```
+
+The `--chunks` payload is **what the KB actually returned** — you are only
+*forwarding* it, never judging it. The model proposes; the code disposes: the
+chunk audit scores each chunk and logs any gap to the flywheel. (The operator
+can later run `route-gaps` to fold that queue into the mc-knowledge-base
+backlog — a separate operator step, not part of this brief.)
+
+> Operator-only (not part of the user brief): adding `--rigorous` runs a deeper
+> pass — the full rigor stack plus a claim-vs-corpus comparison, classifying each
+> chunk (correct / incomplete / outdated / weakly-cited / misleading) and
+> recording verdicts to the recursive learning ledger so fixes and regressions
+> are tracked across cycles (`kb-health` shows the trend).
+
 Cite **only** what the audit lists as **Elite** (verified real + not retracted).
 Anything it lists as **FALSE** is fabricated or retracted — never cite it (it is
 logged to the KB flywheel, not for you). The **Missing** list is engine-found

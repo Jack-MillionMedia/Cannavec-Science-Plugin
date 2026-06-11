@@ -31,6 +31,30 @@ filing — and please *do* report anything in the "report these" list.
   research-evidence tool, not a clinical-advice tool.
 - **No legal / regulatory / dosing / cultivation advice surfaces.**
 
+### The KB-improvement flywheel (`audit-mcp` / `route-gaps` / `kb-health`)
+
+- **It flags, it never authors.** The flywheel *detects* weak, missing, outdated,
+  incorrect, or misleading chunks and *routes* them to a research backlog for
+  human review. It never writes clinical content, never sets or upgrades an
+  evidence grade, and never touches a curated `RESEARCH_BACKLOG.md` — by design
+  (the knowledge-base Agent Boundary Rule). Resolution is always a human step.
+- **The Cannavec MCP returns rich chunk prose to your interactive Claude session**
+  (not just the counts you may see in a raw tool log). That prose — with whatever
+  citations it carries — is what the model forwards to `audit-mcp --chunks` for
+  the flywheel to evaluate. The richness of the audit depends on those chunks
+  actually carrying per-claim PMIDs/DOIs.
+- **`--rigorous` corpus-contradiction is deliberately conservative.** Labelling a
+  chunk **misleading** because the broader literature contradicts it requires a
+  *strong majority* of credible sources to contradict it, over a *minimum sample*.
+  This is intentional: a false `misleading` on a *correct* chunk is the worst
+  error, so the bar is set high. The cost is that some wrong-direction claims on
+  compound/negated sentences are not caught by the corpus tier alone — they are
+  still caught by the other checks (uncited/weakly-cited, cross-chunk coherence,
+  prose rigor) and routed to model/human review rather than asserted. An optional
+  model-adjudicator seam exists (`review_claim(backend=…)`, identifier-free,
+  grade-free, quote-gated) to sharpen this later; it is **off by default** so the
+  deterministic core needs no API key or network to run.
+
 ## Genuine rough edges — please report if they bite you
 
 - **Off-list disease (general skepticism).** The common phrasings — *"I have

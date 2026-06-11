@@ -1298,9 +1298,13 @@ def _cmd_setup(args: argparse.Namespace) -> int:
     print(f"  Saved to {path} — this machine only, never shared.")
     if cannavec_key:
         print("  Cannavec semantic search enabled. To let Claude Code call the KB"
-              " directly, wire the MCP (keeps the key out of config files):")
+              " directly, wire the MCP — first export the key in THIS shell so the"
+              " header resolves (the line below uses a shell variable):")
+        print(f"    export CANNAVEC_API_KEY={cannavec_key}")
         print("    claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \\")
         print('      --header "Authorization: Bearer ${CANNAVEC_API_KEY}"')
+        print("  (Or paste your key directly in place of ${CANNAVEC_API_KEY}. Without"
+              " the export, the Bearer token is empty and the MCP will 401.)")
     print('  Try:  python3 -m cannavec_science discover "CBD epilepsy" --max 5')
     return 0
 
@@ -1330,10 +1334,262 @@ def _audit_mcp_review(args: argparse.Namespace, source_audit) -> int:
         for ident, count, reason in s.false_by_id[:25]:
             print(f"- `{ident}` — {count}× — {reason}")
         print()
+    if s.chunk_issues:
+        print(f"### Chunk-level issues — by dimension ({s.chunk_issues} total)")
+        for dim, count in s.chunk_by_dimension:
+            print(f"- {dim} — {count}×")
+        print()
+        if s.chunk_by_key:
+            print("### Chunks that repeatedly surface issues — fix first")
+            for ck, count in s.chunk_by_key[:25]:
+                print(f"- `{ck}` — {count}×")
+            print()
     if s.queries_by_count:
         print("### Questions that repeatedly hit gaps")
         for q, count in s.queries_by_count[:15]:
             print(f"- {count}× — {q}")
+    return 0
+
+
+def _load_chunks_arg(chunks_arg: str):
+    """Parse --chunks: inline JSON, or '@path' / a readable file path. Returns a
+    list of dicts, or raises ValueError with a clean message."""
+    text = chunks_arg.strip()
+    if text.startswith("@"):
+        text = Path(text[1:]).read_text(encoding="utf-8")
+    elif not text.startswith("[") and not text.startswith("{"):
+        p = Path(text)
+        if p.is_file():
+            text = p.read_text(encoding="utf-8")
+    data = json.loads(text)
+    if isinstance(data, dict):
+        data = data.get("chunks") or data.get("results") or [data]
+    if not isinstance(data, list):
+        raise ValueError("--chunks must be a JSON array of chunk objects")
+    return data
+
+
+def _run_chunk_audit(query: str, chunks_arg: str, args: argparse.Namespace):
+    """Run the chunk-level audit; return a ChunkAudit, or an int exit code on a
+    parse error."""
+    from cannavec_science import chunk_audit
+    try:
+        rows = _load_chunks_arg(chunks_arg)
+    except (ValueError, OSError) as exc:
+        print(f"[error] could not read --chunks: {exc}", file=sys.stderr)
+        return 2
+    return chunk_audit.audit_chunks(
+        query, rows, check_accuracy=not getattr(args, "no_accuracy", False))
+
+
+def _render_chunk_audit(res) -> None:
+    print(f"## KB chunk audit — {res.query}\n")
+    print(f"- Chunks audited: {res.chunks_seen}")
+    if not res.issues:
+        print("- No chunk issues found — clean.\n")
+        return
+    bd = res.by_dimension()
+    print(f"- Issues: {len(res.issues)} "
+          f"({', '.join(f'{k} {v}' for k, v in sorted(bd.items()))})")
+    for i in res.issues:
+        loc = i.chunk_key or "(query-level)"
+        print(f"  - **{i.dimension}/{i.verdict}** · `{loc}` — {i.detail}")
+        print(f"    → {i.recommended_action}  _[route: {i.route}]_")
+    if res.logged_path:
+        print(f"\n_Flywheel: {len(res.issues)} chunk issue(s) appended to "
+              f"{res.logged_path} for KB improvement._")
+
+
+def _run_rigorous(query: str, chunks_arg: str, args: argparse.Namespace):
+    """Run the rigorous chunk evaluator over the forwarded chunks, record each
+    verdict to the recursive-learning ledger, and log issues to the flywheel queue.
+    Returns (verdicts, diffs), or an int exit code on a parse error."""
+    from cannavec_science import chunk_eval, chunk_ledger, chunk_audit
+    try:
+        rows = _load_chunks_arg(chunks_arg)
+    except (ValueError, OSError) as exc:
+        print(f"[error] could not read --chunks: {exc}", file=sys.stderr)
+        return 2
+
+    metas = [r.get("meta") if isinstance(r, dict) else None for r in rows]
+    use_corpus = not getattr(args, "no_corpus", False)
+    corpus = None
+    snapshot = None
+    if use_corpus:
+        corpus = chunk_eval.live_corpus(query)            # one discovery for the batch
+        years = [c.year for c in corpus if c.year]
+        snapshot = {"ids": sorted(c.identifier for c in corpus),
+                    "max_year": max(years) if years else 0}
+    corpus_fn = (lambda _t: corpus) if use_corpus else None
+    # --no-corpus is fully offline: abstracts are only fetched for the corpus /
+    # cited-accuracy comparison, which the no-corpus path skips.
+    abstract_fn = chunk_audit._default_abstract if use_corpus else None
+
+    verdicts = chunk_eval.evaluate_chunks(
+        query, rows, metas=metas, corpus_fn=corpus_fn, abstract_fn=abstract_fn)
+
+    diffs = [chunk_ledger.record_evaluation(v, evidence_snapshot=snapshot)
+             for v in verdicts]
+    chunk_ledger.snapshot_health()
+    # Did the ledger actually persist? (a read-only CANNAVEC_HOME swallows the write
+    # by design so a logging failure never breaks an eval — but don't claim success.)
+    persisted = chunk_ledger.ledger_path().exists()
+
+    # feed the flywheel queue so route-gaps picks up the rigorous findings too —
+    # but drop any flag an operator confirmed a false positive (until the chunk's
+    # content changes). This is the recursive-learning precision loop.
+    all_issues = [
+        i for v in verdicts for i in v.issues
+        if not chunk_ledger.is_suppressed(v.chunk_key, i.verdict, v.content_hash)
+    ]
+    if all_issues:
+        chunk_audit._append_improve_queue(query, all_issues)
+    return verdicts, diffs, persisted
+
+
+_STATUS_GLYPH = {"misleading": "✗ MISLEADING", "outdated": "⌛ OUTDATED",
+                 "weakly_cited": "~ WEAKLY-CITED", "incomplete": "… INCOMPLETE",
+                 "needs_improvement": "• NEEDS-WORK", "correct": "✓ correct",
+                 "unevaluated": "? unevaluated"}
+
+
+def _render_rigorous(query: str, verdicts, diffs, *, persisted: bool = True) -> None:
+    print(f"## Rigorous chunk evaluation — {query}\n")
+    alerts = [d for d in diffs if d.is_alert]
+    if alerts:
+        print(f"### ⚠ {len(alerts)} alert(s) — review first")
+        for d in alerts:
+            print(f"- **{d.change.upper()}** `{d.chunk_key}` — {d.detail}")
+        print()
+    for v, d in zip(verdicts, diffs):
+        label = _STATUS_GLYPH.get(v.status, v.status)
+        corr = ""
+        if v.corroboration and v.corroboration.score is not None:
+            corr = (f" · corroboration {v.corroboration.score:.0%} "
+                    f"({v.corroboration.supported}↑/{v.corroboration.contradicted}↓ "
+                    f"of {v.corroboration.checked})")
+        print(f"- **{label}** ({v.confidence}) · `{v.chunk_key}` "
+              f"[{v.content_hash}]{corr} — ledger: {d.change}")
+        for i in v.issues:
+            print(f"    - {i.verdict}: {i.detail}  _[{i.route}]_")
+    if persisted:
+        print(f"\n_Recursive learning: {len(verdicts)} verdict(s) recorded to the chunk "
+              f"ledger; KB-health snapshot updated. Run `route-gaps` to fold into the "
+              f"backlog, `kb-health` to see the trend._")
+    else:
+        from cannavec_science import chunk_ledger
+        print(f"\n_⚠ Evaluated {len(verdicts)} chunk(s), but could NOT persist the "
+              f"ledger — {chunk_ledger.ledger_path().parent} is not writable. The "
+              f"verdicts above are correct; set a writable CANNAVEC_HOME to enable "
+              f"recursive learning (kb-health / resolved-regressed tracking)._")
+
+
+def _cmd_eval_feedback(args: argparse.Namespace) -> int:
+    """Operator precision loop: mark a routed flag a false positive so the evaluator
+    stops re-emitting it (until the chunk's content changes). Transparent, reviewable
+    data — it tunes precision without ever touching a credibility verdict (§II)."""
+    from cannavec_science import chunk_ledger
+
+    if getattr(args, "list", False):
+        data = chunk_ledger._load_feedback()
+        rows = data.get("suppressed", [])
+        if getattr(args, "json", False):
+            print(json.dumps(rows, indent=2, ensure_ascii=False))
+            return 0
+        if not rows:
+            print("## Eval feedback — no suppressions recorded.")
+            return 0
+        print(f"## Eval feedback — {len(rows)} suppression(s)\n")
+        for e in rows:
+            r = f" — {e['reason']}" if e.get("reason") else ""
+            print(f"- `{e.get('chunk_key')}` · {e.get('verdict')} "
+                  f"[{e.get('content_hash')}]{r}")
+        return 0
+
+    chunk = (getattr(args, "chunk", None) or "").strip()
+    verdict = (getattr(args, "verdict", None) or "").strip()
+    chash = (getattr(args, "hash", None) or "").strip()
+    if not (chunk and verdict and chash):
+        print("[error] eval-feedback --suppress needs --chunk, --verdict and --hash "
+              "(the [hash] shown next to the chunk in the --rigorous output), or use "
+              "--list.", file=sys.stderr)
+        return 2
+    chunk_ledger.suppress_flag(chunk, verdict, chash,
+                               reason=getattr(args, "reason", "") or "")
+    print(f"Suppressed `{chunk}` · {verdict} [{chash}] — it will not be re-queued "
+          f"until the chunk's content changes.")
+    return 0
+
+
+def _cmd_kb_health(args: argparse.Namespace) -> int:
+    """Show the KB's current health (status distribution over the latest verdict per
+    chunk) and the improvement trend across cycles. Read-only."""
+    from cannavec_science import chunk_ledger
+
+    h = chunk_ledger.kb_health()
+    trend = chunk_ledger.health_trend()
+    if getattr(args, "json", False):
+        print(json.dumps({"health": h.to_dict(),
+                          "trend": trend}, indent=2, ensure_ascii=False))
+        return 0
+    if h.total == 0:
+        print("## KB health — no chunks evaluated yet\n\nRun "
+              "`audit-mcp --chunks … --rigorous` to start the ledger.")
+        return 0
+    frac = "n/a" if h.correct_fraction is None else f"{h.correct_fraction:.0%}"
+    print(f"## KB health — {h.total} chunk(s) evaluated\n")
+    print(f"- **{frac} correct** (share of evaluated chunks)\n")
+    print("### Status distribution (latest verdict per chunk)")
+    for status, count in h.by_status:
+        print(f"- {status}: {count}")
+    if len(trend) >= 2:
+        first, last = trend[0], trend[-1]
+        f0 = first.get("correct_fraction")
+        f1 = last.get("correct_fraction")
+        if f0 is not None and f1 is not None:
+            arrow = "↑" if f1 > f0 else ("↓" if f1 < f0 else "→")
+            print(f"\n### Trend ({len(trend)} cycles)")
+            print(f"- correct fraction {f0:.0%} {arrow} {f1:.0%}")
+    return 0
+
+
+def _cmd_route_gaps(args: argparse.Namespace) -> int:
+    """Fold the operator improve-queue (source + chunk tiers) into the
+    mc-knowledge-base research backlog: gitignored gap-audit-shaped JSON under
+    cannabis/logs/live-gap/ + a regenerable RESEARCH_BACKLOG.live.md. Honours the
+    Agent Boundary Rule — flags, never authors clinical content; never touches the
+    hand-curated RESEARCH_BACKLOG.md."""
+    from cannavec_science import gap_router
+
+    kb_root = getattr(args, "kb_root", None) or None
+    write = not (getattr(args, "dry_run", False) or getattr(args, "review", False))
+    res = gap_router.route_gaps(kb_root=kb_root, write=write)
+
+    if getattr(args, "json", False):
+        print(json.dumps(res.to_dict(), indent=2, ensure_ascii=False))
+        return 0
+
+    c = res.counts
+    root = kb_root or str(gap_router.default_kb_root())
+    print(f"## Live-retrieval gap routing — {root}\n")
+    if c["total"] == 0:
+        print("No gaps in the improve-queue yet — nothing to route.")
+        return 0
+    print(f"- **{c['total']} live gaps** — {c['deep_research']} deep-research · "
+          f"{c['small_fix']} corrections.")
+    print(f"- Deep-research priority: P0 {c['P0']} · P1 {c['P1']} · "
+          f"P2 {c['P2']} · P3 {c['P3']}.")
+    print("\n### By area")
+    for area, items in sorted(res.by_area.items(), key=lambda kv: -len(kv[1])):
+        label = gap_router.AREA_LABEL.get(area, area)
+        print(f"- {label}: {len(items)}")
+    if write:
+        print(f"\n_Wrote {len(res.files_written)} area JSON file(s) + "
+              f"{res.backlog_path}._")
+        print("_The curated RESEARCH_BACKLOG.md was not touched. Review the live "
+              "backlog and fold approved items in by hand._")
+    else:
+        print("\n_Review/dry-run — nothing written._")
     return 0
 
 
@@ -1343,7 +1599,8 @@ def _cmd_audit_mcp(args: argparse.Namespace) -> int:
     ones, detect primary sources the engine found that the KB missed, and append
     both to the operator improve-queue (the KB flywheel). The model calls this
     with the identifiers the MCP handed back; only the verified-elite set should
-    be cited to the user (§I)."""
+    be cited to the user (§I). With --chunks it also audits the chunks the KB
+    returned across retrieval/citation/accuracy/completeness."""
     from cannavec_science import source_audit
 
     if getattr(args, "review", False):
@@ -1352,20 +1609,59 @@ def _cmd_audit_mcp(args: argparse.Namespace) -> int:
     query = (getattr(args, "query", None) or "").strip()
     raw = (getattr(args, "sources", None) or "").replace("\n", ",")
     ids = [s.strip() for s in raw.split(",") if s.strip()]
+    chunks_arg = getattr(args, "chunks", None)
     if not query:
         print("[error] audit-mcp needs --query.", file=sys.stderr)
         return 2
-    if not ids:
-        print("[error] audit-mcp needs --sources (the identifiers the KB returned, "
-              "comma-separated).", file=sys.stderr)
+    if not ids and not chunks_arg:
+        print("[error] audit-mcp needs --sources (identifiers) and/or --chunks "
+              "(the chunks the KB returned, as JSON).", file=sys.stderr)
         return 2
 
-    res = source_audit.audit_sources(
-        query, ids, detect_missing=not getattr(args, "no_discover", False))
+    # Rigorous evaluation path (chunk_eval + ledger) — opt-in via --rigorous.
+    if chunks_arg and getattr(args, "rigorous", False):
+        out = _run_rigorous(query, chunks_arg, args)
+        if isinstance(out, int):
+            return out
+        verdicts, diffs, persisted = out
+        if getattr(args, "json", False):
+            print(json.dumps({"query": query,
+                              "verdicts": [v.to_dict() for v in verdicts],
+                              "ledger": [d.to_dict() for d in diffs],
+                              "persisted": persisted},
+                             indent=2, ensure_ascii=False))
+            return 0
+        _render_rigorous(query, verdicts, diffs, persisted=persisted)
+        return 0
+
+    # Chunk-level audit (the chunks the KB actually returned). Backward-compatible:
+    # runs alongside --sources, or on its own.
+    chunk_res = None
+    if chunks_arg:
+        rc = _run_chunk_audit(query, chunks_arg, args)
+        if isinstance(rc, int):                 # parse error → exit code
+            return rc
+        chunk_res = rc
+
+    res = None
+    if ids:
+        res = source_audit.audit_sources(
+            query, ids, detect_missing=not getattr(args, "no_discover", False))
 
     if getattr(args, "json", False):
-        print(json.dumps(res.to_dict(), indent=2, ensure_ascii=False))
+        out = {}
+        if res is not None:
+            out["sources"] = res.to_dict()
+        if chunk_res is not None:
+            out["chunks"] = chunk_res.to_dict()
+        print(json.dumps(out, indent=2, ensure_ascii=False))
         return 0
+
+    if chunk_res is not None:
+        _render_chunk_audit(chunk_res)
+        if res is None:
+            return 0
+        print()
 
     print(f"## KB source audit — {query}\n")
     print(f"- **Elite** (verified real + not retracted — safe to cite): {len(res.elite)}")
@@ -1674,13 +1970,71 @@ def _build_parser() -> argparse.ArgumentParser:
     am.add_argument("--query", help="The query the KB answered.")
     am.add_argument("--sources",
                     help="Comma-separated identifiers the KB returned (PMID/DOI).")
+    am.add_argument("--chunks",
+                    help="Chunk-level audit: the chunks the KB returned, as JSON "
+                         "(inline or a @file path), each "
+                         "{doc_id,h2_anchor,text,citations,score}. Judges "
+                         "retrieval/citation/accuracy/completeness per chunk.")
+    am.add_argument("--rigorous", action="store_true",
+                    help="Run the rigorous evaluator (correct/incomplete/outdated/"
+                         "weakly-cited/misleading) over --chunks: full rigor stack + "
+                         "claim-vs-corpus comparison, recorded to the recursive "
+                         "learning ledger.")
+    am.add_argument("--no-corpus", action="store_true",
+                    help="With --rigorous: skip the live corpus comparison (prose + "
+                         "citation + freshness only).")
     am.add_argument("--no-discover", action="store_true",
                     help="Verify the KB sources only; skip engine gap-detection.")
+    am.add_argument("--no-accuracy", action="store_true",
+                    help="Skip the network accuracy check (offline chunk audit).")
     am.add_argument("--review", action="store_true",
                     help="Operator view: rank the improve-queue gaps by how often "
                          "they recur (highest-impact first). Read-only.")
     am.add_argument("--json", action="store_true", help="Emit the audit as JSON.")
     am.set_defaults(func=_cmd_audit_mcp)
+
+    # route-gaps — fold the improve-queue into the mc-knowledge-base backlog.
+    rgp = sub.add_parser(
+        "route-gaps",
+        help=("Route logged live-retrieval gaps into the mc-knowledge-base "
+              "research backlog (gitignored JSON + regenerable "
+              "RESEARCH_BACKLOG.live.md). Never touches the curated backlog."),
+    )
+    rgp.add_argument("--kb-root",
+                     help="Path to the mc-knowledge-base repo (default: "
+                          "$CANNAVEC_KB_ROOT or ~/mc-knowledge-base).")
+    rgp.add_argument("--dry-run", action="store_true",
+                     help="Compute the plan but write nothing.")
+    rgp.add_argument("--review", action="store_true",
+                     help="Print the routed backlog plan; write nothing.")
+    rgp.add_argument("--json", action="store_true", help="Emit the plan as JSON.")
+    rgp.set_defaults(func=_cmd_route_gaps)
+
+    # kb-health — the recursive-learning trend over the chunk ledger.
+    kh = sub.add_parser(
+        "kb-health",
+        help=("Show the KB's health (status distribution over the latest verdict per "
+              "chunk) and the improvement trend across cycles. Read-only."),
+    )
+    kh.add_argument("--json", action="store_true", help="Emit health + trend as JSON.")
+    kh.set_defaults(func=_cmd_kb_health)
+
+    # eval-feedback — operator precision loop: suppress a confirmed false-positive flag.
+    ef = sub.add_parser(
+        "eval-feedback",
+        help=("Mark a rigorous-evaluation flag a false positive so it is not "
+              "re-queued until the chunk's content changes. Tunes precision; never "
+              "alters a credibility verdict."),
+    )
+    ef.add_argument("--chunk", help="The chunk_key to suppress a flag on.")
+    ef.add_argument("--verdict", help="The issue verdict to suppress (e.g. "
+                                      "missing_evidence).")
+    ef.add_argument("--hash", help="The chunk content hash shown as [hash] in the "
+                                   "--rigorous output.")
+    ef.add_argument("--reason", help="Optional note on why this is a false positive.")
+    ef.add_argument("--list", action="store_true", help="List current suppressions.")
+    ef.add_argument("--json", action="store_true", help="Emit as JSON (with --list).")
+    ef.set_defaults(func=_cmd_eval_feedback)
 
     return p
 

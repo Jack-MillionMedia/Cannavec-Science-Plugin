@@ -43,6 +43,7 @@ If the **Cannavec MCP is connected** (`search_cannabis_kb` available), you may
 also pull a semantic hit, then audit it (verifies + feeds the KB flywheel) and
 cite only the **Elite** result:
 `cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science audit-mcp --query "$ARGUMENTS" --sources "<PMIDs/DOIs the KB returned>"`
+If the KB returns chunk prose, add `--chunks '<JSON array the KB returned>'` to also capture chunk-level gaps.
 
 ### 3. Answer
 

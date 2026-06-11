@@ -118,12 +118,17 @@ too.) Without a key it still runs — just slower and more rate-limited.
 Add your **Cannavec key** in `setup` to unlock semantic/vector recall over the
 curated cannabis KB — concept-level retrieval that keyword search misses (the
 biggest recall upgrade for mechanism questions). Connect it to Claude Code so the
-model can query it:
+model can query it — **export the key in the same shell first** so the `Bearer`
+header resolves (otherwise the token is empty and the MCP returns 401):
 
 ```bash
+export CANNAVEC_API_KEY=<your-cannavec-key>          # paste your key, same shell
 claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \
   --header "Authorization: Bearer ${CANNAVEC_API_KEY}"
 ```
+
+> The five research commands work **without** this step — the MCP only adds
+> semantic KB recall and the chunk flywheel on top.
 
 Crucially, **every source the KB returns is audited before you see it** — the
 engine verifies each identifier is real and not retracted (§I), so only
@@ -135,6 +140,43 @@ review queue for improving the KB as it's used. (`audit-mcp` does this; the
 connected.) Review the backlog anytime with `audit-mcp --review` — it ranks the
 recurring gaps **highest-impact first**, so you fix what fails most often.
 
+The flywheel also works at **chunk** granularity: `audit-mcp --chunks` judges the
+chunks the KB returned across **retrieval / citation / accuracy / completeness**
+(weak relevance, fabricated/uncited citations, claim-vs-evidence contradictions,
+thin or grade-inflated sections), and `route-gaps` folds the whole queue into the
+`mc-knowledge-base` repo's research backlog — a regenerable `RESEARCH_BACKLOG.live.md`
+plus gitignored per-area JSON — so real usage becomes logged, prioritized research
+tasks. It **flags, never authors**: clinical gaps are `deep_research` and the
+hand-curated `RESEARCH_BACKLOG.md` is never touched. See `specs/037-chunk-flywheel/spec.md`.
+
+A deeper, **rigorous** layer goes further: `audit-mcp --chunks --rigorous`
+classifies each chunk as **correct / incomplete / outdated / weakly-cited /
+misleading** by composing the full rigor stack with a **claim-vs-corpus**
+comparison against live credible literature — confirming correctness positively,
+not just by the absence of flags. A false `misleading` is the worst error, so it
+is gated behind a high corpus-contradiction bar. Every verdict is recorded to a
+per-chunk **ledger**, which makes the loop recursive: fixes are confirmed
+(**resolved**), regressions on settled chunks are caught, and chunks **re-open**
+when newer evidence appears in the corpus. `kb-health` shows the improvement
+trend across cycles, so progress is *provable*, not asserted. Like the rest of
+the flywheel it **flags, never authors**. See `specs/038-rigorous-chunk-eval/spec.md`.
+
+**See the flywheel work (copy-paste, offline).** Forward a chunk the way the model
+would after a KB hit, then read the KB-health trend:
+
+```bash
+python3 -m cannavec_science audit-mcp --query "CBD for epilepsy" --rigorous --no-corpus \
+  --chunks '[{"doc_id":"cbd_epilepsy","h2_anchor":"Efficacy","text":"CBD is a miracle cure that is 100% effective and completely safe for all seizures.","citations":[]}]'
+#  → ✗ MISLEADING (high) · cbd_epilepsy#Efficacy [hash] — banned_misleading + uncited_claim …
+python3 -m cannavec_science kb-health        # status distribution + improvement trend
+```
+
+Drop `--no-corpus` to also compare each claim against the **live** literature
+(PubMed / Europe PMC / ClinicalTrials.gov), and run `route-gaps --kb-root <path>`
+to fold the findings into a knowledge-base repo's backlog (the curated
+`RESEARCH_BACKLOG.md` is never touched). A full tester walkthrough lives in
+[docs/QUICKSTART.md](docs/QUICKSTART.md).
+
 ## The five commands (in Claude, as a plugin)
 
 | Command | What it does |
@@ -145,7 +187,7 @@ recurring gaps **highest-impact first**, so you fix what fails most often.
 | `/verify` | Spot-check one identifier (PMID / DOI / NCT / ChEMBL / UniProt): real? retracted? |
 | `/rigor` | Run the deterministic phytochemistry + reporting-rigor + banned-pattern detectors on any text. |
 
-Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit|setup|audit-mcp>`.
+Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit|setup|audit-mcp|route-gaps|kb-health|eval-feedback>`.
 
 ### Operator tools (not slash commands)
 
@@ -155,9 +197,14 @@ research commands and not exposed as a slash command:
 | Tool | What it does |
 |---|---|
 | `kb-audit <path>` | Audits the science files of a knowledge-base directory — verifies every citation is real and not retracted, checks each claim against its cited source, and flags inflated evidence grades — then triages each file into `READY` / `IMPROVE` / `PASS`. Nothing is ever written back. See `specs/032-kb-audit/spec.md`. |
+| `audit-mcp --chunks [--rigorous]` | Audit the chunks the live KB returned. Base mode checks retrieval/citation/accuracy/completeness; `--rigorous` classifies each chunk (correct / incomplete / outdated / weakly-cited / misleading) via the full rigor stack + a claim-vs-corpus comparison, and records each verdict to the recursive-learning ledger. `--review` ranks the recurring gaps. See `specs/037`–`038`. |
+| `route-gaps` | Folds the live-retrieval improve-queue (identifier + chunk tiers) into the `mc-knowledge-base` research backlog: gitignored per-area JSON under `cannabis/logs/live-gap/` + a regenerable `RESEARCH_BACKLOG.live.md`. Flags, never authors; never touches the curated `RESEARCH_BACKLOG.md`. `--dry-run` / `--review` write nothing. See `specs/037-chunk-flywheel/spec.md`. |
+| `kb-health` | The recursive-learning trend: status distribution over the latest verdict per chunk + `% correct` across cycles, so KB improvement is provable. |
+| `eval-feedback` | Mark a rigorous-evaluation flag a false positive so it stops being re-queued (until the chunk's content changes). Tunes precision; never alters a credibility verdict. |
 
 ```bash
 python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
+python3 -m cannavec_science route-gaps [--kb-root PATH] [--dry-run] [--review] [--json]
 ```
 
 ## What makes it credible (engineered, not asserted)
@@ -167,7 +214,7 @@ python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
 - **GRADE honesty** — grades are computed by code, not by confident prose; a single RCT caps at Level B.
 - **Phytochemistry precision** — every cannabinoid named by isomer, every receptor by UniProt accession, every dose by route.
 - **Curated reference corpus** — **twenty-one curated science registries** (cannabinoids, terpenes, interactions, adverse events, pharmacokinetics, **endocrine**, and more; 230 rows) are kept as *labelled offline reference the model reasons over* — never presented as the answer itself.
-- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **2,170+ unit tests**. The engine is **75 modules**; run `python3 -m unittest discover -s tests`. (The "+" is a floor enforced by `tests/test_readme_claims.py` — the suite is asserted to meet it, so this number can never silently overstate reality.)
+- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **2,460+ unit tests**. The engine is **79 modules**; run `python3 -m unittest discover -s tests`. (The "+" is a floor enforced by `tests/test_readme_claims.py` — the suite is asserted to meet it, so this number can never silently overstate reality.)
 
 ## Honest scope (what it does *not* do yet)
 
