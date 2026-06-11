@@ -64,7 +64,7 @@ The credibility guarantee is enforced in code — honour the result:
     efficacy evidence for this indication. The PDF says so plainly and frames any
     compound background as **not** indication-specific evidence. The live tier (on
     by default) may still surface provisional, clearly-labelled frontier findings;
-    point the user at `/cv:discover` or `/cv:research` to go deeper on the frontier.
+    point the user at `/cannavec-science:discover` or `/cannavec-science:research` to go deeper on the frontier.
 - If the backend was **reportlab** or **HTML-only** (no Chrome found), say so and,
   for HTML-only, tell the user to open the HTML and **Print → Save as PDF**.
 - **Non-zero exit** with `[pdf] refused — render not citation-lossless` on stderr

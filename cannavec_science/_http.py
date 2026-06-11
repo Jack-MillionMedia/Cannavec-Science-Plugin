@@ -34,6 +34,8 @@ import urllib.error
 import urllib.request
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from cannavec_science import _creds
+
 __all__ = [
     "TIMEOUT_FAST",
     "TIMEOUT_SLOW",
@@ -45,6 +47,8 @@ __all__ = [
     "retry_urlopen",
     "retry_fetch",
     "RetryableHTTPError",
+    "NetworkError",
+    "make_json_fetcher",
 ]
 
 
@@ -112,14 +116,12 @@ def ncbi_api_key() -> str | None:
     request is sent unauthenticated, exactly as before, so offline tests and
     key-less deployments are unaffected.
     """
-    key = os.environ.get("NCBI_API_KEY", "").strip()
-    return key or None
+    return _creds.resolve("NCBI_API_KEY")
 
 
 def ncbi_email() -> str | None:
     """Operator contact e-mail from ``NCBI_EMAIL`` (NCBI etiquette). Optional."""
-    mail = os.environ.get("NCBI_EMAIL", "").strip()
-    return mail or None
+    return _creds.resolve("NCBI_EMAIL")
 
 
 def append_ncbi_auth(url: str) -> str:
@@ -148,6 +150,43 @@ def append_ncbi_auth(url: str) -> str:
 
 class RetryableHTTPError(urllib.error.HTTPError):
     """Raised when bounded retry exhausts without success."""
+
+
+class NetworkError(Exception):
+    """Raised by a live-discovery lane when a fetch fails — HTTP error, timeout,
+    or JSON parse error.
+
+    Single shared class (previously copy-pasted as ~13 identical per-lane
+    ``NetworkError`` definitions). Distinct from
+    :class:`cannavec_science.discover_guard.DiscoverRefused`, which the safety
+    preflight raises BEFORE any network call; a NetworkError is an operational
+    transport/parse problem the caller may retry or report.
+    """
+
+
+def make_json_fetcher(component: str, *, timeout: float = TIMEOUT_FAST):
+    """Build a lane ``Fetcher`` (``url -> decoded str``) for a JSON GET endpoint.
+
+    Replaces the per-lane ``default_<lane>_fetcher`` boilerplate — polite
+    ``User-Agent`` + ``Accept: application/json`` + bounded-retry ``urlopen`` +
+    UTF-8 decode — that was copy-pasted across ~11 discovery lanes differing only
+    by ``component`` (the UA suffix, e.g. ``"chembl-discover"``) and ``timeout``.
+    The returned fetcher accepts the single ``url`` argument the injected-fetcher
+    test seam expects. Lanes that POST a body (rcsb, opentargets), send a custom
+    mailto-aware UA, or decode leniently (europepmc, openalex) keep their own
+    fetcher.
+    """
+    ua = user_agent(component)
+
+    def _fetch(url: str) -> str:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": ua, "Accept": "application/json"},
+        )
+        with retry_urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8")
+
+    return _fetch
 
 
 def retry_urlopen(

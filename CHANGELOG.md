@@ -1,5 +1,30 @@
 # Changelog
 
+## Production-readiness pass (2026-06)
+
+A first-principles audit drove a four-phase cleanup; every change is test-first
+and the offline suite stayed green throughout (2,239 → 2,262 tests).
+
+- **P0 — safety + grounding fixes.** Closed a §I confabulation leak (an off-KB
+  efficacy question phrased "evidence for CBD to treat &lt;disease&gt;" returned a
+  confident wrong-disease GRADE brief; the structural backstop now scans every
+  efficacy frame and the natural phrasings — treat / help with / useful in /
+  works for) and two §V dosing bypasses (mid-sentence imperatives, `microdose`),
+  with a research-prose carve-out so trial methodology is not over-refused.
+- **P1 — doc truth + dead code.** Removed two dead eval drivers and the
+  misleading `DEMO_SCRIPT.md` / `FLYWHEEL.md`; fixed the rotted `pyproject.toml`
+  description (with a guard test) and a false constitution attribution in
+  `CLAUDE.md`.
+- **P2 — single source of truth.** Centralized the §I PMID/DOI/NCT identifier
+  patterns (`_identifiers.py`), the §VIII flagged-status set + badge labels
+  (`retraction.py`), and the per-lane HTTP fetcher + `NetworkError`
+  (`_http.make_json_fetcher`); consolidated the split-brain slash-command surface
+  onto the plugin's `commands/` (`/cannavec-science:*`).
+- **P3 — bloat removal.** The post-MVP `archive/` tree (~19% of LOC) was removed
+  from the working tree. It is import-isolated and fully recoverable from git
+  history — `git checkout pre-mvp-teardown-2026-06-05` restores the pre-teardown
+  state, or check out any pre-removal commit for the manifest and parked modules.
+
 ## Live-retrieval reliability + the grounding-layer flywheel (2026-06)
 
 The live primary-source tier becomes reliable, offline-resilient, and self-growing —
@@ -74,7 +99,7 @@ lowering the evidence floor** — and `/cv:pdf` now packs it by default.
   a live finding that would trip the §XI gate degrades silently to the curated-only
   brief. `--no-live` opts out for a reproducible, offline curated-only artifact.
 - **Cleanup.** The archived curation-flywheel weaver (`weave_verified_findings`) is
-  now a clean no-op when the flywheel module is absent (post-MVP, under `archive/`),
+  now a clean no-op when the flywheel module is absent (post-MVP, removed from the tree),
   instead of a raised-and-swallowed `ImportError` that masked real errors.
 
 ## GRADE-certainty grading + expert credibility (2026-06)
@@ -140,7 +165,7 @@ primary-source cannabis science**, not generating canned answers.
   (`research`, `ask`, `discover`, `verify`, `rigor`) now run the grounded flow.
 - **Parked post-MVP machinery** (~9K LOC): the curation flywheel, meta-analysis
   stack, niche stat calculators, researcher scaffolders, and ops commands —
-  preserved under `archive/`, restorable (see `archive/ARCHIVE_MANIFEST.md`).
+  preserved in git history, restorable via tag `pre-mvp-teardown-2026-06-05`.
 - **Made the suites honestly green.** Quarantined 28 environmental socket-bind
   tests (skip-if-cannot-bind); re-scoped `run_evals.py` to gate on the MVP
   contract (verification / rigor / refusal / routing = 100%) while reporting

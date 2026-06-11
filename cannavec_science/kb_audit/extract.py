@@ -5,13 +5,14 @@ from __future__ import annotations
 import os
 import re
 
+from cannavec_science import _identifiers as _ids
 from cannavec_science._markdown_skip import code_spans, is_in_code
 from cannavec_science.pubmed_verify import scan_pmids, scan_dois
 from cannavec_science.kb_audit.frontmatter import parse_frontmatter
 from cannavec_science.kb_audit.model import Citation, FileRecord
 from cannavec_science.kb_audit.scope import DEFAULT_INCLUDE, is_in_scope
 
-_NCT_RE = re.compile(r"NCT\d{8}", re.IGNORECASE)
+_NCT_RE = _ids.NCT_SCAN_CI  # centralized in cannavec_science._identifiers
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 

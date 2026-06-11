@@ -36,12 +36,11 @@ _ALLOWED_ORIGIN = os.environ.get("CANNAVEC_ALLOWED_ORIGIN", "*")
 # Markdown, not only in the JSON. A retracted/EoC/under-correction row is
 # pinned last by the live ranker; the badge tells a reader why so it is never
 # mistaken for a citable result. A plain correction (the paper stands) is not
-# flagged and carries no badge.
-_RETRACTION_BADGE = {
-    "retracted": " — ⚠ RETRACTED, do not cite",
-    "expression_of_concern": " — ⚠ EXPRESSION OF CONCERN, verify before citing",
-    "under_correction": " — ⚠ UNDER CORRECTION, verify before citing",
-}
+# flagged and carries no badge. The label wording is single-sourced in
+# retraction.BADGE_LABEL; this surface adds the " — ⚠ " Markdown decoration.
+from cannavec_science.retraction import BADGE_LABEL as _BADGE_LABEL
+
+_RETRACTION_BADGE = {k: f" — ⚠ {v}" for k, v in _BADGE_LABEL.items()}
 
 
 def _markdown(result: dict) -> str:

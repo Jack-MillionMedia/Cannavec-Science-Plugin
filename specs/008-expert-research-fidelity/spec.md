@@ -4,7 +4,7 @@
 
 **Created**: 2026-05-24
 
-**Status**: Draft
+**Status**: Implemented (foundational MVP work; extended by later specs)
 
 **Input**: User request: "Test this plugin as if you're a cannabis
 expert using it for research and show me the results and add to

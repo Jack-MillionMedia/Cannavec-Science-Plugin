@@ -48,12 +48,34 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable
 
+from cannavec_science import _identifiers as _ids
+
 
 class RetractionStatus(str, Enum):
     RETRACTED = "retracted"
     EXPRESSION_OF_CONCERN = "expression_of_concern"
     UNDER_CORRECTION = "under_correction"
     CORRECTED = "corrected"           # correction issued, paper stands
+
+
+# §VIII flagged statuses — a flagged live finding is badged "do-not / verify
+# before cite" and sunk to last place. CORRECTED is excluded (the paper stands).
+# Single-sourced so the answer brief, the web API, and the ranker never disagree
+# on which statuses are flagged.
+LIVE_FLAGGED_STATUSES = frozenset({
+    RetractionStatus.RETRACTED.value,
+    RetractionStatus.EXPRESSION_OF_CONCERN.value,
+    RetractionStatus.UNDER_CORRECTION.value,
+})
+
+# Canonical human badge label per flagged status — the single source so two
+# surfaces can never word the same §VIII status differently. Each surface adds
+# its own decoration (e.g. the web API prepends " — ⚠ ").
+BADGE_LABEL = {
+    RetractionStatus.RETRACTED.value: "RETRACTED — do not cite",
+    RetractionStatus.EXPRESSION_OF_CONCERN.value: "EXPRESSION OF CONCERN — verify before citing",
+    RetractionStatus.UNDER_CORRECTION.value: "UNDER CORRECTION — verify before citing",
+}
 
 
 @dataclass(frozen=True)
@@ -197,14 +219,11 @@ def is_retracted(
     return None
 
 
-_PMID_IN_TEXT = re.compile(
-    r"\b(?:PMID:?\s*)?(\d{6,9})\b",
-    flags=re.IGNORECASE,
-)
-_DOI_IN_TEXT = re.compile(
-    r"\b(?:doi:?\s*)?(10\.\d{4,9}/[\w\.\-/]+)",
-    flags=re.IGNORECASE,
-)
+# §VIII sweep patterns — centralized in cannavec_science._identifiers (the BARE
+# PMID scan, >= 6 digits so a year is not mistaken for a PMID, and the narrower
+# DOI trailing class). See that module for the prefixed-verifier siblings.
+_PMID_IN_TEXT = _ids.PMID_BARE_SCAN
+_DOI_IN_TEXT = _ids.DOI_RETRACTION_SCAN
 
 
 @dataclass(frozen=True)

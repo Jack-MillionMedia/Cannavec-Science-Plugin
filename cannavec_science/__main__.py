@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -179,6 +180,10 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     from cannavec_science.discover_guard import DiscoverRefused, preflight
     from cannavec_science.synthesis import synthesize, render_markdown
 
+    if not (args.query or "").strip():
+        print('[error] discover needs a non-empty query, e.g. '
+              '`discover "CBD epilepsy"`.', file=sys.stderr)
+        return 2
     try:
         preflight(args.query)
     except DiscoverRefused as exc:
@@ -382,7 +387,7 @@ _DISCOVERER_REGISTRY = {
 }
 
 
-_NCT_RE = __import__("re").compile(r"^NCT\d{8}$", __import__("re").IGNORECASE)
+from cannavec_science._identifiers import NCT_EXACT_CI as _NCT_RE
 _CHEMBL_RE = __import__("re").compile(r"^CHEMBL\d+$", __import__("re").IGNORECASE)
 
 
@@ -1173,6 +1178,221 @@ def _cmd_registries(args: argparse.Namespace) -> int:
     return 0
 
 
+_SETUP_INSTRUCTIONS = """\
+  Cannavec Science works best with your OWN free NCBI API key — it makes live
+  retrieval fast and reliable. NCBI requires each person to use their own key
+  (sharing one key is not allowed), and it is free.
+
+  How to get it (about two minutes, one time):
+    1. Open  https://account.ncbi.nlm.nih.gov/   → sign in or create a free account.
+    2. Open  https://account.ncbi.nlm.nih.gov/settings/  → "API Key Management"
+       → "Create an API Key", then copy the key.
+    3. Paste it below.
+"""
+
+
+_CANNAVEC_INSTRUCTIONS = """\
+  Optional — add your Cannavec key to enable semantic/vector search over the
+  curated cannabis knowledge base (sharper, concept-level recall). The plugin
+  audits every source the KB returns before you see it, so quality stays elite.
+  Get your key from your Cannavec account at https://cannavec.ai .
+"""
+
+
+def _validate_ncbi_key(key: str) -> "tuple[bool, str]":
+    """Best-effort live check that NCBI accepts the key. Returns
+    ``(definitely_ok, message)``. Offline or a non-auth error is treated as
+    inconclusive (not a rejection) so setup still works without a network."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+
+    url = (
+        "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+        "?db=pubmed&term=cannabidiol&retmax=1&api_key="
+        + urllib.parse.quote(key)
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": user_agent("setup")})
+    try:
+        with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
+            resp.read()
+        return True, "Checking your key against NCBI… valid."
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return False, (
+                f"NCBI rejected the key (HTTP {exc.code}) — double-check you "
+                f"copied it exactly. (Use --force to save it anyway.)"
+            )
+        return True, (
+            f"Couldn't fully validate (HTTP {exc.code}); the key looks usable — "
+            f"saving it."
+        )
+    except Exception:  # noqa: BLE001 — offline / DNS / timeout → inconclusive, not a reject
+        return True, "Couldn't reach NCBI to validate (offline?) — saving anyway."
+
+
+def _mask(secret: str) -> str:
+    s = (secret or "").strip()
+    if len(s) <= 6:
+        return "set"
+    return f"{s[:4]}…{s[-2:]}"
+
+
+def _cmd_setup(args: argparse.Namespace) -> int:
+    """Store the user's own keys (this machine only): the free NCBI key for fast
+    live retrieval, and the Cannavec key for semantic/vector KB search. With
+    --show, report the current credential status (keys masked)."""
+    from cannavec_science import _creds
+
+    if getattr(args, "show", False):
+        ncbi = _creds.resolve("NCBI_API_KEY")
+        email = _creds.resolve("NCBI_EMAIL")
+        cannavec = _creds.resolve("CANNAVEC_API_KEY")
+        path = _creds.credentials_path()
+        print("## Cannavec Science — credential status\n")
+        print(f"- NCBI_API_KEY: {'set (' + _mask(ncbi) + ')' if ncbi else 'NOT set'}")
+        print(f"- NCBI_EMAIL: {email or 'NOT set'}")
+        print(f"- CANNAVEC_API_KEY: {'set (' + _mask(cannavec) + ')' if cannavec else 'NOT set'}")
+        print(f"- credentials file: {path} "
+              f"({'present' if path.exists() else 'not created yet'})")
+        if not (ncbi or cannavec):
+            print("\nRun `python3 -m cannavec_science setup` to add your keys.")
+        return 0 if (ncbi or cannavec) else 1
+
+    ncbi_key = (getattr(args, "ncbi_key", None) or "").strip()
+    email = (getattr(args, "ncbi_email", None) or "").strip()
+    cannavec_key = (getattr(args, "cannavec_key", None) or "").strip()
+    interactive = not (ncbi_key or cannavec_key)  # any flag → non-interactive
+    if interactive:
+        print(_SETUP_INSTRUCTIONS)
+        try:
+            ncbi_key = input("  NCBI API key (press Enter to skip): ").strip()
+            if ncbi_key and not email:
+                email = input("  Your email (recommended, Enter to skip): ").strip()
+            print(_CANNAVEC_INSTRUCTIONS)
+            cannavec_key = input("  Cannavec API key (press Enter to skip): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[setup] cancelled — nothing saved.", file=sys.stderr)
+            return 2
+    if not (ncbi_key or cannavec_key):
+        print("[setup] Nothing entered — nothing saved.", file=sys.stderr)
+        return 2
+
+    if ncbi_key:
+        ok, msg = _validate_ncbi_key(ncbi_key)
+        print(f"  NCBI: {msg}")
+        if not ok and not getattr(args, "force", False):
+            return 1
+
+    # Merge with whatever is already saved so adding one key never wipes another.
+    values = _creds.load_all()
+    if ncbi_key:
+        values["NCBI_API_KEY"] = ncbi_key
+    if email:
+        values["NCBI_EMAIL"] = email
+    if cannavec_key:
+        values["CANNAVEC_API_KEY"] = cannavec_key
+    path = _creds.save_credentials(values)
+    print(f"  Saved to {path} — this machine only, never shared.")
+    if cannavec_key:
+        print("  Cannavec semantic search enabled. To let Claude Code call the KB"
+              " directly, wire the MCP (keeps the key out of config files):")
+        print("    claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \\")
+        print('      --header "Authorization: Bearer ${CANNAVEC_API_KEY}"')
+    print('  Try:  python3 -m cannavec_science discover "CBD epilepsy" --max 5')
+    return 0
+
+
+def _audit_mcp_review(args: argparse.Namespace, source_audit) -> int:
+    """Operator review of the KB improve-queue: rank the logged gaps by how often
+    they recur so the highest-impact ones are fixed first. Read-only — the
+    developer reviews and decides; nothing is written or auto-applied."""
+    s = source_audit.summarize_improve_queue()
+    if getattr(args, "json", False):
+        print(json.dumps(s.to_dict(), indent=2, ensure_ascii=False))
+        return 0
+    if s.entries == 0:
+        print(f"## KB improve-queue — empty\n\nNo gaps logged yet.\n_{s.path}_")
+        return 0
+    print(f"## KB improve-queue — {s.entries} audit event(s)\n")
+    print(f"_{s.path}_\n")
+    if s.missing_by_id:
+        print(f"### Missing sources to add — highest-impact first "
+              f"({len(s.missing_by_id)} unique)")
+        for ident, count in s.missing_by_id[:25]:
+            print(f"- `{ident}` — surfaced {count}×")
+        print()
+    if s.false_by_id:
+        print(f"### False sources the KB returned — fix/remove "
+              f"({len(s.false_by_id)} unique)")
+        for ident, count, reason in s.false_by_id[:25]:
+            print(f"- `{ident}` — {count}× — {reason}")
+        print()
+    if s.queries_by_count:
+        print("### Questions that repeatedly hit gaps")
+        for q, count in s.queries_by_count[:15]:
+            print(f"- {count}× — {q}")
+    return 0
+
+
+def _cmd_audit_mcp(args: argparse.Namespace) -> int:
+    """Audit the sources the Cannavec semantic KB (MCP) returned: verify each
+    against the live upstreams + retraction registry, flag fabricated/retracted
+    ones, detect primary sources the engine found that the KB missed, and append
+    both to the operator improve-queue (the KB flywheel). The model calls this
+    with the identifiers the MCP handed back; only the verified-elite set should
+    be cited to the user (§I)."""
+    from cannavec_science import source_audit
+
+    if getattr(args, "review", False):
+        return _audit_mcp_review(args, source_audit)
+
+    query = (getattr(args, "query", None) or "").strip()
+    raw = (getattr(args, "sources", None) or "").replace("\n", ",")
+    ids = [s.strip() for s in raw.split(",") if s.strip()]
+    if not query:
+        print("[error] audit-mcp needs --query.", file=sys.stderr)
+        return 2
+    if not ids:
+        print("[error] audit-mcp needs --sources (the identifiers the KB returned, "
+              "comma-separated).", file=sys.stderr)
+        return 2
+
+    res = source_audit.audit_sources(
+        query, ids, detect_missing=not getattr(args, "no_discover", False))
+
+    if getattr(args, "json", False):
+        print(json.dumps(res.to_dict(), indent=2, ensure_ascii=False))
+        return 0
+
+    print(f"## KB source audit — {query}\n")
+    print(f"- **Elite** (verified real + not retracted — safe to cite): {len(res.elite)}")
+    for s in res.elite:
+        print(f"  - {s.identifier} ({s.kind}) — {s.reason}")
+    if res.failed:
+        print(f"- **FALSE** (do NOT cite; logged to the KB flywheel): {len(res.failed)}")
+        for s in res.failed:
+            print(f"  - {s.identifier} ({s.kind}) — {s.reason}")
+    if res.unverified:
+        print(f"- Unverified (upstream unreachable, not the KB's fault): {len(res.unverified)}")
+    if res.missing:
+        print(f"- **MISSING** from the KB (engine found these; logged): {len(res.missing)}")
+        for m in res.missing[:20]:
+            print(f"  - {m}")
+    sc = res.grounding_scores()
+    prec = "n/a" if sc["precision"] is None else f"{sc['precision']:.0%}"
+    cov = "n/a" if sc["coverage"] is None else f"{sc['coverage']:.0%}"
+    print(f"\n**Grounding** — precision {prec} "
+          f"({sc['elite']}/{sc['elite'] + sc['false']} returned credible) · "
+          f"coverage {cov} ({sc['elite']}/{sc['elite'] + sc['missing']} of credible sources held)")
+    if res.logged_path:
+        print(f"\n_Flywheel: {len(res.failed)} false + {len(res.missing)} missing "
+              f"appended to {res.logged_path} for KB improvement._")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m cannavec_science",
@@ -1425,16 +1645,71 @@ def _build_parser() -> argparse.ArgumentParser:
     ka.add_argument("--out", help="Write the report to this file instead of stdout.")
     ka.set_defaults(func=_cmd_kb_audit)
 
+    # setup — one-time, interactive: store the user's OWN free NCBI key for fast,
+    # reliable live retrieval (NCBI requires each user to use their own key).
+    st = sub.add_parser(
+        "setup",
+        help=("Save your own free NCBI API key for fast, reliable live retrieval "
+              "(stored on this machine only; NCBI requires a personal key)."),
+    )
+    st.add_argument("--ncbi-key", default=None,
+                    help="Set the NCBI API key non-interactively (else prompted).")
+    st.add_argument("--ncbi-email", default=None,
+                    help="Set the contact email non-interactively (NCBI etiquette).")
+    st.add_argument("--cannavec-key", default=None,
+                    help="Set the Cannavec API key (semantic/vector KB search).")
+    st.add_argument("--show", action="store_true",
+                    help="Show current credential status (key masked) and exit.")
+    st.add_argument("--force", action="store_true",
+                    help="Save even if NCBI rejects the key during validation.")
+    st.set_defaults(func=_cmd_setup)
+
+    # audit-mcp — verify the sources the Cannavec semantic KB returned + detect
+    # gaps + feed the improve-queue flywheel. The model calls this with MCP ids.
+    am = sub.add_parser(
+        "audit-mcp",
+        help=("Audit sources the Cannavec semantic KB (MCP) returned: verify each, "
+              "flag false/missing, feed the KB improve-queue flywheel."),
+    )
+    am.add_argument("--query", help="The query the KB answered.")
+    am.add_argument("--sources",
+                    help="Comma-separated identifiers the KB returned (PMID/DOI).")
+    am.add_argument("--no-discover", action="store_true",
+                    help="Verify the KB sources only; skip engine gap-detection.")
+    am.add_argument("--review", action="store_true",
+                    help="Operator view: rank the improve-queue gaps by how often "
+                         "they recur (highest-impact first). Read-only.")
+    am.add_argument("--json", action="store_true", help="Emit the audit as JSON.")
+    am.set_defaults(func=_cmd_audit_mcp)
+
     return p
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # Developer convenience: a local .env populates the environment (without
+    # overriding anything already set) before any credential is resolved. Per-user
+    # keys also live in ~/.cannavec/credentials (see `setup`); both are read by
+    # cannavec_science._creds — no key is ever baked into the shipped package.
+    from cannavec_science import _creds
+    _creds.load_dotenv(".env")
     parser = _build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):
         parser.print_help()
         return 0
-    return args.func(args)
+    # CLI boundary backstop: a user must never see a raw Python traceback. Any
+    # unexpected error renders as a clean message and a non-zero exit; set
+    # CANNAVEC_DEBUG=1 to re-raise the full traceback for developers.
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("\n[cancelled]", file=sys.stderr)
+        return 130
+    except Exception as exc:  # noqa: BLE001 — backstop; never crash with a traceback
+        if os.environ.get("CANNAVEC_DEBUG"):
+            raise
+        print(f"[error] {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

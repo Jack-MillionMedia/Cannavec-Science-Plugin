@@ -74,6 +74,67 @@ pipeline can gate on it.
   is graded Unsupported.
 ```
 
+## Install
+
+**As a Claude Code plugin** (recommended for researchers) — run these in Claude Code:
+
+```text
+/plugin marketplace add Jack-MillionMedia/Cannavec-Science-Plugin
+/plugin install cannavec-science@cannavec-science
+```
+
+There is **nothing to `pip install`** — the verification core is stdlib-only
+Python (≥ 3.9). Once installed, the five commands appear under the
+`cannavec-science:` namespace (e.g. `/cannavec-science:research`).
+
+**As a direct CLI** (developers / CI):
+
+```bash
+git clone https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin
+cd Cannavec-Science-Plugin
+python3 -m cannavec_science verify 28538134   # no dependencies to install
+```
+
+New here? Read [what to expect and what not to trust yet](docs/KNOWN_LIMITATIONS.md)
+before you start.
+
+### Set up your free NCBI key (recommended)
+
+Live retrieval is faster and more reliable with your **own free NCBI API key**.
+NCBI requires every user to use their own key (it's free, and sharing one key is
+not allowed), so Cannavec never ships a key — you add yours once, in 2 minutes:
+
+```bash
+python3 -m cannavec_science setup
+```
+
+It walks you through getting the key and stores it **on your machine only**
+(`~/.cannavec/credentials`, owner-readable, never shared, never committed). Check
+status anytime with `setup --show`. (A local `.env` with `NCBI_API_KEY=…` works
+too.) Without a key it still runs — just slower and more rate-limited.
+
+### Semantic search + the KB flywheel (Cannavec)
+
+Add your **Cannavec key** in `setup` to unlock semantic/vector recall over the
+curated cannabis KB — concept-level retrieval that keyword search misses (the
+biggest recall upgrade for mechanism questions). Connect it to Claude Code so the
+model can query it:
+
+```bash
+claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \
+  --header "Authorization: Bearer ${CANNAVEC_API_KEY}"
+```
+
+Crucially, **every source the KB returns is audited before you see it** — the
+engine verifies each identifier is real and not retracted (§I), so only
+verified-elite evidence is cited. Two by-products feed a **flywheel**: fabricated
+or retracted KB sources (FALSE) and primary sources the engine found that the KB
+lacked (MISSING) are appended to `~/.cannavec/improve_queue.jsonl` — the operator
+review queue for improving the KB as it's used. (`audit-mcp` does this; the
+`/cannavec-science:research` command runs it automatically when the MCP is
+connected.) Review the backlog anytime with `audit-mcp --review` — it ranks the
+recurring gaps **highest-impact first**, so you fix what fails most often.
+
 ## The five commands (in Claude, as a plugin)
 
 | Command | What it does |
@@ -84,7 +145,7 @@ pipeline can gate on it.
 | `/verify` | Spot-check one identifier (PMID / DOI / NCT / ChEMBL / UniProt): real? retracted? |
 | `/rigor` | Run the deterministic phytochemistry + reporting-rigor + banned-pattern detectors on any text. |
 
-Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit>`.
+Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit|setup|audit-mcp>`.
 
 ### Operator tools (not slash commands)
 
@@ -106,13 +167,22 @@ python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
 - **GRADE honesty** — grades are computed by code, not by confident prose; a single RCT caps at Level B.
 - **Phytochemistry precision** — every cannabinoid named by isomer, every receptor by UniProt accession, every dose by route.
 - **Curated reference corpus** — **twenty-one curated science registries** (cannabinoids, terpenes, interactions, adverse events, pharmacokinetics, **endocrine**, and more; 230 rows) are kept as *labelled offline reference the model reasons over* — never presented as the answer itself.
-- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **2,170+ unit tests**. The engine is **72 modules**; run `python3 -m unittest discover -s tests`. (The "+" is a floor enforced by `tests/test_readme_claims.py` — the suite is asserted to meet it, so this number can never silently overstate reality.)
+- **Reproducible** — the verification core is stdlib-only Python (≥ 3.9), runs fully offline, and is covered by **2,170+ unit tests**. The engine is **75 modules**; run `python3 -m unittest discover -s tests`. (The "+" is a floor enforced by `tests/test_readme_claims.py` — the suite is asserted to meet it, so this number can never silently overstate reality.)
 
 ## Honest scope (what it does *not* do yet)
 
 - **Coverage is narrow by design.** The tool is elite at *verification*; curated breadth (specific indications, deep clinical-pharmacology recall) is the roadmap, not a claim. It grounds via **live retrieval**, not by memorizing papers. `python3 evals/run_evals.py` reports this transparently: the deterministic **contract** buckets (verification / rigor / refusal / routing) are 100% green; the **coverage** buckets are tracked and visibly incomplete.
 - **No individualized advice.** It answers "what does the evidence say," never "what should *you* take." Safety refusals are sovereign.
 - **No legal / regulatory / dosing / cultivation / lab-QC surfaces.** Out of scope — this is primary-source research science only.
+
+## Feedback (early users)
+
+This is an early build — **[what to expect and what not to trust yet](docs/KNOWN_LIMITATIONS.md)**
+sets honest expectations (narrow curated coverage, honest refusals, a couple of
+known rough edges). If you try it, please tell us how a real research task went —
+especially whether you could **trust** the output:
+**[open an issue →](https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/issues/new/choose)**
+(early-user feedback, or a bug report for a crash or a wrong/fabricated citation).
 
 ## Next logical improvements
 
@@ -128,5 +198,5 @@ python3 -m cannavec_science kb-audit <path-to-kb> [--json] [--out report.md]
 `.specify/memory/constitution.md`. The detailed v0.7 engineering reference is
 preserved at `docs/full-reference-v0.7.md`; version history is in
 `CHANGELOG.md`. Post-MVP machinery (meta-analysis, curation flywheel, researcher
-scaffolders) is parked under `archive/` and is restorable — see
-`archive/ARCHIVE_MANIFEST.md`.*
+scaffolders) was removed from the working tree in the v3.0.0+ teardown and is
+restorable from git history (tag `pre-mvp-teardown-2026-06-05`).*

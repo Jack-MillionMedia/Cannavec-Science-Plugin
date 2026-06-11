@@ -32,7 +32,12 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+from cannavec_science._http import (
+    TIMEOUT_FAST,
+    NetworkError,
+    retry_urlopen,
+    user_agent,
+)
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -53,10 +58,6 @@ _PUBLIC_URL = "https://www.rcsb.org/structure/{pdb_id}"
 _MAX_RESULTS_CEILING = 25
 
 _SUGGESTED_GRADE = "Level C (provisional, live_rcsb)"
-
-
-class NetworkError(Exception):
-    """Raised when an RCSB fetch / parse fails after preflight passed."""
 
 
 # Fetcher signature: GET takes a URL; POST takes a (url, body_bytes).

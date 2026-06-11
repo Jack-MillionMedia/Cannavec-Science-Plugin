@@ -81,6 +81,43 @@ _FLAGGED_STATES = frozenset(
 
 IsRetracted = Callable[..., object]
 
+# Default ceiling on the verified-source store so a long-lived operator cache
+# cannot grow without limit. Generous for a research cache; override with
+# CANNAVEC_CACHE_MAX_SOURCES.
+_DEFAULT_MAX_SOURCES = 5000
+
+
+def _max_sources() -> int:
+    try:
+        return max(100, int(os.environ.get("CANNAVEC_CACHE_MAX_SOURCES", "")))
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_SOURCES
+
+
+def _prune(conn: sqlite3.Connection, *, max_sources: int) -> int:
+    """Evict the lowest-value verified_sources rows beyond ``max_sources``.
+
+    Value order keeps the freshest, most-hit rows: rows are evicted by
+    ``last_verified ASC, hit_count ASC`` (oldest, least-hit first). Their now
+    orphaned ``query_hits`` are deleted too, so the index does not leak. Returns
+    the number of source rows evicted (0 when under the cap).
+    """
+    total = conn.execute("SELECT COUNT(*) FROM verified_sources").fetchone()[0]
+    if total <= max_sources:
+        return 0
+    over = total - max_sources
+    conn.execute(
+        "DELETE FROM verified_sources WHERE citation_key IN ("
+        "SELECT citation_key FROM verified_sources "
+        "ORDER BY last_verified ASC, hit_count ASC LIMIT ?)",
+        (over,),
+    )
+    conn.execute(
+        "DELETE FROM query_hits WHERE citation_key NOT IN "
+        "(SELECT citation_key FROM verified_sources)"
+    )
+    return over
+
 
 def cache_dir(store_dir: Optional[str] = None) -> str:
     """Resolve the cache directory.
@@ -192,14 +229,19 @@ def record_discovery(
     store_dir: Optional[str] = None,
     is_retracted: Optional[IsRetracted] = None,
     now: Optional[str] = None,
+    max_sources: Optional[int] = None,
 ) -> int:
     """Write-through: cache every verified, non-retracted row from a discovery.
 
     A row is admitted iff it has a resolvable primary identifier (§I) and is not
     currently flagged retracted/EOC (§VIII). Returns the number of rows
-    recorded. All store faults degrade to a partial/zero count — never raise.
+    recorded. The store is bounded: after the write it is pruned to
+    ``max_sources`` rows (default :func:`_max_sources`), evicting the oldest,
+    least-hit sources. All store faults degrade to a partial/zero count — never
+    raise.
     """
     checker = is_retracted or _default_is_retracted
+    cap = max_sources if max_sources is not None else _max_sources()
     qn = normalize_query(query)
     if not qn:
         return 0
@@ -248,6 +290,8 @@ def record_discovery(
                         (qn, ckey, ts),
                     )
                     cached += 1
+            # Bound the store: evict the oldest, least-hit sources beyond the cap.
+            _prune(conn, max_sources=cap)
     except Exception:  # noqa: BLE001 — never let a cache write break discovery
         pass
     finally:

@@ -4,7 +4,7 @@
 
 **Created**: 2026-05-24
 
-**Status**: Draft — approved for `/speckit-plan` tomorrow
+**Status**: Implemented (foundational MVP work; extended by later specs)
 
 **Input**: User request: "how close is this plugin to being production
 ready and a great MVP plugin that will impress cannabis researchers"

@@ -26,11 +26,10 @@ from __future__ import annotations
 
 import json
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Callable, Optional
 
-from cannavec_science._http import TIMEOUT_FAST, retry_urlopen, user_agent
+from cannavec_science._http import NetworkError, TIMEOUT_FAST, make_json_fetcher
 from cannavec_science.discover_guard import DiscoverRefused, Provenance, preflight
 
 
@@ -59,24 +58,10 @@ _PUBLIC_PAGE_URL = "https://www.pharmgkb.org/{kind}/{accession}"
 _MAX_RESULTS_CEILING = 25
 
 
-class NetworkError(Exception):
-    """Raised when a PharmGKB fetch / parse fails after preflight passed."""
-
-
 Fetcher = Callable[[str], str]
 
 
-def default_pharmgkb_fetcher(url: str) -> str:
-    """Production fetcher — polite UA, JSON Accept, fast timeout, bounded retry."""
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": user_agent("pharmgkb-discover"),
-            "Accept": "application/json",
-        },
-    )
-    with retry_urlopen(req, timeout=TIMEOUT_FAST) as resp:
-        return resp.read().decode("utf-8")
+default_pharmgkb_fetcher = make_json_fetcher("pharmgkb-discover", timeout=TIMEOUT_FAST)
 
 
 # PharmGKB level-of-evidence → Cannavec GRADE mapping.

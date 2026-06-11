@@ -51,6 +51,12 @@ jobs:
         # recall, end-to-end recall, the retrieval lift, or the zero-false-
         # positive controls regress below threshold.
         run: python3 evals/prove_retrieval.py
+      - name: Deterministic eval contract buckets (offline)
+        # Gates the build on the MVP-contract eval buckets (verification / rigor
+        # / refusal / routing). Coverage buckets are tracked + printed but
+        # non-gating, and live prompts are skipped by default, so this stays
+        # green offline and only fails if a contract behaviour regresses.
+        run: python3 evals/run_evals.py
 
   citation-audit:
     # Online integrity gate. Runs on every PR (so a wrong identifier blocks

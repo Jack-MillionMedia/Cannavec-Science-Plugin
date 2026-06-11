@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Known limitations — read before filing
+    url: https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/blob/HEAD/docs/KNOWN_LIMITATIONS.md
+    about: What to expect, what not to trust yet, and which behaviours are intentional (not bugs).

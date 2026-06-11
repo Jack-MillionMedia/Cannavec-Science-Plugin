@@ -1405,18 +1405,13 @@ def _set_short_answer(a: Answer) -> None:
 # Live lanes that are not peer-reviewed cap at Level D (preprint).
 _PREPRINT_LIVE_SOURCES = frozenset({"biorxiv", "medrxiv", "preprint"})
 
-# Live-tier §VIII statuses that warrant a "do not / verify before cite" badge
-# AND a last-place rank (a flagged paper must never lead the live breadth). A
-# plain CORRECTION is excluded — a correction means the paper stands, so it is
-# neither badged nor sunk.
-_LIVE_FLAGGED_STATUSES = frozenset(
-    {"retracted", "expression_of_concern", "under_correction"}
+# Live-tier §VIII flagged statuses + badge labels — single-sourced in
+# retraction.py so the brief and the web API never disagree on which statuses are
+# flagged or how they are worded. A plain CORRECTION is excluded (paper stands).
+from cannavec_science.retraction import (  # noqa: E402 — co-located with its use
+    LIVE_FLAGGED_STATUSES as _LIVE_FLAGGED_STATUSES,
+    BADGE_LABEL as _LIVE_FLAG_LABEL,
 )
-_LIVE_FLAG_LABEL = {
-    "retracted": "RETRACTED — do not cite",
-    "expression_of_concern": "EXPRESSION OF CONCERN — verify before citing",
-    "under_correction": "UNDER CORRECTION — verify before citing",
-}
 
 
 # The HONEST ceiling for a live hit's grade (spec 036, Step 2): a live JOURNAL
@@ -1657,9 +1652,10 @@ def live_finding_from_row(source_key: str, row: dict) -> "dict | None":
 def weave_verified_findings(answer, *, prompt: str, store_dir=None) -> int:
     """Weave the expert-gated verified-breadth tier onto ``answer`` (§IX).
 
-    The curation flywheel that produces this tier is post-MVP machinery archived
-    under ``archive/`` (mission realignment v3.0.0), so ``cannavec_science.flywheel``
-    is intentionally not importable in the shipped engine. When it is absent this
+    The curation flywheel that produces this tier is post-MVP machinery removed
+    from the shipped tree in the v3.0.0 teardown (restorable from git history;
+    tag ``pre-mvp-teardown-2026-06-05``), so ``cannavec_science.flywheel`` is
+    intentionally not importable in the shipped engine. When it is absent this
     is a **clean no-op** — the verified tier stays empty and nothing is raised —
     rather than a raised-and-swallowed ``ImportError`` that masks real errors. If a
     future build re-homes the flywheel into the engine, this transparently
@@ -3164,12 +3160,30 @@ def _drop_offkb_indication_efficacy_claims(a: Answer, prompt: str) -> int:
 # questions (which carry no "for <indication>" frame) are never swept in. The
 # safe failure direction is over-refusal (an honest "no curated efficacy"), never
 # a confident wrong answer.
+#
+# Efficacy frames are EFFICACY-SPECIFIC verbs/prepositions only. Bare "and" is
+# deliberately excluded: it is not an efficacy cue and would sweep in mechanism /
+# PK / interaction questions ("CBD and CYP3A4"), over-refusing them. The natural
+# phrasings a researcher types — "help with", "useful in", "effective in",
+# "work(s) for", "good for" — are included so the backstop is not defeated by
+# wording the closed lexicon never enumerated (§I / M2 leak, 2026-06-09 audit).
 _EFFICACY_FRAME_RX = re.compile(
-    r"\b(?:for|to\s+treat|treating|treatment\s+of|therapy\s+for|"
-    r"manage|managing|against)\s+"
+    r"\b(?:for|to\s+treat|treat(?:s|ed|ing)?|treatment\s+of|therapy\s+for|"
+    r"manage|managing|against|help(?:s|ing)?\s+(?:with|for|in)|"
+    r"useful\s+(?:for|in)|effective(?:ness)?\s+(?:for|in|at|against)|"
+    r"benefi(?:t|ts|cial)\s+(?:for|in)|works?\s+(?:for|in)|"
+    r"good\s+for)\s+",
+    flags=re.IGNORECASE,
+)
+
+# The indication object captured immediately after an efficacy frame. Split from
+# the frame regex (above) so a non-overlapping ``finditer`` scan over frames does
+# not greedily consume a later frame: "evidence for CBD to treat breast cancer"
+# must skip the cannabinoid-headed "for CBD …" object and still reach the real
+# "to treat <indication>" frame.
+_EFFICACY_OBJECT_RX = re.compile(
     r"(?P<indication>[A-Za-z][A-Za-z0-9'’\-]*"
     r"(?:\s+[A-Za-z0-9'’\-]+){0,4})",
-    flags=re.IGNORECASE,
 )
 
 # Objects after the efficacy preposition that are NOT an indication — model
@@ -3186,7 +3200,7 @@ _NON_INDICATION_OBJECTS = frozenset({
 # <indication>" efficacy frame, never to arbitrary "for X" prose.
 _CANNABIS_CUE_RX = re.compile(
     r"\b(?:cannabi\w*|cbd|cannabidiol|thc\w*|tetrahydrocannabinol|cbg\w*|"
-    r"cbn|cbc|cbdv|thcv|cbda|thca|marijuana|hemp|cannabinoid\w*|"
+    r"cbn|cbc|cbdv|thcv|cbda|thca|marijuana|hemp|cannabinoid\w*|weed|pot|"
     r"nabiximols|sativex|epidiolex|epidyolex|dronabinol|delta.?[89])\b",
     flags=re.IGNORECASE,
 )
@@ -3204,19 +3218,85 @@ def _structural_efficacy_indication(prompt: str) -> "str | None":
     """
     if not prompt or not _CANNABIS_CUE_RX.search(prompt):
         return None
-    m = _EFFICACY_FRAME_RX.search(prompt)
-    if not m:
+    # Scan EVERY efficacy frame, not just the first. A cannabinoid-first prompt
+    # ("evidence for CBD to treat breast cancer") matches "for" BEFORE the
+    # cannabinoid, so the first frame's object is the cannabinoid itself; skip it
+    # and keep scanning to the real "to treat <indication>" frame. Returning early
+    # on that first frame was the confident-wrong-answer leak (§I / M2).
+    for fm in _EFFICACY_FRAME_RX.finditer(prompt):
+        om = _EFFICACY_OBJECT_RX.match(prompt, fm.end())
+        if not om:
+            continue
+        phrase = om.group("indication").strip().strip("'’-").strip()
+        if len(phrase) < 3:
+            continue
+        head = phrase.split()[0].lower().strip("'’-")
+        if head in _NON_INDICATION_OBJECTS:
+            continue
+        # An object that is itself a cannabinoid (the leading "CBD" in "for CBD
+        # to treat …", or "THC for CBD") is not an indication — keep scanning.
+        if _CANNABIS_CUE_RX.fullmatch(head) or _CANNABIS_CUE_RX.fullmatch(phrase):
+            continue
+        return phrase
+    return None
+
+
+# ── Disease-first patient-narrative refusal ─────────────────────────────────
+# The structural frame above captures a disease that FOLLOWS the efficacy verb
+# ("CBD for diabetes", "help with diabetes"). A patient narrative names the
+# disease FIRST — "I have diabetes, can cannabis help me" — so the disease is the
+# object of "I have", not of an efficacy preposition, and "help me" carries no
+# indication object. That phrasing slipped past every gate and surfaced a
+# tangential off-topic row under a confident graded BLUF (§I / M2 leak, 2026-06-10
+# readiness audit). This is the disease-first backstop, HIGH precision: it fires
+# only when a cannabis cue, an efficacy/help INTENT, and a first-person condition
+# narrative all co-occur — so a pure PK / mechanism question that merely mentions
+# a condition ("I have diabetes; what is CBD's pharmacokinetics?") carries no help
+# intent and is never swept in.
+_EFFICACY_INTENT_RX = re.compile(
+    r"\b(?:help|treat|cure|benefi\w*|good\s+for|works?\s+for|manage|managing|"
+    r"useful|reliev\w*|ease|alleviat\w*)\b",
+    flags=re.IGNORECASE,
+)
+_PATIENT_NARRATIVE_RX = re.compile(
+    r"\b(?:i\s+have(?:\s+got)?|i'?ve\s+got|"
+    r"i\s+(?:was|am|have\s+been|'ve\s+been)\s+diagnosed\s+with|"
+    r"diagnosed\s+with|i\s+suffer\s+from|suffering\s+from|living\s+with)\s+"
+    r"(?:(?:a|an|the|some|any|no)\s+)?"
+    r"(?P<indication>[A-Za-z][A-Za-z0-9'’\-]*"
+    r"(?:\s+[A-Za-z0-9'’\-]+){0,3})",
+    flags=re.IGNORECASE,
+)
+# Non-disease nouns that commonly follow "I have …" in a help-intent prompt; never
+# an indication. Keeps "I have a friend with cancer", "I have a question" out.
+_NON_DISEASE_NARRATIVE_HEADS = frozenset({
+    "friend", "friends", "family", "doctor", "doctors", "question", "questions",
+    "problem", "problems", "issue", "issues", "concern", "concerns", "idea",
+    "ideas", "thought", "thoughts", "experience", "partner", "husband", "wife",
+    "kid", "kids", "child", "children", "time", "money", "appointment",
+})
+
+
+def _patient_narrative_indication(prompt: str) -> "str | None":
+    """Disease named first in a patient narrative, when a cannabis cue AND an
+    efficacy/help intent are also present. Vocabulary-independent backstop for the
+    disease-first phrasing the structural frame cannot reach. ``None`` unless all
+    three signals co-occur and the captured head is a plausible indication."""
+    if not prompt or not _CANNABIS_CUE_RX.search(prompt):
         return None
-    phrase = m.group("indication").strip().strip("'’-").strip()
-    if len(phrase) < 3:
+    if not _EFFICACY_INTENT_RX.search(prompt):
         return None
-    head = phrase.split()[0].lower().strip("'’-")
-    if head in _NON_INDICATION_OBJECTS:
-        return None
-    # An object that is itself a cannabinoid ("THC for CBD") is not an indication.
-    if _CANNABIS_CUE_RX.fullmatch(head) or _CANNABIS_CUE_RX.fullmatch(phrase):
-        return None
-    return phrase
+    for m in _PATIENT_NARRATIVE_RX.finditer(prompt):
+        phrase = m.group("indication").strip().strip("'’-").strip()
+        if len(phrase) < 3:
+            continue
+        head = phrase.split()[0].lower().strip("'’-")
+        if head in _NON_INDICATION_OBJECTS or head in _NON_DISEASE_NARRATIVE_HEADS:
+            continue
+        if _CANNABIS_CUE_RX.fullmatch(head) or _CANNABIS_CUE_RX.fullmatch(phrase):
+            continue
+        return phrase
+    return None
 
 
 def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None":
@@ -3230,7 +3310,10 @@ def _uncovered_efficacy_indication_label(a: Answer, prompt: str) -> "str | None"
     offkb = _uncovered_offkb_indications(a, prompt)
     if offkb:
         return ", ".join(sorted(_INDICATION_LABEL.get(t, t) for t in offkb))
-    return _structural_efficacy_indication(prompt)
+    structural = _structural_efficacy_indication(prompt)
+    if structural:
+        return structural
+    return _patient_narrative_indication(prompt)
 
 
 def _claim_text_names_indication(claim: Claim, indication: str) -> bool:

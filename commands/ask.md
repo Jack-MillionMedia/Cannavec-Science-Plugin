@@ -39,6 +39,11 @@ drop it. If the curated layer has no claim for this question, run a quick
 `cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science discover "$ARGUMENTS" --sources pubmed --max 3` and
 verify a returned identifier instead.
 
+If the **Cannavec MCP is connected** (`search_cannabis_kb` available), you may
+also pull a semantic hit, then audit it (verifies + feeds the KB flywheel) and
+cite only the **Elite** result:
+`cd "${CLAUDE_PLUGIN_ROOT:-.}" && python3 -m cannavec_science audit-mcp --query "$ARGUMENTS" --sources "<PMIDs/DOIs the KB returned>"`
+
 ### 3. Answer
 
 Give a tight, GRADE-honest answer: the bottom line, worded to match the grade,

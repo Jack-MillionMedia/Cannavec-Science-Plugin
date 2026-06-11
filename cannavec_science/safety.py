@@ -140,9 +140,14 @@ _DOSE_ASKING = _ci(
 # a personalised dose recommendation phrased as a command. Treat it
 # as REFUSE_INDIVIDUALIZED.
 _IMPERATIVE_DOSING = _ci(
-    r"(?:^|[.!?]\s+)"
+    # Word-boundary anchored, NOT sentence-start anchored. The old
+    # ``(?:^|[.!?]\s+)`` anchor let an imperative dosing instruction phrased
+    # mid-sentence ("For chronic pain just take 50mg of THC at night") sail
+    # through; imperative voice is the instruction form wherever it sits. ``\b``
+    # still excludes embedded substrings ("mistake", "retake").
+    r"\b"
     r"(?:take|start(?:\s+with)?|begin(?:\s+with)?|use|inhale|vape|smoke|eat|"
-    r"swallow|chew|dose|titrate(?:\s+(?:up\s+)?to)?|consume|drink|try|"
+    r"swallow|chew|micro-?dose|dose|titrate(?:\s+(?:up\s+)?to)?|consume|drink|try|"
     r"ramp(?:\s+up)?(?:\s+to)?|work\s+up\s+to|build\s+up\s+to|"
     r"bump(?:\s+up)?(?:\s+to)?|increase\s+to)"
     r"\s+"
@@ -169,6 +174,25 @@ _IMPERATIVE_LAB_CARVEOUT = _ci(
     r"(?:sample|aliquot|reading|measurement|chromatogram|cutting|"
     r"clone|cross|seedling|experiment|seed|seeds|cuttings|"
     r"hplc|gc|temperature|temp)"
+)
+
+# Research-description carve-out — a passive / third-person account of what TRIAL
+# SUBJECTS did is published-methodology description, not a dose instruction to the
+# reader. "patients were instructed to take 50 mg twice daily", "subjects were
+# randomized to take 20 mg", "the protocol had subjects use 10 mg" are the core
+# researcher use case and must NOT be refused as individualized dosing. The word-
+# boundary anchor on ``_IMPERATIVE_DOSING`` newly matched the "to take 50 mg" in
+# such prose, so this suppresses the imperative detector when a trial-subject
+# subject governs the dosing verb. Personal recommendations carry no such framing
+# and are unaffected; second-person dosing ("you should take 50 mg") is handled by
+# its own detector and is deliberately NOT carved out here.
+_RESEARCH_DESCRIPTION_CARVEOUT = _ci(
+    r"\b(?:patients?|subjects?|participants?|volunteers?|recipients?|"
+    r"(?:the|each|every|either)\s+"
+    r"(?:protocol|trial|study|rct|arm|group|cohort)|"
+    r"(?:study|treatment|placebo|control|active|dosing)\s+(?:arm|group)s?)\b"
+    r"[^.\n]{0,80}?"
+    r"\b(?:were|was|had|have|has|been|are|is)\b"
 )
 
 # Second-person personalized dosing — the framing-flip sibling of the
@@ -783,7 +807,8 @@ def check_safety(text: str) -> SafetyVerdict:
     # a specific dose, which Cannavec must refuse. Lab / agronomy /
     # culinary carve-outs preserve legitimate professional prompts.
     if (_IMPERATIVE_DOSING.search(text)
-            and not _IMPERATIVE_LAB_CARVEOUT.search(text)):
+            and not _IMPERATIVE_LAB_CARVEOUT.search(text)
+            and not _RESEARCH_DESCRIPTION_CARVEOUT.search(text)):
         if not any(f.action == SafetyAction.REFUSE_INDIVIDUALIZED
                    for f in fired):
             fired.append(FiredFlag(

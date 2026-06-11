@@ -7,8 +7,13 @@ of curated claims to the flagged minority whose support is not evident in the
 abstract; this adjudicator reads the cited text and renders an identifier-free
 verdict — ``supported`` / ``partial`` / ``unverified`` — with the supporting
 sentence **quoted verbatim**, so a researcher can trust the call without
-re-reading the paper. A human confirms the contested ones. It is the actual
-willingness-to-pay driver.
+re-reading the paper. A human confirms the contested ones.
+
+**Status — not yet wired into a shipping surface.** Unlike the ranker's
+``--rerank-llm`` flag, no command or API path constructs this adjudicator today;
+it is the staged backend for a future verified-claim-support pass. The
+deterministic gates that bound it (:mod:`cannavec_science.claim_support` flagging
+and ``verify_quote``) ARE wired — in ``kb-audit`` and the live snippet check.
 
 It is held to the same three structural rules as the ranker's LLM backend,
 which together make it incapable of harming accuracy:
