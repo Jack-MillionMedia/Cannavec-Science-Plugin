@@ -1387,6 +1387,24 @@ def _load_chunks_arg(chunks_arg: str):
     return data
 
 
+def _warn_degenerate_chunks(rows) -> None:
+    """Surface a degenerate/empty chunk payload to stderr so a clean '0 issues'
+    result is NOT silently read as 'the KB is healthy'. The chunk-forwarding
+    contract is the flywheel's biggest assumption; an empty or malformed forward
+    (or a summary instead of the verbatim chunks) must be visible, not silent."""
+    from cannavec_science.chunk_audit import Chunk
+    parsed = [Chunk.from_dict(r) if isinstance(r, dict) else r for r in rows]
+    if not parsed:
+        print("[warn] no chunks forwarded — nothing was audited. Forward the chunks "
+              "the KB returned (doc_id, h2_anchor, text, citations).", file=sys.stderr)
+        return
+    empty = sum(1 for c in parsed if not c.doc_id and not (c.text or "").strip())
+    if empty:
+        print(f"[warn] {empty} of {len(parsed)} forwarded chunk(s) had no doc_id and "
+              "no text — those were not really audited. Verify the model forwarded the "
+              "KB's chunks verbatim, not a summary.", file=sys.stderr)
+
+
 def _run_chunk_audit(query: str, chunks_arg: str, args: argparse.Namespace):
     """Run the chunk-level audit; return a ChunkAudit, or an int exit code on a
     parse error."""
@@ -1396,6 +1414,7 @@ def _run_chunk_audit(query: str, chunks_arg: str, args: argparse.Namespace):
     except (ValueError, OSError) as exc:
         print(f"[error] could not read --chunks: {exc}", file=sys.stderr)
         return 2
+    _warn_degenerate_chunks(rows)
     return chunk_audit.audit_chunks(
         query, rows, check_accuracy=not getattr(args, "no_accuracy", False))
 
@@ -1428,6 +1447,7 @@ def _run_rigorous(query: str, chunks_arg: str, args: argparse.Namespace):
     except (ValueError, OSError) as exc:
         print(f"[error] could not read --chunks: {exc}", file=sys.stderr)
         return 2
+    _warn_degenerate_chunks(rows)
 
     metas = [r.get("meta") if isinstance(r, dict) else None for r in rows]
     use_corpus = not getattr(args, "no_corpus", False)
@@ -1451,7 +1471,8 @@ def _run_rigorous(query: str, chunks_arg: str, args: argparse.Namespace):
     chunk_ledger.snapshot_health()
     # Did the ledger actually persist? (a read-only CANNAVEC_HOME swallows the write
     # by design so a logging failure never breaks an eval — but don't claim success.)
-    persisted = chunk_ledger.ledger_path().exists()
+    # An empty batch writes nothing, so don't blame the filesystem for that.
+    persisted = (not verdicts) or chunk_ledger.ledger_path().exists()
 
     # feed the flywheel queue so route-gaps picks up the rigorous findings too —
     # but drop any flag an operator confirmed a false positive (until the chunk's

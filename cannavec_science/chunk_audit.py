@@ -90,7 +90,18 @@ class Chunk:
 
     @property
     def chunk_key(self) -> str:
-        return f"{self.doc_id}#{self.h2_anchor}" if self.h2_anchor else (self.doc_id or "")
+        if self.doc_id:
+            return f"{self.doc_id}#{self.h2_anchor}" if self.h2_anchor else self.doc_id
+        if self.h2_anchor:
+            return f"#{self.h2_anchor}"
+        # No doc_id and no anchor → derive a stable key from the text so distinct
+        # chunks don't all collapse onto one empty key (which made them vanish from
+        # kb-health and collide in the ledger diff lookup). Same text normalisation
+        # as chunk_eval.content_hash. An empty-text chunk shares one 'noid:' key,
+        # which the degenerate-payload warning then surfaces.
+        import hashlib
+        norm = " ".join((self.text or "").split()).lower().encode("utf-8")
+        return "noid:" + hashlib.sha256(norm).hexdigest()[:16]
 
     @classmethod
     def from_dict(cls, d: dict) -> "Chunk":
@@ -375,7 +386,10 @@ def detect_accuracy_issues(
         if kind != "pmid" or ident in seen:
             continue
         seen.add(ident)
-        abstract = abstract_fn(ident)
+        try:
+            abstract = abstract_fn(ident)
+        except Exception:  # noqa: BLE001 — a flaky abstract fetcher must not abort the batch
+            abstract = ""
         if not abstract:
             continue                              # inconclusive — never a flag
         report = assess_support(claim, abstract)

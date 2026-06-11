@@ -155,5 +155,35 @@ class ReopenOnlyOnNewerYear(unittest.TestCase):
         self.assertEqual(diff.change, cl.REOPENED)
 
 
+class VerdictVocabularyExhaustive(unittest.TestCase):
+    """Every verdict a rigorous-path detector emits must be in chunk_eval.KNOWN_VERDICTS,
+    else _rollup_status silently downgrades it to needs_improvement (the maintainability
+    drift the hardening audit flagged). Scans the detector source for verdict literals."""
+
+    _BASE_ONLY = {"false_citation"}   # emitted only by the v1 base audit_chunks path
+
+    def test_emitted_verdicts_are_all_known(self):
+        import re
+        import pathlib
+        root = pathlib.Path(ce.__file__).resolve().parent
+        pat = re.compile(r'''(?:\bverdict\s*=\s*|_issue\(\s*|["']verdict["']\s*:\s*)["'](\w+)["']''')
+        emitted = set()
+        for name in ("chunk_audit.py", "chunk_eval.py"):
+            emitted |= set(pat.findall((root / name).read_text(encoding="utf-8")))
+        unknown = emitted - ce.KNOWN_VERDICTS - self._BASE_ONLY
+        self.assertFalse(
+            unknown, f"verdict(s) emitted by a detector but missing from "
+                     f"KNOWN_VERDICTS / _STATUS_BY_VERDICT (would silently roll up to "
+                     f"needs_improvement): {sorted(unknown)}")
+
+    def test_status_map_is_exactly_the_known_set(self):
+        self.assertEqual(set(ce._STATUS_BY_VERDICT), ce.KNOWN_VERDICTS)
+
+    def test_reporting_gap_is_not_misleading(self):
+        # a missing CONSORT/PRISMA acknowledgement is incomplete reporting, not a
+        # misleading claim — it must not stamp the alarming MISLEADING label.
+        self.assertEqual(ce._STATUS_BY_VERDICT["reporting_gap"], ce.NEEDS_IMPROVEMENT)
+
+
 if __name__ == "__main__":
     unittest.main()

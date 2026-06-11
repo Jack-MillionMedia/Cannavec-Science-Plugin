@@ -539,6 +539,15 @@ def route_gaps(
     if write and gaps:
         log_dir = root / "cannabis" / "logs" / "live-gap"
         log_dir.mkdir(parents=True, exist_ok=True)
+        # Clear prior area files first: when an area's gaps are resolved (it has no
+        # gaps this run) its stale JSON would otherwise persist and overstate the
+        # backlog. The markdown (rendered from `gaps`) is already fully regenerated.
+        for old in log_dir.glob("*.json"):
+            if old.stem not in by_area:
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
         for area, items in sorted(by_area.items()):
             payload = {
                 "area": area, "areaLabel": AREA_LABEL.get(area, area),

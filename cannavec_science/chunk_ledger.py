@@ -27,6 +27,7 @@ Deterministic and offline: timestamps/dates are injected; all state is plain JSO
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -83,6 +84,25 @@ class LedgerDiff:
         return {"chunk_key": self.chunk_key, "change": self.change,
                 "prev_status": self.prev_status, "new_status": self.new_status,
                 "detail": self.detail}
+
+
+def _atomic_write_jsonl(path: Path, records) -> None:
+    """Write ``records`` (one JSON object per line) atomically: a temp file in the
+    same dir + ``os.replace`` (atomic on POSIX/Windows), so a crash mid-write never
+    leaves a torn/partial store. Best-effort: a read-only home is swallowed (the
+    eval must not break on a logging failure)."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f"{path.name}.tmp{os.getpid()}")
+        with open(tmp, "w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            tmp.unlink()                          # don't leave a stray temp file
+        except (OSError, NameError, UnboundLocalError):
+            pass
 
 
 def _read_lines(path: Path) -> "list[dict]":
@@ -153,25 +173,25 @@ def record_evaluation(verdict, *, evidence_snapshot: Optional[dict] = None,
     ``verdict`` is a chunk_eval.ChunkVerdict. ``evidence_snapshot`` = {ids, max_year}
     of the credible corpus at eval time (drives reopen-on-new-evidence)."""
     p = ledger_path(store_dir)
-    prev = latest_by_chunk(path=p).get(verdict.chunk_key)
+    latest = latest_by_chunk(path=p)             # {chunk_key: record} — already compact
+    prev = latest.get(verdict.chunk_key)
     change, detail = _classify(prev, verdict.status, verdict.content_hash, evidence_snapshot)
     diff = LedgerDiff(chunk_key=verdict.chunk_key, change=change,
                       prev_status=(prev or {}).get("status"),
                       new_status=verdict.status, detail=detail)
     if log:
-        rec = {
+        latest[verdict.chunk_key] = {
             "ts": now or _utcnow(), "chunk_key": verdict.chunk_key,
             "doc_id": verdict.doc_id, "content_hash": verdict.content_hash,
             "status": verdict.status, "confidence": verdict.confidence,
             "corroboration": verdict.corroboration.to_dict() if verdict.corroboration else None,
             "evidence_snapshot": evidence_snapshot, "change": change,
         }
-        try:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            with open(p, "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        except OSError:
-            pass
+        # Persist latest-per-chunk (not append-only history): the file stays bounded
+        # to one line per distinct chunk — every consumer (the diff above, kb_health)
+        # needs only the latest record — and the temp+os.replace write is atomic, so
+        # a crash mid-write never corrupts or loses the store.
+        _atomic_write_jsonl(p, latest.values())
     return diff
 
 

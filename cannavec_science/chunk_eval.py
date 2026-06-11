@@ -64,10 +64,10 @@ _SEVERITY = [MISLEADING, OUTDATED, WEAKLY_CITED, INCOMPLETE, NEEDS_IMPROVEMENT,
 
 # verdict (the ChunkIssue.verdict string) → the status it contributes to the rollup.
 _STATUS_BY_VERDICT = {
-    # misleading
+    # misleading — the claim itself is wrong or scientifically imprecise
     "contradiction": MISLEADING, "corpus_contradiction": MISLEADING,
-    "rigor_violation": MISLEADING, "reporting_gap": MISLEADING,
-    "banned_misleading": MISLEADING, "wording_overclaim": MISLEADING,
+    "rigor_violation": MISLEADING, "banned_misleading": MISLEADING,
+    "wording_overclaim": MISLEADING,
     # outdated
     "retracted_citation": OUTDATED, "stale": OUTDATED, "superseded": OUTDATED,
     # weakly_cited
@@ -77,9 +77,20 @@ _STATUS_BY_VERDICT = {
     # incomplete
     "thin_stub": INCOMPLETE, "thin_recall": INCOMPLETE, "weak_relevance": INCOMPLETE,
     "missing_evidence": INCOMPLETE,
-    # needs_improvement
+    # needs_improvement — a real issue, but not "the claim is misleading": a missing
+    # reporting-standard acknowledgement (CONSORT/PRISMA) is incomplete reporting,
+    # not a misleading claim, so it must not stamp the alarming MISLEADING label.
+    "reporting_gap": NEEDS_IMPROVEMENT,
     "unverified": NEEDS_IMPROVEMENT, "coherence_conflict": NEEDS_IMPROVEMENT,
 }
+
+# The canonical verdict vocabulary. Every verdict a rigorous-path detector emits
+# MUST be here — otherwise _rollup_status silently downgrades it to
+# NEEDS_IMPROVEMENT. Pinned by tests/test_rigor_eval_review_fixes (verdict literals
+# emitted in chunk_audit/chunk_eval ⊆ KNOWN_VERDICTS). ``false_citation`` is
+# intentionally absent: it is emitted only by the v1 base ``audit_chunks`` path,
+# which lists issues and never rolls up to a status.
+KNOWN_VERDICTS = frozenset(_STATUS_BY_VERDICT)
 
 # Corpus contradiction bar — high, because a false `misleading` is the worst error.
 MIN_CORPUS_CONTRA = 3        # need ≥ this many credible sources checked
@@ -407,8 +418,9 @@ _DIR_NEEDLE = re.compile(
     r"\b(inhibit|suppress|blockad|induc|upregulat|increas|elevat|augment|rais|"
     r"decreas|reduc|lower|diminish|attenuat)", re.IGNORECASE)
 _NEG_NEAR = re.compile(
-    r"\b(not|never|no|cannot|without|fails?\s+to|rather\s+than|instead\s+of|"
-    r"does\s+not|did\s+not|do\s+not|doesn't|didn't|don't|isn't|aren't)\b", re.IGNORECASE)
+    r"\b(not|never|no|cannot|without|fail(?:s|ed|ing)?\s+to|rather\s+than|"
+    r"instead\s+of|does\s+not|did\s+not|do\s+not|doesn't|didn't|don't|isn't|"
+    r"aren't|wasn't|weren't)\b", re.IGNORECASE)
 
 
 def _direction_unreliable(claim: str) -> bool:
