@@ -48,7 +48,7 @@ python3 -m cannavec_science verify 99999999
 
 # 5. Catch unscientific language deterministically (offline, <0.2s)
 python3 -m cannavec_science rigor "CBD is non-psychoactive and cures all seizures. We gave cannabis at 50mg."
-#   → flags: cure_claim, non_psychoactive_cbd_misuse, dose-without-route
+#   → flags the cure claim, the "non-psychoactive CBD" misuse, and the dose with no route
 ```
 
 An ordinary AI would happily cite that retracted paper in step 3. This one
@@ -184,7 +184,7 @@ to fold the findings into a knowledge-base repo's backlog (the curated
 | `/verify` | Spot-check one identifier (PMID / DOI / NCT / ChEMBL / UniProt): real? retracted? |
 | `/rigor` | Run the deterministic phytochemistry + reporting-rigor + banned-pattern detectors on any text. |
 
-Direct CLI: `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit|setup|audit-mcp|route-gaps|kb-health|eval-feedback>`.
+Complete CLI surface (the tables above and below cover the common verbs): `python3 -m cannavec_science <answer|discover|verify|rigor|bibliography|cite|pdf|registries|kb-audit|setup|audit-mcp|route-gaps|kb-health|eval-feedback>`.
 
 ### Operator tools (not slash commands)
 
