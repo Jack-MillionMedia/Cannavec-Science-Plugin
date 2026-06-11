@@ -1305,6 +1305,53 @@ def _cmd_setup(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_audit_mcp(args: argparse.Namespace) -> int:
+    """Audit the sources the Cannavec semantic KB (MCP) returned: verify each
+    against the live upstreams + retraction registry, flag fabricated/retracted
+    ones, detect primary sources the engine found that the KB missed, and append
+    both to the operator improve-queue (the KB flywheel). The model calls this
+    with the identifiers the MCP handed back; only the verified-elite set should
+    be cited to the user (§I)."""
+    from cannavec_science import source_audit
+
+    query = (getattr(args, "query", None) or "").strip()
+    raw = (getattr(args, "sources", None) or "").replace("\n", ",")
+    ids = [s.strip() for s in raw.split(",") if s.strip()]
+    if not query:
+        print("[error] audit-mcp needs --query.", file=sys.stderr)
+        return 2
+    if not ids:
+        print("[error] audit-mcp needs --sources (the identifiers the KB returned, "
+              "comma-separated).", file=sys.stderr)
+        return 2
+
+    res = source_audit.audit_sources(
+        query, ids, detect_missing=not getattr(args, "no_discover", False))
+
+    if getattr(args, "json", False):
+        print(json.dumps(res.to_dict(), indent=2, ensure_ascii=False))
+        return 0
+
+    print(f"## KB source audit — {query}\n")
+    print(f"- **Elite** (verified real + not retracted — safe to cite): {len(res.elite)}")
+    for s in res.elite:
+        print(f"  - {s.identifier} ({s.kind}) — {s.reason}")
+    if res.failed:
+        print(f"- **FALSE** (do NOT cite; logged to the KB flywheel): {len(res.failed)}")
+        for s in res.failed:
+            print(f"  - {s.identifier} ({s.kind}) — {s.reason}")
+    if res.unverified:
+        print(f"- Unverified (upstream unreachable, not the KB's fault): {len(res.unverified)}")
+    if res.missing:
+        print(f"- **MISSING** from the KB (engine found these; logged): {len(res.missing)}")
+        for m in res.missing[:20]:
+            print(f"  - {m}")
+    if res.logged_path:
+        print(f"\n_Flywheel: {len(res.failed)} false + {len(res.missing)} missing "
+              f"appended to {res.logged_path} for KB improvement._")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m cannavec_science",
@@ -1575,6 +1622,21 @@ def _build_parser() -> argparse.ArgumentParser:
     st.add_argument("--force", action="store_true",
                     help="Save even if NCBI rejects the key during validation.")
     st.set_defaults(func=_cmd_setup)
+
+    # audit-mcp — verify the sources the Cannavec semantic KB returned + detect
+    # gaps + feed the improve-queue flywheel. The model calls this with MCP ids.
+    am = sub.add_parser(
+        "audit-mcp",
+        help=("Audit sources the Cannavec semantic KB (MCP) returned: verify each, "
+              "flag false/missing, feed the KB improve-queue flywheel."),
+    )
+    am.add_argument("--query", required=True, help="The query the KB answered.")
+    am.add_argument("--sources", required=True,
+                    help="Comma-separated identifiers the KB returned (PMID/DOI).")
+    am.add_argument("--no-discover", action="store_true",
+                    help="Verify the KB sources only; skip engine gap-detection.")
+    am.add_argument("--json", action="store_true", help="Emit the audit as JSON.")
+    am.set_defaults(func=_cmd_audit_mcp)
 
     return p
 
