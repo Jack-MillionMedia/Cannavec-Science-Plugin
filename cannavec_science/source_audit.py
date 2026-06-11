@@ -30,7 +30,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
-__all__ = ["AuditedSource", "SourceAudit", "audit_sources", "improve_queue_path"]
+__all__ = ["AuditedSource", "SourceAudit", "QueueSummary", "audit_sources",
+           "improve_queue_path", "summarize_improve_queue"]
 
 # id -> (verdict, reason); verdict ∈ {"PASS", "FAIL", "UNVERIFIED"}
 Verifier = Callable[[str], "tuple[str, str]"]
@@ -70,6 +71,28 @@ class SourceAudit:
         }
 
 
+@dataclass(frozen=True)
+class QueueSummary:
+    """A frequency ranking of the operator improve-queue: which gaps recur most,
+    so the highest-impact ones are reviewed first. Pure reporting over the log —
+    no automation, no writes."""
+    entries: int                       # audit events logged
+    missing_by_id: tuple = ()          # ((identifier, count), ...) desc
+    false_by_id: tuple = ()            # ((identifier, count, reason), ...) desc
+    queries_by_count: tuple = ()       # ((query, count), ...) desc
+    path: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "entries": self.entries,
+            "missing_by_id": [{"identifier": i, "count": c} for i, c in self.missing_by_id],
+            "false_by_id": [{"identifier": i, "count": c, "reason": r}
+                            for i, c, r in self.false_by_id],
+            "queries_by_count": [{"query": q, "count": c} for q, c in self.queries_by_count],
+            "path": self.path,
+        }
+
+
 def _utcnow() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -98,6 +121,61 @@ def improve_queue_path(store_dir: "str | Path | None" = None) -> Path:
         return Path(store_dir) / "improve_queue.jsonl"
     from cannavec_science import _creds
     return _creds.credentials_path().parent / "improve_queue.jsonl"
+
+
+def _rank(counter: "dict[str, int]") -> tuple:
+    """Most-frequent first; ties broken alphabetically so output is deterministic
+    (reproducibility — same queue, same ranking, every time)."""
+    return tuple(sorted(counter.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def summarize_improve_queue(*, path=None, store_dir=None) -> QueueSummary:
+    """Read the operator improve-queue and rank its gaps by recurrence (highest-
+    impact first). Read-only; tolerant of a missing file or malformed lines."""
+    p = Path(path) if path else improve_queue_path(store_dir)
+    try:
+        text = p.read_text(encoding="utf-8")
+    except (OSError, FileNotFoundError):
+        return QueueSummary(entries=0, path=str(p))
+
+    entries = 0
+    missing: "dict[str, int]" = {}
+    false_ids: "dict[str, int]" = {}
+    false_reason: "dict[str, str]" = {}
+    queries: "dict[str, int]" = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(obj, dict):
+            continue
+        entries += 1
+        q = obj.get("query")
+        if isinstance(q, str) and q:
+            queries[q] = queries.get(q, 0) + 1
+        for m in obj.get("missing_sources", []) or []:
+            key = str(m)
+            missing[key] = missing.get(key, 0) + 1
+        for f in obj.get("false_sources", []) or []:
+            if isinstance(f, dict):
+                fid = str(f.get("identifier", "")).strip()
+                reason = str(f.get("reason", "") or "")
+            else:
+                fid, reason = str(f), ""
+            if not fid:
+                continue
+            false_ids[fid] = false_ids.get(fid, 0) + 1
+            false_reason.setdefault(fid, reason)
+
+    false_ranked = tuple((i, c, false_reason.get(i, "")) for i, c in _rank(false_ids))
+    return QueueSummary(
+        entries=entries, missing_by_id=_rank(missing), false_by_id=false_ranked,
+        queries_by_count=_rank(queries), path=str(p),
+    )
 
 
 def _append_improve_queue(query, failed, missing, *, now=None, store_dir=None) -> "str | None":

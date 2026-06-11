@@ -1305,6 +1305,38 @@ def _cmd_setup(args: argparse.Namespace) -> int:
     return 0
 
 
+def _audit_mcp_review(args: argparse.Namespace, source_audit) -> int:
+    """Operator review of the KB improve-queue: rank the logged gaps by how often
+    they recur so the highest-impact ones are fixed first. Read-only — the
+    developer reviews and decides; nothing is written or auto-applied."""
+    s = source_audit.summarize_improve_queue()
+    if getattr(args, "json", False):
+        print(json.dumps(s.to_dict(), indent=2, ensure_ascii=False))
+        return 0
+    if s.entries == 0:
+        print(f"## KB improve-queue — empty\n\nNo gaps logged yet.\n_{s.path}_")
+        return 0
+    print(f"## KB improve-queue — {s.entries} audit event(s)\n")
+    print(f"_{s.path}_\n")
+    if s.missing_by_id:
+        print(f"### Missing sources to add — highest-impact first "
+              f"({len(s.missing_by_id)} unique)")
+        for ident, count in s.missing_by_id[:25]:
+            print(f"- `{ident}` — surfaced {count}×")
+        print()
+    if s.false_by_id:
+        print(f"### False sources the KB returned — fix/remove "
+              f"({len(s.false_by_id)} unique)")
+        for ident, count, reason in s.false_by_id[:25]:
+            print(f"- `{ident}` — {count}× — {reason}")
+        print()
+    if s.queries_by_count:
+        print("### Questions that repeatedly hit gaps")
+        for q, count in s.queries_by_count[:15]:
+            print(f"- {count}× — {q}")
+    return 0
+
+
 def _cmd_audit_mcp(args: argparse.Namespace) -> int:
     """Audit the sources the Cannavec semantic KB (MCP) returned: verify each
     against the live upstreams + retraction registry, flag fabricated/retracted
@@ -1313,6 +1345,9 @@ def _cmd_audit_mcp(args: argparse.Namespace) -> int:
     with the identifiers the MCP handed back; only the verified-elite set should
     be cited to the user (§I)."""
     from cannavec_science import source_audit
+
+    if getattr(args, "review", False):
+        return _audit_mcp_review(args, source_audit)
 
     query = (getattr(args, "query", None) or "").strip()
     raw = (getattr(args, "sources", None) or "").replace("\n", ",")
@@ -1630,11 +1665,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help=("Audit sources the Cannavec semantic KB (MCP) returned: verify each, "
               "flag false/missing, feed the KB improve-queue flywheel."),
     )
-    am.add_argument("--query", required=True, help="The query the KB answered.")
-    am.add_argument("--sources", required=True,
+    am.add_argument("--query", help="The query the KB answered.")
+    am.add_argument("--sources",
                     help="Comma-separated identifiers the KB returned (PMID/DOI).")
     am.add_argument("--no-discover", action="store_true",
                     help="Verify the KB sources only; skip engine gap-detection.")
+    am.add_argument("--review", action="store_true",
+                    help="Operator view: rank the improve-queue gaps by how often "
+                         "they recur (highest-impact first). Read-only.")
     am.add_argument("--json", action="store_true", help="Emit the audit as JSON.")
     am.set_defaults(func=_cmd_audit_mcp)
 

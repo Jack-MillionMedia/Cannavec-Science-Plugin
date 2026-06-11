@@ -97,5 +97,52 @@ class ImproveQueueFlywheel(unittest.TestCase):
             self.assertEqual(entry["ts"], "2026-06-10T12:00:00+00:00")
 
 
+class SummarizeImproveQueue(unittest.TestCase):
+    """The operator review tail of the flywheel: rank logged gaps by how often
+    they recur (highest-impact first), deterministically."""
+
+    def _write(self, d, rows):
+        p = Path(d) / "improve_queue.jsonl"
+        p.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+        return p
+
+    def test_ranks_missing_false_and_queries_by_frequency_desc(self):
+        rows = [
+            {"ts": "t1", "query": "cbd epilepsy",
+             "false_sources": [{"identifier": "999", "reason": "not found"}],
+             "missing_sources": ["NCT01", "NCT02"]},
+            {"ts": "t2", "query": "cbd epilepsy",
+             "false_sources": [], "missing_sources": ["NCT01"]},
+            {"ts": "t3", "query": "thc pain",
+             "false_sources": [{"identifier": "999", "reason": "not found"}],
+             "missing_sources": ["NCT03"]},
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            self._write(d, rows)
+            s = sa.summarize_improve_queue(store_dir=d)
+        self.assertEqual(s.entries, 3)
+        # NCT01 twice → first; ties broken alphabetically → stable, no flakes
+        self.assertEqual(s.missing_by_id[0], ("NCT01", 2))
+        self.assertEqual([m[0] for m in s.missing_by_id], ["NCT01", "NCT02", "NCT03"])
+        self.assertEqual(s.false_by_id[0], ("999", 2, "not found"))
+        self.assertEqual(s.queries_by_count[0], ("cbd epilepsy", 2))
+
+    def test_missing_file_is_empty_summary_not_an_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = sa.summarize_improve_queue(store_dir=d)
+        self.assertEqual(s.entries, 0)
+        self.assertEqual(s.missing_by_id, ())
+        self.assertEqual(s.false_by_id, ())
+
+    def test_malformed_lines_are_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "improve_queue.jsonl"
+            p.write_text('{"query":"q","false_sources":[],"missing_sources":["A"]}\n'
+                         'not json at all\n\n', encoding="utf-8")
+            s = sa.summarize_improve_queue(store_dir=d)
+        self.assertEqual(s.entries, 1)
+        self.assertEqual(s.missing_by_id, (("A", 1),))
+
+
 if __name__ == "__main__":
     unittest.main()

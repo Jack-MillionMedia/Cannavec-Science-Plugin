@@ -132,7 +132,8 @@ or retracted KB sources (FALSE) and primary sources the engine found that the KB
 lacked (MISSING) are appended to `~/.cannavec/improve_queue.jsonl` — the operator
 review queue for improving the KB as it's used. (`audit-mcp` does this; the
 `/cannavec-science:research` command runs it automatically when the MCP is
-connected.)
+connected.) Review the backlog anytime with `audit-mcp --review` — it ranks the
+recurring gaps **highest-impact first**, so you fix what fails most often.
 
 ## The five commands (in Claude, as a plugin)
 
