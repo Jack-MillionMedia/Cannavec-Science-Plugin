@@ -1381,6 +1381,12 @@ def _cmd_audit_mcp(args: argparse.Namespace) -> int:
         print(f"- **MISSING** from the KB (engine found these; logged): {len(res.missing)}")
         for m in res.missing[:20]:
             print(f"  - {m}")
+    sc = res.grounding_scores()
+    prec = "n/a" if sc["precision"] is None else f"{sc['precision']:.0%}"
+    cov = "n/a" if sc["coverage"] is None else f"{sc['coverage']:.0%}"
+    print(f"\n**Grounding** — precision {prec} "
+          f"({sc['elite']}/{sc['elite'] + sc['false']} returned credible) · "
+          f"coverage {cov} ({sc['elite']}/{sc['elite'] + sc['missing']} of credible sources held)")
     if res.logged_path:
         print(f"\n_Flywheel: {len(res.failed)} false + {len(res.missing)} missing "
               f"appended to {res.logged_path} for KB improvement._")

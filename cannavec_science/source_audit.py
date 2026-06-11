@@ -60,6 +60,25 @@ class SourceAudit:
     missing: tuple = ()         # engine found these primary sources; the KB did not
     logged_path: Optional[str] = None
 
+    def grounding_scores(self) -> dict:
+        """Honest quality signal over the audit counts — no invented composite.
+
+        - ``precision`` = elite / (elite + false): of the verifiable sources the
+          KB returned, the fraction that are real + not retracted. ``None`` when
+          the KB returned nothing verifiable (e.g. only network-unverified) — the
+          score is undefined, never a misleading 0.0.
+        - ``coverage`` = elite / (elite + missing): of the credible primary
+          sources for this query, the fraction the KB already had.
+        """
+        n_elite, n_false, n_missing = len(self.elite), len(self.failed), len(self.missing)
+        returned = n_elite + n_false
+        coverage_den = n_elite + n_missing
+        return {
+            "precision": round(n_elite / returned, 3) if returned else None,
+            "coverage": round(n_elite / coverage_den, 3) if coverage_den else None,
+            "elite": n_elite, "false": n_false, "missing": n_missing,
+        }
+
     def to_dict(self) -> dict:
         return {
             "query": self.query,
@@ -67,6 +86,7 @@ class SourceAudit:
             "failed": [s.to_dict() for s in self.failed],
             "unverified": [s.to_dict() for s in self.unverified],
             "missing": list(self.missing),
+            "scores": self.grounding_scores(),
             "logged_path": self.logged_path,
         }
 

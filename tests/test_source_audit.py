@@ -97,6 +97,35 @@ class ImproveQueueFlywheel(unittest.TestCase):
             self.assertEqual(entry["ts"], "2026-06-10T12:00:00+00:00")
 
 
+class GroundingScores(unittest.TestCase):
+    """'Plugin scores answer quality' — honest precision/coverage over the audit
+    counts, so the model can gate on how credible the KB's sources were."""
+
+    def test_precision_and_coverage_from_counts(self):
+        table = {"1": ("PASS", "ok"), "2": ("PASS", "ok"), "3": ("PASS", "ok"),
+                 "8": ("FAIL", "not found"), "9": ("FAIL", "retracted")}
+        with tempfile.TemporaryDirectory() as d:
+            res = sa.audit_sources(
+                "q", list(table.keys()), verifier=_verifier_from(table),
+                discoverer=lambda q: ["1", "100", "200", "300"],  # 100/200/300 missing
+                store_dir=d)
+        sc = res.grounding_scores()
+        self.assertEqual((sc["elite"], sc["false"], sc["missing"]), (3, 2, 3))
+        self.assertEqual(sc["precision"], 0.6)   # 3 elite / (3 elite + 2 false)
+        self.assertEqual(sc["coverage"], 0.5)    # 3 elite / (3 elite + 3 missing)
+
+    def test_none_not_zero_when_nothing_verifiable(self):
+        # KB returned only a network-unverified source: not the KB's fault, so the
+        # score is undefined (None), never a misleading 0.0.
+        with tempfile.TemporaryDirectory() as d:
+            res = sa.audit_sources(
+                "q", ["5"], verifier=_verifier_from({"5": ("UNVERIFIED", "net")}),
+                discoverer=lambda q: [], store_dir=d)
+        sc = res.grounding_scores()
+        self.assertIsNone(sc["precision"])
+        self.assertIsNone(sc["coverage"])
+
+
 class SummarizeImproveQueue(unittest.TestCase):
     """The operator review tail of the flywheel: rank logged gaps by how often
     they recur (highest-impact first), deterministically."""
