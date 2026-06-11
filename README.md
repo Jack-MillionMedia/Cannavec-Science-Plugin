@@ -115,14 +115,18 @@ too.) Without a key it still runs — just slower and more rate-limited.
 
 ### Semantic search + the KB flywheel (Cannavec)
 
-Add your **Cannavec key** in `setup` to unlock semantic/vector recall over the
-curated cannabis KB — concept-level retrieval that keyword search misses (the
-biggest recall upgrade for mechanism questions). Connect it to Claude Code so the
-model can query it — **export the key in the same shell first** so the `Bearer`
+Connecting the **Cannavec MCP** unlocks semantic/vector recall over the curated
+cannabis KB — concept-level retrieval that keyword search misses (the biggest
+recall upgrade for mechanism questions) — plus the chunk flywheel. **New users:**
+get your API key and a copy-paste command from your dashboard at
+**<https://cannavec.ai/dashboard/mcp-setup>**, or follow the full step-by-step (Claude
+Code, Claude Desktop, and Claude.ai) in **[docs/MCP_SETUP.md](docs/MCP_SETUP.md)**.
+
+The Claude Code path — **export the key in the same shell first** so the `Bearer`
 header resolves (otherwise the token is empty and the MCP returns 401):
 
 ```bash
-export CANNAVEC_API_KEY=<your-cannavec-key>          # paste your key, same shell
+export CANNAVEC_API_KEY=<your-cannavec-key>          # from cannavec.ai/dashboard/mcp-setup
 claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \
   --header "Authorization: Bearer ${CANNAVEC_API_KEY}"
 ```

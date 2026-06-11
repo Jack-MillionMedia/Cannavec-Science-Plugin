@@ -37,14 +37,19 @@ python3 -m cannavec_science setup --show # confirm what's stored (machine-only)
 - **NCBI key** — free; makes live PubMed retrieval faster and less rate-limited.
   Without it, the tool still runs (it leans on Europe PMC).
 - **Cannavec key** — unlocks semantic/vector recall over the curated KB + the
-  chunk flywheel. To connect it as an MCP, **export it in the same shell first**
-  (otherwise the `Bearer` header is empty and the MCP returns 401):
+  chunk flywheel. **Get your key + a copy-paste command from your dashboard:**
+  <https://cannavec.ai/dashboard/mcp-setup>. To connect it in Claude Code,
+  **export it in the same shell first** (otherwise the `Bearer` header is empty
+  and the MCP returns 401):
 
   ```bash
   export CANNAVEC_API_KEY=<your-cannavec-key>
   claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \
     --header "Authorization: Bearer ${CANNAVEC_API_KEY}"
   ```
+
+  Full setup for Claude Code, Claude Desktop, and Claude.ai (web), plus
+  troubleshooting, is in **[MCP_SETUP.md](MCP_SETUP.md)**.
 
 ## 3. The verification spine (90 seconds, no keys needed)
 
