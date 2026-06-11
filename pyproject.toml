@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cannavec-science"
-version = "0.7.0"
+version = "0.8.0"
 description = "A grounding-and-verification layer that makes AI trustworthy for cannabis-science research (Cannavec Science Claude Code plugin). Five commands (research / ask / discover / verify / rigor): the model reasons over live primary-source retrieval (PubMed, ClinicalTrials.gov, ChEMBL, and more), while deterministic stdlib code verifies every identifier is real and not retracted (PMID / DOI / NCT / ChEMBL / UniProt), enforces retractions, assigns GRADE, and runs safety + banned-pattern + phytochemistry-rigor detectors. Twenty-one curated science registries (>= 230 rows) are clearly-labelled offline reference the model reasons over, never presented as the answer itself. Researcher audience only. Stdlib-only Python >= 3.9; the verification core is fully offline-checkable."
 authors = [{ name = "Jack-MillionMedia" }]
 license = { text = "MIT" }

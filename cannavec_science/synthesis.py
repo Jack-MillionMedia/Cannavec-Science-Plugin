@@ -547,7 +547,7 @@ def synthesize(
 
     convergence = _convergence_for_clusters(clusters)
     disagreement = _first_disagreement(clusters)
-    prose = _synthesis_prose(convergence, counts, clusters, disagreement)
+    prose = _synthesis_prose(convergence, counts, clusters, disagreement, query=query)
 
     return SynthesisBlock(
         per_source_counts=counts,
@@ -646,6 +646,7 @@ def _synthesis_prose(
     counts: dict,
     clusters: list[ClaimCluster],
     disagreement: Optional[str],
+    query: str = "",
 ) -> str:
     """A short, factual one-liner summarising the verdict — built ONLY from the
     counts/convergence/clusters already computed.
@@ -679,6 +680,18 @@ def _synthesis_prose(
     src_phrase = f"{n} live source{'s' if n != 1 else ''} ({', '.join(present)})"
 
     compound, condition = _dominant_subject(clusters)
+    # Don't confidently attribute the corpus to an indication the user did NOT ask
+    # about. If the query named an indication and the dominant cluster's condition is
+    # a DIFFERENT named indication (e.g. an off-topic CT.gov trial for autism surfaced
+    # by an epilepsy query), drop the condition rather than assert "address … for
+    # autism" — a confident wrong-topic label is the exact ungrounded failure the
+    # tool exists to prevent.
+    if condition and query:
+        from cannavec_science.intent import indication_terms
+        query_inds = indication_terms(query)
+        cond_inds = indication_terms(condition)
+        if query_inds and cond_inds and not (query_inds & cond_inds):
+            condition = ""
     if compound and condition:
         subject = f"{compound} for {condition}"
     elif compound:

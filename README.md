@@ -13,6 +13,10 @@ high-volume cannabis research at machine speed without sacrificing trust.
 > It is **not** a chatbot and **not** a canned-answer engine. The deliverable is
 > not an "answer" — it is **verified evidence an expert can stake their name on.**
 
+> 🧪 **Testing it?** Install and exercise everything end-to-end in ~10 minutes with
+> the **[tester quickstart →](docs/QUICKSTART.md)**. It works with no API keys (just
+> slower); keys add semantic recall + the flywheel.
+
 ---
 
 ## The problem, the user, the value
@@ -134,44 +138,33 @@ claude mcp add --transport http cannavec https://cannavec.ai/api/mcp \
 > The five research commands work **without** this step — the MCP only adds
 > semantic KB recall and the chunk flywheel on top.
 
-Crucially, **every source the KB returns is audited before you see it** — the
-engine verifies each identifier is real and not retracted (§I), so only
-verified-elite evidence is cited. Two by-products feed a **flywheel**: fabricated
-or retracted KB sources (FALSE) and primary sources the engine found that the KB
-lacked (MISSING) are appended to `~/.cannavec/improve_queue.jsonl` — the operator
-review queue for improving the KB as it's used. (`audit-mcp` does this; the
-`/cannavec-science:research` command runs it automatically when the MCP is
-connected.) Review the backlog anytime with `audit-mcp --review` — it ranks the
-recurring gaps **highest-impact first**, so you fix what fails most often.
+**Every source the KB returns is audited before you see it** — verified real and
+not retracted (§I), so only verified-elite evidence is cited.
 
-The flywheel also works at **chunk** granularity: `audit-mcp --chunks` judges the
-chunks the KB returned across **retrieval / citation / accuracy / completeness**
-(weak relevance, fabricated/uncited citations, claim-vs-evidence contradictions,
-thin or grade-inflated sections), and `route-gaps` folds the whole queue into the
-`mc-knowledge-base` repo's research backlog — a regenerable `RESEARCH_BACKLOG.live.md`
-plus gitignored per-area JSON — so real usage becomes logged, prioritized research
-tasks. It **flags, never authors**: clinical gaps are `deep_research` and the
-hand-curated `RESEARCH_BACKLOG.md` is never touched. See `specs/037-chunk-flywheel/spec.md`.
+### The KB-improvement flywheel
 
-A deeper, **rigorous** layer goes further: `audit-mcp --chunks --rigorous`
-classifies each chunk as **correct / incomplete / outdated / weakly-cited /
-misleading** by composing the full rigor stack with a **claim-vs-corpus**
-comparison against live credible literature — confirming correctness positively,
-not just by the absence of flags. A false `misleading` is the worst error, so it
-is gated behind a high corpus-contradiction bar. Every verdict is recorded to a
-per-chunk **ledger**, which makes the loop recursive: fixes are confirmed
-(**resolved**), regressions on settled chunks are caught, and chunks **re-open**
-when newer evidence appears in the corpus. `kb-health` shows the improvement
-trend across cycles, so progress is *provable*, not asserted. Like the rest of
-the flywheel it **flags, never authors**. See `specs/038-rigorous-chunk-eval/spec.md`.
+As the KB is used, the engine turns its own weak spots into a research backlog —
+**it flags problems and routes them for human review; it never authors content or
+edits the curated knowledge base.** This is an **operator / terminal capability**
+(run from a shell, not a slash command). The fastest way to see it is the
+**[tester walkthrough → QUICKSTART](docs/QUICKSTART.md)**.
 
-**See the flywheel work (copy-paste, offline).** Forward a chunk the way the model
-would after a KB hit, then read the KB-health trend:
+| Layer | What it does | Run |
+|---|---|---|
+| **Source audit** | Verifies every identifier the KB returns; logs fabricated/retracted (FALSE) and engine-found-but-missing (MISSING) sources. `/research` does this automatically when the MCP is connected. | `audit-mcp --review` |
+| **Chunk flywheel** | Judges each returned chunk across **retrieval / citation / accuracy / completeness** and routes gaps into the `mc-knowledge-base` backlog (a regenerable `RESEARCH_BACKLOG.live.md`; the curated `RESEARCH_BACKLOG.md` is never touched). | `audit-mcp --chunks` · `route-gaps` |
+| **Rigorous + recursive** | Classifies each chunk **correct / incomplete / outdated / weakly-cited / misleading** (full rigor stack + a claim-vs-corpus check against live literature), and records every verdict to a per-chunk **ledger** so fixes are confirmed (`resolved`), regressions caught, and chunks **re-open** when newer evidence appears. | `audit-mcp --chunks --rigorous` · `kb-health` |
+
+A false `misleading` is the worst error, so the corpus-contradiction check sits
+behind a high bar and only runs on chunks on-topic for the query. Specs:
+`037-chunk-flywheel`, `038-rigorous-chunk-eval`.
+
+**See it work (copy-paste, offline):**
 
 ```bash
 python3 -m cannavec_science audit-mcp --query "CBD for epilepsy" --rigorous --no-corpus \
   --chunks '[{"doc_id":"cbd_epilepsy","h2_anchor":"Efficacy","text":"CBD is a miracle cure that is 100% effective and completely safe for all seizures.","citations":[]}]'
-#  → ✗ MISLEADING (high) · cbd_epilepsy#Efficacy [hash] — banned_misleading + uncited_claim …
+#  → ✗ MISLEADING — banned_misleading + uncited_claim …
 python3 -m cannavec_science kb-health        # status distribution + improvement trend
 ```
 
@@ -235,12 +228,20 @@ especially whether you could **trust** the output:
 **[open an issue →](https://github.com/Jack-MillionMedia/Cannavec-Science-Plugin/issues/new/choose)**
 (early-user feedback, or a bug report for a crash or a wrong/fabricated citation).
 
-## Next logical improvements
+## Documentation
 
-1. **Semantic / vector retrieval** over the live corpus — ground the AI in *conceptually* relevant sources, not just keyword matches (the biggest grounding upgrade).
-2. **One-command pipeline** — pipe `discover` → `verify` → `GRADE` into a single citation-lossless artifact (today it's three steps).
-3. **Expert feedback loop** — let a researcher mark a candidate relevant/irrelevant and feed it back into ranking.
-4. **Continuous retraction surveillance** — re-check cited PMIDs on a schedule so a paper retracted *after* it was used is flagged proactively.
+| Guide | For |
+|---|---|
+| **[QUICKSTART.md](docs/QUICKSTART.md)** | Install + try everything end-to-end in ~10 minutes (the verification spine *and* the flywheel). Start here. |
+| **[MCP_SETUP.md](docs/MCP_SETUP.md)** | Connect the Cannavec MCP — Claude Code, Claude Desktop, Claude.ai (web) + troubleshooting. |
+| **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)** | What's intentional vs. a real rough edge — read before filing. |
+
+## Roadmap
+
+1. **One-command pipeline** — pipe `discover` → `verify` → `GRADE` into a single citation-lossless artifact (today it's three steps).
+2. **Continuous retraction surveillance** — re-check cited PMIDs on a schedule so a paper retracted *after* it was used is flagged proactively.
+3. **Per-chunk corpus topics** — build the rigorous claim-vs-corpus comparison per chunk (today it uses one corpus per query, and skips off-topic chunks to stay honest).
+4. **Wire the optional model adjudicator** — the identifier-free, quote-gated `review_claim` backend seam exists; turning it on would sharpen claim-vs-corpus on compound claims.
 5. **Widen curated coverage** — close the tracked coverage gaps the evals already surface.
 
 ---

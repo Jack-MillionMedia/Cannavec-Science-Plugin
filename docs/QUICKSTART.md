@@ -86,7 +86,15 @@ Expect honest refusals for indications outside the curated set — that is
 ## 5. The KB-improvement flywheel (the new part)
 
 The flywheel evaluates the chunks the KB returned and turns problems into a
-research backlog. Run it offline first (deterministic, no network):
+research backlog. It's an **operator/terminal** feature (not a slash command). To
+watch the *recursive* part (the `kb-health` trend across cycles), point
+`CANNAVEC_HOME` at a writable dir and run an eval twice:
+
+```bash
+export CANNAVEC_HOME=~/cannavec-test     # a writable home so the ledger persists
+```
+
+Run it offline first (deterministic, no network):
 
 ```bash
 # Forward a chunk the way the model would after a KB hit, and classify it

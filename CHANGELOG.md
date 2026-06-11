@@ -1,5 +1,40 @@
 # Changelog
 
+## Chunk-level KB flywheel + rigorous evaluation + recursive learning (v0.8.0, 2026-06)
+
+Turn live KB usage into a knowledge-base research backlog, and judge each chunk
+rigorously against the credible literature. Offline suite 2,262 → 2,468 tests; the
+verification core stays stdlib-only, Python ≥ 3.9, offline-deterministic.
+
+- **Chunk flywheel (spec 037).** `audit-mcp --chunks` captures per-chunk
+  retrieval / citation / accuracy / completeness issues from what the live KB
+  returned — the model forwards the chunks; deterministic code computes every
+  verdict (§II). `route-gaps` folds the queue into the `mc-knowledge-base`
+  research backlog (gitignored per-area JSON + a regenerable
+  `RESEARCH_BACKLOG.live.md`) and never touches the curated `RESEARCH_BACKLOG.md`
+  (Agent Boundary Rule: flags, never authors).
+- **Rigorous evaluation + recursive learning (spec 038).** `audit-mcp --chunks
+  --rigorous` classifies each chunk as correct / incomplete / outdated /
+  weakly-cited / misleading via the full rigor stack (`rigor_checks` +
+  `reporting_rigor` + `banned_patterns` + grade-vs-wording) plus a claim-vs-corpus
+  comparison (live discovery → GRADE-tiered sources). A false `misleading` is the
+  worst error, so corpus contradiction is gated behind a strong-majority +
+  minimum-sample bar **and** only runs on chunks on-topic for the query (an
+  off-topic chunk is never judged against a query-built corpus). A per-chunk
+  ledger makes the loop recursive (resolved / regressed / reopened-on-newer-
+  evidence); `kb-health` shows the improvement trend; `eval-feedback` suppresses
+  confirmed false positives. The verdict is deterministic; the only model seam
+  (`review_claim` backend) is off by default (no API key required).
+- **New operator CLI:** `audit-mcp --chunks [--rigorous]`, `route-gaps`,
+  `kb-health`, `eval-feedback`. The five slash commands are unchanged.
+- **Production + UX fixes.** Fixed the MCP-connect empty-`Bearer` trap (export the
+  key first); a no-NCBI-key hint on slow live `verify`/`discover`; `setup --show`
+  now exits 0 (informational); the cross-source synthesis no longer mislabels an
+  off-topic indication (an epilepsy query no longer reports "addresses cannabis
+  for autism"); honest ledger-write message when `CANNAVEC_HOME` is read-only.
+- **New docs:** `docs/MCP_SETUP.md` (Claude Code / Desktop / web), `docs/QUICKSTART.md`
+  (tester walkthrough), and expanded `docs/KNOWN_LIMITATIONS.md`.
+
 ## Production-readiness pass (2026-06)
 
 A first-principles audit drove a four-phase cleanup; every change is test-first

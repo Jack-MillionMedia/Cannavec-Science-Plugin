@@ -17,6 +17,10 @@ def _src(ident, year, tier, has_abstract=True):
     return ce.CorpusSource(ident, year, tier, 3, has_abstract)
 
 
+class _Verdict:
+    def __init__(self, name): self.verdict = type("V", (), {"name": name})()
+
+
 class NegatedDirectionIsNotMisleading(unittest.TestCase):
     """A factually correct chunk phrased with a negated direction must NOT be
     labelled misleading just because claimed_direction first-matches the negated
@@ -96,6 +100,38 @@ class CorrectRequiresNoContradiction(unittest.TestCase):
             verifier=lambda ident, idt: type("V", (), {"verdict": type("X", (), {"name": "MATCH"})()})(),
             retraction_fn=lambda **k: None)
         self.assertNotEqual(v.status, ce.CORRECT)
+
+
+class OffTopicChunkSkipsBatchCorpus(unittest.TestCase):
+    """The corpus is assembled ONCE from the batch query; a chunk that is OFF-topic
+    for that query must NOT be judged against it — that manufactured a live false
+    MISLEADING on a TRUE seizure chunk evaluated under a CYP3A4/clobazam query."""
+
+    def _verify_match(self, ident, id_type):
+        return _Verdict("MATCH")
+
+    def test_off_topic_chunk_not_misleading_against_query_corpus(self):
+        ch = Chunk("d", "S", "CBD reduces seizure frequency in Dravet syndrome.",
+                   citations=("a", "b", "c"))
+        corpus = [_src("a", 2020, 1), _src("b", 2021, 1), _src("c", 2022, 1)]
+        abstracts = {k: "Cannabidiol inhibits CYP3A4 in liver microsomes." for k in "abc"}
+        v = ce.evaluate_chunk(
+            ch, "Does CBD inhibit CYP3A4 and interact with clobazam?",
+            corpus_fn=lambda t: corpus, abstract_fn=lambda i: abstracts.get(i, ""),
+            verifier=self._verify_match, retraction_fn=lambda **k: None)
+        self.assertNotEqual(v.status, ce.MISLEADING)
+        self.assertFalse(v.evidence_checked)        # corpus skipped (chunk off-topic)
+
+    def test_on_topic_chunk_still_corpus_checked(self):
+        ch = Chunk("d", "S", "CBD inhibits CYP3A4 and interacts with clobazam "
+                             "metabolism in the liver.", citations=("a", "b", "c"))
+        corpus = [_src("a", 2020, 1), _src("b", 2021, 1), _src("c", 2022, 1)]
+        abstracts = {k: "Cannabidiol inhibits CYP3A4." for k in "abc"}
+        v = ce.evaluate_chunk(
+            ch, "Does CBD inhibit CYP3A4 and interact with clobazam?",
+            corpus_fn=lambda t: corpus, abstract_fn=lambda i: abstracts.get(i, ""),
+            verifier=self._verify_match, retraction_fn=lambda **k: None)
+        self.assertTrue(v.evidence_checked)          # on-topic → corpus ran
 
 
 class ReopenOnlyOnNewerYear(unittest.TestCase):

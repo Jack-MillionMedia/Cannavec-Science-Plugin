@@ -33,6 +33,11 @@ filing — and please *do* report anything in the "report these" list.
 
 ### The KB-improvement flywheel (`audit-mcp` / `route-gaps` / `kb-health`)
 
+- **It is an operator / terminal feature, not a slash command.** A user typing only
+  the five slash commands won't see `--rigorous` / `kb-health` / `route-gaps`
+  directly (the `/research` command does run the *source-level* audit automatically
+  when the MCP is connected). To exercise the chunk flywheel, run it from a shell —
+  see **[QUICKSTART.md](QUICKSTART.md)** §5.
 - **It flags, it never authors.** The flywheel *detects* weak, missing, outdated,
   incorrect, or misleading chunks and *routes* them to a research backlog for
   human review. It never writes clinical content, never sets or upgrades an

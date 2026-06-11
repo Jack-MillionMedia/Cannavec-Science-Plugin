@@ -49,7 +49,9 @@ class SetupCommand(unittest.TestCase):
             out = io.StringIO()
             with redirect_stdout(out):
                 rc = cli._cmd_setup(argparse.Namespace(show=True))
-            self.assertEqual(rc, 1)                       # missing key → non-zero
+            # --show is a successful informational status display even with no keys —
+            # exit 0 (a non-zero code misled first-timers into thinking it failed).
+            self.assertEqual(rc, 0)
             self.assertIn("NOT set", out.getvalue())
 
             cli._cmd_setup(argparse.Namespace(

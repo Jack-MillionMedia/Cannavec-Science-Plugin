@@ -189,6 +189,8 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     except DiscoverRefused as exc:
         print(f"[refused] {exc}", file=sys.stderr)
         return 2
+    if not getattr(args, "json", False):
+        _ncbi_key_notice()
 
     default_sources = "pubmed,chembl,ctgov"
     sources = {s.strip() for s in (args.sources or default_sources).split(",")}
@@ -772,6 +774,20 @@ def _verify_uniprot_render(ident: str, args: argparse.Namespace) -> int:
     return 0
 
 
+def _ncbi_key_notice() -> None:
+    """One-line stderr hint when no NCBI key is configured, so a first-timer knows a
+    multi-second live lookup is the slower public-rate-limit path, not a freeze.
+    Suppressed for --json so machine output stays clean."""
+    try:
+        from cannavec_science import _creds
+        if not _creds.resolve("NCBI_API_KEY"):
+            print("[note] No NCBI key set — live PubMed lookups use the public rate "
+                  "limit and can take several seconds. Add a free key for speed: "
+                  "python3 -m cannavec_science setup", file=sys.stderr)
+    except Exception:  # noqa: BLE001 — a hint must never break the command
+        pass
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
     """Verify a single identifier (spec 003 US5 / FR-005).
 
@@ -782,6 +798,8 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     ident = args.identifier.strip()
     kind = _classify_identifier(ident)
     if kind == "PMID":
+        if not getattr(args, "json", False):
+            _ncbi_key_notice()
         return _verify_pmid_render(ident, args)
     if kind == "DOI":
         return _verify_doi_render(ident, args)
@@ -1259,7 +1277,7 @@ def _cmd_setup(args: argparse.Namespace) -> int:
               f"({'present' if path.exists() else 'not created yet'})")
         if not (ncbi or cannavec):
             print("\nRun `python3 -m cannavec_science setup` to add your keys.")
-        return 0 if (ncbi or cannavec) else 1
+        return 0          # --show is an informational status display; it succeeded
 
     ncbi_key = (getattr(args, "ncbi_key", None) or "").strip()
     email = (getattr(args, "ncbi_email", None) or "").strip()

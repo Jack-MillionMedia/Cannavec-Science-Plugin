@@ -108,5 +108,32 @@ class TestSynthesisSubjectNotStopword(unittest.TestCase):
         self.assertIn("novel", block.prose.lower())
 
 
+class TestSynthesisDoesNotMislabelOffTopicIndication(unittest.TestCase):
+    """An epilepsy query that surfaces an off-topic CT.gov trial (e.g. autism) must
+    NOT have the synthesis confidently say it "addresses cannabis for autism" — a
+    confident wrong-indication label is the exact ungrounded failure to prevent."""
+
+    def test_offtopic_indication_is_not_attributed_to_the_query(self):
+        rows = {
+            "pubmed": [{"pmid": "1",
+                        "title": "Cannabidiol reduces seizures in Dravet epilepsy",
+                        "_condition": "epilepsy"}],
+            "ctgov": [{"nct_id": "NCT1",
+                       "title": "Cannabis oil in Autism Spectrum Disorder",
+                       "_condition": "autism"}],
+        }
+        block = synthesize("CBD epilepsy", rows)
+        self.assertNotIn("autism", block.prose.lower())
+
+    def test_on_topic_indication_still_named(self):
+        rows = {
+            "pubmed": [{"pmid": "1",
+                        "title": "Cannabidiol for epilepsy",
+                        "_condition": "epilepsy"}],
+        }
+        block = synthesize("CBD epilepsy", rows)
+        self.assertIn("epilepsy", block.prose.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

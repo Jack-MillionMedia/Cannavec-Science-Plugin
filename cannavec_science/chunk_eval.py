@@ -545,10 +545,16 @@ def evaluate_chunk(
     issues.extend(detect_prose_rigor_issues(ch))
     issues.extend(detect_freshness_issue(ch, meta=meta, now=now))
 
-    # claim vs corpus
+    # claim vs corpus — ONLY when the chunk is on-topic for the query the corpus was
+    # built from. The corpus is assembled once from the batch query; a chunk that is
+    # off-topic for that query (flagged weak_relevance above) is not what the corpus
+    # is about, so comparing it would manufacture false contradictions — the cardinal
+    # "false MISLEADING on a correct chunk" error. Off-topic chunks still get every
+    # other check (prose rigor, citation, freshness) and the weak_relevance flag.
     corr = None
     evidence_checked = False
-    if corpus_fn is not None:
+    chunk_on_topic = r is None
+    if corpus_fn is not None and chunk_on_topic:
         c_issues, corr = detect_corpus_issues(ch, topic, corpus_fn=corpus_fn,
                                               abstract_fn=abstract_fn, backend=backend)
         issues.extend(c_issues)
