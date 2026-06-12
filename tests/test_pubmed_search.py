@@ -467,22 +467,37 @@ class TestDistillQuery(unittest.TestCase):
 
 
 def _url_aware_esearch(empty_body: str, recovered_body: str):
-    """esearch stub that returns nothing for the primary (sort=date) query but the
-    recovered ids for the broadened best-match (sort=relevance) retry."""
+    """esearch stub that returns nothing for the primary query but the recovered ids
+    for the broadened retry — discriminated by the cannabis context that only the
+    broadened OR term carries."""
     calls: list[str] = []
 
     def f(url: str) -> str:
         calls.append(url)
-        return recovered_body if "sort=relevance" in url else empty_body
+        return recovered_body if "cannabis" in url.lower() else empty_body
 
     f.calls = calls  # type: ignore[attr-defined]
     return f
 
 
+class TestBestMatchRanking(unittest.TestCase):
+    """The primary PubMed query uses Best Match (sort=relevance) — NCBI's own
+    relevance ranking — so landmark on-target papers surface instead of recency
+    order (sort=date buried the Devinsky 2017 NEJM Dravet RCT; Best Match surfaces it)."""
+
+    def test_primary_query_uses_best_match_not_date(self) -> None:
+        esearch = _stub_fetcher(_make_esearch_fixture(["1"]))
+        esummary = _stub_fetcher(_make_esummary_fixture([_make_esummary_record("1")]))
+        s = PubMedSearcher(esearch_fetcher=esearch, esummary_fetcher=esummary)
+        s.search("cannabidiol Dravet syndrome seizure", max_results=5)
+        self.assertIn("sort=relevance", esearch.calls[0])
+        self.assertNotIn("sort=date", esearch.calls[0])
+
+
 class TestZeroResultBroadening(unittest.TestCase):
     """A conjunctive query that ANDs to 0 must still recall relevant papers: retry
-    ONCE with the distinctive terms OR'd + cannabis-scoped, best-match ranked. So
-    discover raises papers for any cannabis-science question, not 0."""
+    ONCE with the distinctive terms OR'd + cannabis-scoped. So discover raises papers
+    for any cannabis-science question, not 0."""
 
     def test_zero_result_query_broadens_and_recovers(self) -> None:
         esearch = _url_aware_esearch(
@@ -496,8 +511,8 @@ class TestZeroResultBroadening(unittest.TestCase):
         hits = s.search("terpene myrcene sedation entourage effect", max_results=5)
         self.assertEqual(len(hits), 2)                       # recovered, not 0
         self.assertEqual(len(esearch.calls), 2)              # primary + one broadened retry
-        self.assertNotIn("sort=relevance", esearch.calls[0])  # primary unchanged (date)
-        self.assertIn("sort=relevance", esearch.calls[1])     # retry is best-match
+        self.assertNotIn("cannabis", esearch.calls[0].lower())  # primary = the raw query
+        self.assertIn("cannabis", esearch.calls[1].lower())     # retry = cannabis-scoped OR
 
     def test_no_broaden_when_primary_returns_results(self) -> None:
         esearch = _stub_fetcher(_make_esearch_fixture(["10000001"]))

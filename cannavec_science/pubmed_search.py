@@ -276,11 +276,8 @@ class PubMedSearcher:
             broadened = _broaden_pubmed_term(distill_query(query))
             if broadened:
                 try:
-                    # Best-match ranking on the broadened OR query so the most
-                    # relevant cannabis papers surface (an OR query sorted by date
-                    # would just return the most recent loosely-related ones).
-                    body = self._esearch_fetcher(self._esearch_url_for_term(
-                        broadened, since, capped, sort="relevance"))
+                    body = self._esearch_fetcher(
+                        self._esearch_url_for_term(broadened, since, capped))
                     pmids = self._parse_esearch_idlist(body)
                 except Exception:  # noqa: BLE001 — the broadening retry is best-effort
                     pmids = ()
@@ -318,8 +315,12 @@ class PubMedSearcher:
         return self._esearch_url_for_term(distill_query(query), since, retmax)
 
     def _esearch_url_for_term(
-        self, term: str, since: Optional[str], retmax: int, *, sort: str = "date"
+        self, term: str, since: Optional[str], retmax: int, *, sort: str = "relevance"
     ) -> str:
+        # Best Match (sort=relevance) — NCBI's own relevance ranking, the same one
+        # the PubMed/PMC web UI shows. It surfaces the landmark on-target papers a
+        # recency sort buries (e.g. the Devinsky 2017 NEJM Dravet RCT, PMID 28538134),
+        # and the downstream ranker re-applies a recency factor so currency is kept.
         parts = [
             _PUBMED_ESEARCH_URL,
             f"&term={urllib.parse.quote(term)}",
