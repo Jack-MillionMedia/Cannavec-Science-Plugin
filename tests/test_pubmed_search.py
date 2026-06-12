@@ -466,5 +466,63 @@ class TestDistillQuery(unittest.TestCase):
             self.assertIn(kw, term)
 
 
+def _url_aware_esearch(empty_body: str, recovered_body: str):
+    """esearch stub that returns nothing for the primary (sort=date) query but the
+    recovered ids for the broadened best-match (sort=relevance) retry."""
+    calls: list[str] = []
+
+    def f(url: str) -> str:
+        calls.append(url)
+        return recovered_body if "sort=relevance" in url else empty_body
+
+    f.calls = calls  # type: ignore[attr-defined]
+    return f
+
+
+class TestZeroResultBroadening(unittest.TestCase):
+    """A conjunctive query that ANDs to 0 must still recall relevant papers: retry
+    ONCE with the distinctive terms OR'd + cannabis-scoped, best-match ranked. So
+    discover raises papers for any cannabis-science question, not 0."""
+
+    def test_zero_result_query_broadens_and_recovers(self) -> None:
+        esearch = _url_aware_esearch(
+            _make_esearch_fixture([], count=0),
+            _make_esearch_fixture(["20000001", "20000002"]))
+        esummary = _stub_fetcher(_make_esummary_fixture([
+            _make_esummary_record("20000001", title="Constituents of Cannabis sativa"),
+            _make_esummary_record("20000002", title="Myrcene terpene pharmacology"),
+        ]))
+        s = PubMedSearcher(esearch_fetcher=esearch, esummary_fetcher=esummary)
+        hits = s.search("terpene myrcene sedation entourage effect", max_results=5)
+        self.assertEqual(len(hits), 2)                       # recovered, not 0
+        self.assertEqual(len(esearch.calls), 2)              # primary + one broadened retry
+        self.assertNotIn("sort=relevance", esearch.calls[0])  # primary unchanged (date)
+        self.assertIn("sort=relevance", esearch.calls[1])     # retry is best-match
+
+    def test_no_broaden_when_primary_returns_results(self) -> None:
+        esearch = _stub_fetcher(_make_esearch_fixture(["10000001"]))
+        esummary = _stub_fetcher(_make_esummary_fixture([
+            _make_esummary_record("10000001")]))
+        s = PubMedSearcher(esearch_fetcher=esearch, esummary_fetcher=esummary)
+        s.search("terpene myrcene sedation entourage effect", max_results=5)
+        self.assertEqual(len(esearch.calls), 1)              # purely additive — no retry
+
+    def test_single_distinctive_term_is_not_broadened(self) -> None:
+        esearch = _stub_fetcher(_make_esearch_fixture([], count=0))
+        esummary = _stub_fetcher(_make_esummary_fixture([]))
+        s = PubMedSearcher(esearch_fetcher=esearch, esummary_fetcher=esummary)
+        hits = s.search("myrcene", max_results=5)
+        self.assertEqual(hits, ())                           # nothing to broaden
+        self.assertEqual(len(esearch.calls), 1)
+
+    def test_broaden_term_builder(self) -> None:
+        from cannavec_science.pubmed_search import _broaden_pubmed_term
+        out = _broaden_pubmed_term("terpene myrcene sedation entourage effect")
+        self.assertIn("myrcene OR", out)
+        self.assertNotIn("effect", out)                      # generic filler dropped
+        self.assertIn("AND (cannabis", out)                  # cannabis-scoped recall
+        self.assertIsNone(_broaden_pubmed_term("myrcene"))   # one term → no broadening
+
+
 if __name__ == "__main__":
     unittest.main()

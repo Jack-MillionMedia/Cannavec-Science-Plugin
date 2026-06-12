@@ -139,6 +139,31 @@ class LivePubMedHit:
 # ── Suggested-grade heuristic ────────────────────────────────────────
 
 
+# Generic filler that, ANDed, over-constrains a query but adds no recall value.
+_PUBMED_FILLER = frozenset(
+    "effect effects activity study studies role use uses using analysis review "
+    "overview research data evidence based potential".split()
+)
+# Scope the broadened (OR'd) retry to cannabis so recall rises without surfacing
+# unrelated non-cannabis papers (the PubMed lane has no other cannabis filter).
+_CANNABIS_CONTEXT = (
+    "(cannabis OR cannabinoid OR cannabidiol OR tetrahydrocannabinol OR hemp "
+    "OR marijuana OR endocannabinoid)"
+)
+
+
+def _broaden_pubmed_term(term: str) -> Optional[str]:
+    """Relax an over-constrained conjunctive query so a 0-result search still
+    recalls relevant papers: OR the distinctive content terms (drop generic filler)
+    and AND a cannabis context. Returns the relaxed term, or None when there is
+    nothing meaningful to relax (≤1 distinctive term, so the AND wasn't the problem)."""
+    words = [w for w in term.split() if w]
+    distinct = [w for w in dict.fromkeys(words) if w.lower() not in _PUBMED_FILLER]
+    if len(distinct) < 2:
+        return None
+    return f"({' OR '.join(distinct)}) AND {_CANNABIS_CONTEXT}"
+
+
 def suggested_grade_for_pubtypes(pubtypes: tuple[str, ...]) -> str:
     """Map NCBI ``pubtype`` tokens to a provisional GRADE hint.
 
@@ -243,7 +268,24 @@ class PubMedSearcher:
         pmids = self._parse_esearch_idlist(body)
 
         if not pmids:
-            return ()
+            # A conjunctive query can AND to 0 even when relevant cannabis papers
+            # exist (e.g. "terpene myrcene sedation entourage effect"). Retry ONCE
+            # with the distinctive terms OR'd + cannabis-scoped — purely additive
+            # (only fires on an empty result), so it never narrows a query that
+            # already matched.
+            broadened = _broaden_pubmed_term(distill_query(query))
+            if broadened:
+                try:
+                    # Best-match ranking on the broadened OR query so the most
+                    # relevant cannabis papers surface (an OR query sorted by date
+                    # would just return the most recent loosely-related ones).
+                    body = self._esearch_fetcher(self._esearch_url_for_term(
+                        broadened, since, capped, sort="relevance"))
+                    pmids = self._parse_esearch_idlist(body)
+                except Exception:  # noqa: BLE001 — the broadening retry is best-effort
+                    pmids = ()
+            if not pmids:
+                return ()
 
         # esummary
         esummary_url = _PUBMED_ESUMMARY_URL_BULK.format(
@@ -273,12 +315,16 @@ class PubMedSearcher:
     ) -> str:
         # Distill conversational phrasing to content terms — a raw NL question
         # reaches esearch as `is[Author] AND (...)` and returns 0 hits.
-        term = distill_query(query)
+        return self._esearch_url_for_term(distill_query(query), since, retmax)
+
+    def _esearch_url_for_term(
+        self, term: str, since: Optional[str], retmax: int, *, sort: str = "date"
+    ) -> str:
         parts = [
             _PUBMED_ESEARCH_URL,
             f"&term={urllib.parse.quote(term)}",
             f"&retmax={retmax}",
-            "&sort=date",
+            f"&sort={sort}",
         ]
         if since is not None:
             # NCBI expects YYYY/MM/DD with slashes; we accept dashes
