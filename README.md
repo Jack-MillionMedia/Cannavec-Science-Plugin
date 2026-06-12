@@ -31,10 +31,14 @@ high-volume cannabis research at machine speed without sacrificing trust.
 ## See it work (90 seconds)
 
 ```bash
-# 1. Ground the AI — pull real, current primary sources live (nothing invented)
+# 1. Ground the AI — pull real, current primary sources live, ranked by relevance (NCBI Best Match)
 python3 -m cannavec_science discover "cannabidiol Dravet syndrome seizure" --sources pubmed,ctgov --max 5
+#   → the landmark evidence ranks first (all real, all verifiable):
+#       1  28538134     2017  Trial of Cannabidiol for Drug-Resistant Seizures in the Dravet Syndrome  · RCT · pubmed
+#       2  NCT02815540        Cannabidiol in Lennox-Gastaut / Dravet Syndrome (trial)                  · ctgov
+#       … + systematic reviews, consensus guidelines, and more registered trials
 
-# 2. Verify a real paper → PASS (read live from NCBI, retraction-checked)
+# 2. Verify that #1 landmark candidate → PASS (read live from NCBI, retraction-checked)
 python3 -m cannavec_science verify 28538134
 #   → Devinsky, 2017, N Engl J Med — retraction status: clean — Verdict: PASS
 
@@ -51,9 +55,9 @@ python3 -m cannavec_science rigor "CBD is non-psychoactive and cures all seizure
 #   → flags the cure claim, the "non-psychoactive CBD" misuse, and the dose with no route
 ```
 
-An ordinary AI would happily cite that retracted paper in step 3. This one
-*can't* — and every verdict is machine-readable JSON (`--json`), so an AI or a
-pipeline can gate on it.
+Step 1 ranks the field's landmark RCT first by relevance; an ordinary AI would
+then happily cite the retracted paper in step 3 — this one *can't*. And every
+verdict is machine-readable JSON (`--json`), so an AI or a pipeline can gate on it.
 
 ## How the workflow operates
 
