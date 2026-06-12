@@ -123,13 +123,36 @@ def _run_pubmed(query: str, since: Optional[str], n: int):
     return PubMedSearcher().search(query, since=since, max_results=n)
 
 
+def _ctgov_indication_fallback(query: str) -> Optional[str]:
+    """A shorter CT.gov retry term when a verbose multi-concept query over-constrains
+    CT.gov's free-text search (query.term ANDs its tokens). Use the most specific
+    recognised indication (a named syndrome over the broad family) so the relevant
+    trials are recalled; the cannabis-relevance gate then keeps it on-topic."""
+    from cannavec_science.intent import indication_terms
+    inds = indication_terms(query)
+    if not inds:
+        return None
+    return next((t for t in sorted(inds) if t != "epilepsy"), sorted(inds)[0])
+
+
 def _run_ctgov(query: str, since: Optional[str], n: int):
     from cannavec_science.ctgov_discover import CTGovSearcher
     # Per-source relevance gate: CT.gov free-text matching is broad, so a
     # cannabis-science query must not surface unrelated trials.
-    return CTGovSearcher().search(
-        query, max_results=n, cannabis_relevant_only=True
-    )
+    searcher = CTGovSearcher()
+    rows = searcher.search(query, max_results=n, cannabis_relevant_only=True)
+    if not rows:
+        # A verbose query (e.g. "delta-9-THC Lennox-Gastaut syndrome tonic-clonic
+        # seizures") ANDs to 0 trials even when relevant ones exist. Retry ONCE with
+        # the indication alone — purely additive (only fires on an empty result), so
+        # it can never broaden a query that already matched.
+        fb = _ctgov_indication_fallback(query)
+        if fb and fb.lower() != query.strip().lower():
+            try:
+                rows = searcher.search(fb, max_results=n, cannabis_relevant_only=True)
+            except Exception:  # noqa: BLE001 — fallback is best-effort; never break discovery
+                pass
+    return rows
 
 
 def _run_chembl(query: str, since: Optional[str], n: int):

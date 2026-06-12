@@ -323,7 +323,12 @@ class PubMedSearcher:
     @staticmethod
     def _record_to_hit(pmid: str, rec: dict) -> LivePubMedHit:
         title = (rec.get("title") or "").strip()
-        journal = (rec.get("source") or "").strip()
+        if not title:
+            # Book chapters (PubMed BookDocument) and some non-English records leave
+            # the normalised `title` empty and carry the real title in `booktitle` /
+            # `vernaculartitle` — fall back so a candidate is never shown blank.
+            title = (rec.get("booktitle") or rec.get("vernaculartitle") or "").strip()
+        journal = (rec.get("source") or rec.get("booktitle") or "").strip()
         year = _parse_pubmed_year(rec.get("pubdate") or "")
         authors = rec.get("authors") or []
         first_surname = ""
